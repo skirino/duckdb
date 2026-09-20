@@ -36,6 +36,8 @@ add_library_unity(
   capi_v2_value.cpp
   capi_v2_vector.cpp)
 
+target_include_directories(duckdb_main_capi_v2 PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>)
+
 set(ALL_OBJECT_FILES
     ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:duckdb_main_capi_v2>
     PARENT_SCOPE)
