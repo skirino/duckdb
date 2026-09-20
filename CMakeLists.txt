@@ -1025,6 +1025,16 @@ function(disable_target_warnings NAME)
   endif()
 endfunction()
 
+include(FetchContent)
+FetchContent_Declare(
+  Corrosion
+  GIT_REPOSITORY https://github.com/thunderseethe/corrosion
+  GIT_TAG main
+)
+FetchContent_MakeAvailable(Corrosion)
+corrosion_experimental_crubit(ahirudb)
+corrosion_import_crate(MANIFEST_PATH ahirudb/Cargo.toml)
+
 # Capture the current dir so the below function also works when included in a different project
 set(_DUCKDB_PROJECT_SRC_DIR ${PROJECT_SOURCE_DIR})
 set(_DUCKDB_PROJECT_BIN_DIR ${PROJECT_BINARY_DIR})
