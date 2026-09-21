@@ -923,6 +923,7 @@ if (NOT EXTENSION_CONFIG_BUILD)
   include_directories(third_party/vergesort)
   include_directories(third_party/yyjson/include)
   include_directories(third_party/zstd/include)
+  include_directories("${PROJECT_BINARY_DIR}/_deps/crubit-src")
 endif()
 
 # todo only regenerate ub file if one of the input files changed hack alert

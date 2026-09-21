@@ -111,7 +111,6 @@ target_link_libraries(duckdb PUBLIC ${DUCKDB_SYSTEM_LIBS})
 # to add all crubit targets to be added to `install()`.
 target_link_libraries(duckdb PUBLIC ahirudb-static)
 link_extension_libraries(duckdb PRIVATE)
-
 link_threads(duckdb PUBLIC)
 
 if(SET_DUCKDB_LIBRARY_VERSION)
