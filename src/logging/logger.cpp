@@ -7,6 +7,9 @@
 #include "duckdb/common/file_opener.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/parallel/thread_context.hpp"
+#include "duckdb/common/types/timestamp.hpp"
+
+#include "crubit/ahirudb.h"
 
 namespace duckdb {
 
@@ -73,12 +76,24 @@ bool ThreadSafeLogger::ShouldLog(const char *log_type, LogLevel log_level) {
 }
 
 void ThreadSafeLogger::WriteLogInternal(const char *log_type, LogLevel log_level, const char *log_message) {
-	manager.WriteLogEntry(Timestamp::GetCurrentTimestamp(), log_type, log_level, log_message, context);
+	// Write to C++ storage for duckdb_logs table function FIRST
+	auto timestamp = Timestamp::GetCurrentTimestamp();
+	manager.WriteLogEntry(timestamp, log_type, log_level, log_message, context);
+
+	// Call Rust logging function via a runtime function pointer to prevent LTO tail-call optimization
+	using RustLogFunc = void(*)(const int8_t*, unsigned char, const int8_t*);
+	RustLogFunc rust_log_func = []() -> RustLogFunc {
+		return &::ahirudb::logging::ahirudb_logging_write_log;
+	}();
+	rust_log_func(
+	    reinterpret_cast<const int8_t*>(log_type),
+	    static_cast<unsigned char>(log_level),
+	    reinterpret_cast<const int8_t*>(log_message)
+	);
 }
 
 void ThreadSafeLogger::Flush() {
 	manager.Flush();
-	// NOP
 }
 
 ThreadLocalLogger::ThreadLocalLogger(LogConfig &config_p, LoggingContext &context_p, LogManager &manager)
@@ -96,7 +111,20 @@ bool ThreadLocalLogger::ShouldLog(const char *log_type, LogLevel log_level) {
 }
 
 void ThreadLocalLogger::WriteLogInternal(const char *log_type, LogLevel log_level, const char *log_message) {
-	throw NotImplementedException("ThreadLocalLogger::WriteLogInternal");
+	// Write to C++ storage for duckdb_logs table function FIRST
+	auto timestamp = Timestamp::GetCurrentTimestamp();
+	manager.WriteLogEntry(timestamp, log_type, log_level, log_message, context);
+
+	// Call Rust logging function via a runtime function pointer to prevent LTO tail-call optimization
+	using RustLogFunc = void(*)(const int8_t*, unsigned char, const int8_t*);
+	RustLogFunc rust_log_func = []() -> RustLogFunc {
+		return &::ahirudb::logging::ahirudb_logging_write_log;
+	}();
+	rust_log_func(
+	    reinterpret_cast<const int8_t*>(log_type),
+	    static_cast<unsigned char>(log_level),
+	    reinterpret_cast<const int8_t*>(log_message)
+	);
 }
 
 void ThreadLocalLogger::Flush() {
@@ -125,7 +153,24 @@ void MutableLogger::UpdateConfig(LogConfig &new_config) {
 }
 
 void MutableLogger::WriteLogInternal(const char *log_type, LogLevel log_level, const char *log_message) {
-	manager.WriteLogEntry(Timestamp::GetCurrentTimestamp(), log_type, log_level, log_message, context);
+	// Write to C++ storage for duckdb_logs table function FIRST
+	auto timestamp = Timestamp::GetCurrentTimestamp();
+	manager.WriteLogEntry(timestamp, log_type, log_level, log_message, context);
+
+	// Call Rust logging function via a runtime function pointer to prevent LTO tail-call optimization
+	using RustLogFunc = void(*)(const int8_t*, unsigned char, const int8_t*);
+	RustLogFunc rust_log_func = []() -> RustLogFunc {
+		return &::ahirudb::logging::ahirudb_logging_write_log;
+	}();
+	rust_log_func(
+	    reinterpret_cast<const int8_t*>(log_type),
+	    static_cast<unsigned char>(log_level),
+	    reinterpret_cast<const int8_t*>(log_message)
+	);
+}
+
+void MutableLogger::Flush() {
+	manager.Flush();
 }
 
 bool MutableLogger::ShouldLog(const char *log_type, LogLevel log_level) {
@@ -153,10 +198,6 @@ bool MutableLogger::ShouldLog(const char *log_type, LogLevel log_level) {
 		}
 	}
 	throw InternalException("Should be unreachable (MutableLogger::ShouldLog)");
-}
-
-void MutableLogger::Flush() {
-	manager.Flush();
 }
 
 } // namespace duckdb

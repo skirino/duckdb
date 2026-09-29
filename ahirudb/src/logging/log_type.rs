@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub enum LogicalType {
     VARCHAR,
     BIGINT,
+    UBIGINT,
     TIMESTAMP_TZ,
     STRUCT(Vec<(String, LogicalType)>),
     MAP(Box<LogicalType>, Box<LogicalType>),

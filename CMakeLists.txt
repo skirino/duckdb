@@ -1036,6 +1036,24 @@ FetchContent_MakeAvailable(Corrosion)
 corrosion_experimental_crubit(ahirudb)
 corrosion_import_crate(MANIFEST_PATH ahirudb/Cargo.toml)
 
+# Custom target to generate crubit headers (workaround for crubit/corrosion not generating automatically)
+add_custom_target(generate_ahirudb_headers
+  COMMAND ${CMAKE_COMMAND} -E env
+    DYLD_LIBRARY_PATH=$ENV{DYLD_LIBRARY_PATH}:$ENV{HOME}/.rustup/toolchains/nightly-2026-09-03-aarch64-apple-darwin/lib
+    PATH=${CMAKE_BINARY_DIR}/corrosion/cargo-cpp_api_from_rust/bin:$ENV{PATH}
+    $ENV{HOME}/.rustup/toolchains/nightly-2026-09-03-aarch64-apple-darwin/bin/cargo
+    cpp_api_from_rust
+    --manifest-path ${CMAKE_SOURCE_DIR}/ahirudb/Cargo.toml
+    --target-dir ${CMAKE_BINARY_DIR}/cargo/ahirudb_9ec54
+    -- --lib --target=aarch64-apple-darwin --package ahirudb --release -- -Cdefault-linker-libraries=yes
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include
+  COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+    ${CMAKE_BINARY_DIR}/cargo/ahirudb_9ec54/aarch64-apple-darwin/release/include
+    ${CMAKE_BINARY_DIR}/include
+  COMMENT "Generating crubit headers for ahirudb"
+  VERBATIM
+)
+
 # Capture the current dir so the below function also works when included in a different project
 set(_DUCKDB_PROJECT_SRC_DIR ${PROJECT_SOURCE_DIR})
 set(_DUCKDB_PROJECT_BIN_DIR ${PROJECT_BINARY_DIR})

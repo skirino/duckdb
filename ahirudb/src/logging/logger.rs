@@ -2,8 +2,8 @@
 #![allow(nonstandard_style)]
 
 use super::{
-    LogConfig, LogLevel, LogManager, LogMode, LoggingContext, RegisteredLoggingContext,
-    current_timestamp,
+    current_timestamp, LogConfig, LogLevel, LogManager, LogMode, LoggingContext,
+    RegisteredLoggingContext,
 };
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -53,14 +53,14 @@ pub struct ThreadSafeLogger {
     config: LogConfig,
     lock: Mutex<()>,
     context: RegisteredLoggingContext,
-    manager: LogManagerRef,
+    manager: Arc<LogManager>,
 }
 
 impl ThreadSafeLogger {
     pub fn new(
         config: LogConfig,
         context: RegisteredLoggingContext,
-        manager: LogManagerRef,
+        manager: Arc<LogManager>,
     ) -> Self {
         Self {
             config,
@@ -73,7 +73,7 @@ impl ThreadSafeLogger {
     pub fn new_with_logging_context(
         config: LogConfig,
         context: LoggingContext,
-        manager: LogManagerRef,
+        manager: Arc<LogManager>,
     ) -> Self {
         let registered = RegisteredLoggingContext {
             context_id: 0,
@@ -106,10 +106,10 @@ impl Logger for ThreadSafeLogger {
         let _guard = self.lock.lock().unwrap();
         self.manager.write_log_entry(
             current_timestamp(),
-            log_level,
             log_type,
+            log_level,
             message,
-            &self.context,
+            Some(&self.context),
         );
     }
 
@@ -130,14 +130,14 @@ impl Logger for ThreadSafeLogger {
 pub struct ThreadLocalLogger {
     config: LogConfig,
     context: RegisteredLoggingContext,
-    manager: LogManagerRef,
+    manager: Arc<LogManager>,
 }
 
 impl ThreadLocalLogger {
     pub fn new(
         config: LogConfig,
         context: RegisteredLoggingContext,
-        manager: LogManagerRef,
+        manager: Arc<LogManager>,
     ) -> Self {
         Self {
             config,
@@ -149,7 +149,7 @@ impl ThreadLocalLogger {
     pub fn new_with_logging_context(
         config: LogConfig,
         context: LoggingContext,
-        manager: LogManagerRef,
+        manager: Arc<LogManager>,
     ) -> Self {
         let registered = RegisteredLoggingContext {
             context_id: 0,
@@ -181,10 +181,10 @@ impl Logger for ThreadLocalLogger {
         }
         self.manager.write_log_entry(
             current_timestamp(),
-            log_level,
             log_type,
+            log_level,
             message,
-            &self.context,
+            Some(&self.context),
         );
     }
 
@@ -209,14 +209,14 @@ pub struct MutableLogger {
     lock: Mutex<()>,
     config: LogConfig,
     context: RegisteredLoggingContext,
-    manager: LogManagerRef,
+    manager: Arc<LogManager>,
 }
 
 impl MutableLogger {
     pub fn new(
         config: LogConfig,
         context: RegisteredLoggingContext,
-        manager: LogManagerRef,
+        manager: Arc<LogManager>,
     ) -> Self {
         let enabled = AtomicBool::new(config.enabled);
         let mode = AtomicU8::new(config.mode as u8);
@@ -235,7 +235,7 @@ impl MutableLogger {
     pub fn new_with_logging_context(
         config: LogConfig,
         context: LoggingContext,
-        manager: LogManagerRef,
+        manager: Arc<LogManager>,
     ) -> Self {
         let registered = RegisteredLoggingContext {
             context_id: 0,
@@ -270,10 +270,10 @@ impl Logger for MutableLogger {
         let _guard = self.lock.lock().unwrap();
         self.manager.write_log_entry(
             current_timestamp(),
-            log_level,
             log_type,
+            log_level,
             message,
-            &self.context,
+            Some(&self.context),
         );
     }
 
@@ -304,12 +304,12 @@ impl Logger for MutableLogger {
 
 // For when logging is disabled: NOPs everything
 pub struct NopLogger {
-    _manager: LogManagerRef,
+    manager: Arc<LogManager>,
 }
 
 impl NopLogger {
-    pub fn new(manager: LogManagerRef) -> Self {
-        Self { _manager: manager }
+    pub fn new(manager: Arc<LogManager>) -> Self {
+        Self { manager }
     }
 }
 

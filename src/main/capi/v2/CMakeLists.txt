@@ -35,7 +35,7 @@ add_library_unity(
   capi_v2_statement.cpp
   capi_v2_value.cpp
   capi_v2_vector.cpp)
-
+add_dependencies(duckdb_main_capi_v2 generate_ahirudb_headers)
 target_include_directories(duckdb_main_capi_v2 PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>)
 set_target_properties(duckdb_main_capi_v2 PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 

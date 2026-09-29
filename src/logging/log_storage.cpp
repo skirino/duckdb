@@ -635,7 +635,7 @@ static void WriteLoggingContextsToChunk(DataChunk &chunk, const RegisteredLoggin
 }
 
 void BufferingLogStorage::WriteLogEntry(timestamp_t timestamp, LogLevel level, const string &log_type,
-                                        const string &log_message, const RegisteredLoggingContext &context) {
+                                         const string &log_message, const RegisteredLoggingContext &context) {
 	unique_lock<mutex> lck(lock);
 
 	auto &log_entries_buffer =

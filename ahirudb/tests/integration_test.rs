@@ -18,12 +18,12 @@ fn test_log_config_default() {
 fn test_log_config_is_consistent() {
     let mut config = LogConfig::default();
     assert!(config.is_consistent());
-
+    
     // Test DISABLE_SELECTED
     config.mode = LogMode::DISABLE_SELECTED;
     config.disabled_log_types.insert("test".to_string());
     assert!(config.is_consistent());
-
+    
     // Test ENABLE_SELECTED
     config.mode = LogMode::ENABLE_SELECTED;
     config.enabled_log_types.insert("test".to_string());
@@ -80,18 +80,18 @@ fn test_log_manager_creation() {
 
 #[test]
 fn test_thread_safe_logger() {
-    let manager = std::sync::Arc::new(LogManager::new());
+    let manager = LogManager::new();
     let config = LogConfig::default();
     let context = RegisteredLoggingContext {
         context_id: 0,
         context: LoggingContext::new(LogContextScope::CONNECTION),
     };
-
+    
     let logger = ThreadSafeLogger::new(config, context, manager);
-
+    
     // Test should_log
     assert!(!logger.should_log("test", LogLevel::LOG_INFO));
-
+    
     // Enable logging
     let mut config = LogConfig::default();
     config.enabled = true;
@@ -99,7 +99,7 @@ fn test_thread_safe_logger() {
         context_id: 0,
         context: LoggingContext::new(LogContextScope::CONNECTION),
     };
-    let logger = ThreadSafeLogger::new(config, context, std::sync::Arc::new(LogManager::new()));
+    let logger = ThreadSafeLogger::new(config, context, LogManager::new());
     assert!(logger.should_log("test", LogLevel::LOG_INFO));
     assert!(!logger.should_log("test", LogLevel::LOG_DEBUG)); // Below INFO level
 }
@@ -109,14 +109,14 @@ fn test_log_context_source() {
     struct TestSource {
         logger: ThreadSafeLogger,
     }
-
+    
     impl LogContextSource for TestSource {
         fn get_logger(&self) -> &dyn ahirudb::logging::logger::Logger {
             &self.logger
         }
     }
-
-    let manager = std::sync::Arc::new(LogManager::new());
+    
+    let manager = LogManager::new();
     let config = LogConfig::default();
     let context = RegisteredLoggingContext {
         context_id: 0,
@@ -124,6 +124,6 @@ fn test_log_context_source() {
     };
     let logger = ThreadSafeLogger::new(config, context, manager);
     let source = TestSource { logger };
-
+    
     let _ = source.get_logger();
 }

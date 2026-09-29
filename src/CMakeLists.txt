@@ -95,7 +95,7 @@ add_library(duckdb_static STATIC ${ALL_OBJECT_FILES} ${LINK_OBJECTS})
 target_link_libraries(duckdb_static PUBLIC ${DUCKDB_SYSTEM_LIBS})
 # `ahirudb-static` instead of `ahirudb` since `ahirudb` requires us
 # to add all crubit targets to be added to `install()`.
-target_link_libraries(duckdb_static PUBLIC ahirudb-static)
+target_link_libraries(duckdb_static PRIVATE ahirudb-static)
 link_threads(duckdb_static PUBLIC)
 
 #
@@ -109,7 +109,7 @@ add_library(duckdb SHARED ${ALL_OBJECT_FILES} ${LINK_OBJECTS})
 target_link_libraries(duckdb PUBLIC ${DUCKDB_SYSTEM_LIBS})
 # `ahirudb-static` instead of `ahirudb` since `ahirudb` requires us
 # to add all crubit targets to be added to `install()`.
-target_link_libraries(duckdb PUBLIC ahirudb-static)
+target_link_libraries(duckdb PRIVATE ahirudb-static)
 link_extension_libraries(duckdb PRIVATE)
 link_threads(duckdb PUBLIC)
 
