@@ -1,0 +1,27 @@
+# Directories Bazel does not need to treat as packages. Everything the build
+# compiles lives under src/, extension/{core_functions,parquet,loader},
+# third_party/ and tools/{shell,cpp,utils}.
+.github
+api_spec
+benchmark
+bazel-build
+build
+data
+duckdb_unittest_tempdir
+examples
+extension/autocomplete
+extension/delta
+extension/demo_capi
+extension/icu
+extension/json
+extension/tpcds
+extension/tpch
+real_dir
+scripts
+test
+tools/juliapkg
+tools/nodejs
+tools/odbc
+tools/pythonpkg
+tools/rpkg
+tools/shell/tests

@@ -1,0 +1,10 @@
+# Mirrors of the flags the CMake configure puts on the command line. aquery must be
+# run with --config=macos so both sides of the parity diff see the same toolchain.
+common --check_direct_dependencies=error
+
+# CMake Release: -O3 -DNDEBUG; CMAKE_CXX_STANDARD=17; the project adds
+# -Wthread-safety; -mcpu comes from CMake's native-arch detection on Apple Silicon.
+build:macos --copt=-DNDEBUG
+build:macos --cxxopt=-std=c++17
+build:macos --cxxopt=-Wthread-safety
+build:macos --cxxopt=-mcpu=apple-m1
