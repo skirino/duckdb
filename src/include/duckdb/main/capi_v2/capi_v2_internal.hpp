@@ -12,6 +12,7 @@
 #include "duckdb.hpp"
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/data_chunk.hpp"
+#include "duckdb/common/types/column/column_data_collection.hpp"
 #include "duckdb/common/types/vector.hpp"
 #include "duckdb/common/types/string_type.hpp"
 #include "duckdb/common/types/bignum.hpp"
@@ -306,6 +307,15 @@ inline auto Convert(duckdb_v2_schema_handle schema) -> CV2Schema * {
 }
 inline auto Convert(CV2Schema *schema) -> duckdb_v2_schema_handle {
 	return reinterpret_cast<duckdb_v2_schema_handle>(schema);
+}
+
+using CV2ColumnDataCollection = duckdb::ColumnDataCollection;
+
+inline auto Convert(duckdb_v2_column_data_collection_handle cdc) -> CV2ColumnDataCollection * {
+	return reinterpret_cast<CV2ColumnDataCollection *>(cdc);
+}
+inline auto Convert(CV2ColumnDataCollection *cdc) -> duckdb_v2_column_data_collection_handle {
+	return reinterpret_cast<duckdb_v2_column_data_collection_handle>(cdc);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
