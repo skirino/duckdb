@@ -32,7 +32,9 @@ def main():
         with open(path) as f:
             for line in f:
                 key, _, value = line.strip().partition(" ")
-                values.setdefault(key, value)
+                # The status script prefixes its keys so they land in the stable
+                # status file; strip it to get the macro name.
+                values.setdefault(key.removeprefix("STABLE_"), value)
     missing = [k for k in ("DUCKDB_SOURCE_ID", "DUCKDB_VERSION") if k not in values]
     if missing:
         sys.exit(f"{' and '.join(missing)} not in the workspace status; is "

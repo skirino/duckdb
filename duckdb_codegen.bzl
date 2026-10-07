@@ -154,15 +154,15 @@ VERSION_HEADER_SCRIPT = "scripts/write_version_header.py"
 
 def _version_info_header_impl(ctx):
     header = ctx.actions.declare_file(ctx.attr.out)
-    # Which of the two status files a key lands in depends on whether it is
-    # STABLE_-prefixed, and which one ctx hands over has moved between Bazel
-    # versions, so the script reads whichever has them.
+    # The status script prefixes its keys with STABLE_, so they land in the
+    # stable status file: depending on it alone rather than on both is what makes
+    # this a cache hit unless the commit moved (volatile-status.txt carries
+    # BUILD_TIMESTAMP and would re-run the stamp every build).
     ctx.actions.run_shell(
-        inputs = [ctx.file.script, ctx.info_file, ctx.version_file],
+        inputs = [ctx.file.script, ctx.info_file],
         outputs = [header],
-        command = "python3 \"$1\" \"$2\" \"$3\" -- \"$4\"",
-        arguments = [ctx.file.script.path, ctx.info_file.path,
-                     ctx.version_file.path, header.path],
+        command = "python3 \"$1\" \"$2\" -- \"$3\"",
+        arguments = [ctx.file.script.path, ctx.info_file.path, header.path],
         mnemonic = "VersionInfo",
         progress_message = "Stamping %s from the workspace status" % ctx.label,
         env = {"LC_ALL": "C"},
