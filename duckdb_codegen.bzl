@@ -148,3 +148,39 @@ fixture_tree = rule(
         "srcs": attr.label_list(allow_files = True, mandatory = True),
     },
 )
+
+WORKSPACE_STATUS_SCRIPT = "scripts/workspace_status.py"
+
+def _version_info_header_impl(ctx):
+    header = ctx.actions.declare_file(ctx.attr.out)
+    # Which of the two status files a key lands in depends on whether it is
+    # STABLE_-prefixed, and which one ctx hands over has moved between Bazel
+    # versions, so the script reads whichever has them.
+    ctx.actions.run_shell(
+        inputs = [ctx.file.script, ctx.info_file, ctx.version_file],
+        outputs = [header],
+        command = "python3 \"$1\" --write-header \"$2\" \"$3\" \"$4\"",
+        arguments = [ctx.file.script.path, ctx.info_file.path,
+                     ctx.version_file.path, header.path],
+        mnemonic = "VersionInfo",
+        progress_message = "Stamping %s from the workspace status" % ctx.label,
+        env = {"LC_ALL": "C"},
+    )
+
+    return [DefaultInfo(files = depset([header]))]
+
+# A header carrying the values of the workspace status script, which is where a
+# build gets the checkout's commit and version without those appearing on the
+# command line: they would otherwise sit in the defines of every compile action,
+# so a new commit would rebuild the world. CMake has the same tension and solves
+# it the other way, re-running its configure instead.
+version_info_header = rule(
+    implementation = _version_info_header_impl,
+    attrs = {
+        "out": attr.string(mandatory = True),
+        "script": attr.label(
+            default = Label("//:scripts/workspace_status.py"),
+            allow_single_file = True,
+        ),
+    },
+)

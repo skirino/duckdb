@@ -10,7 +10,9 @@ Toolchain-level flags (-std, -Wthread-safety, -mcpu, -DNDEBUG) live in
 """
 
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library", "cc_test")
-load(":duckdb_codegen.bzl", "extension_codegen_files", "fixture_tree")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load(":duckdb_codegen.bzl", "extension_codegen_files", "fixture_tree",
+      "version_info_header")
 
 # --- configure_file() equivalents -------------------------------------------
 
@@ -306,12 +308,10 @@ cc_library(
 
 cc_library(
     name = "duckdb_func_table_version",
-    srcs = glob(
-        [
-            "src/function/table/version/*.cpp",
-        ],
-        allow_empty = True,
-    ),
+    srcs = [
+        "src/function/table/version/pragma_version.cpp",
+        ":generated_version_info",
+    ],
     local_defines = [
         "DUCKDB",
         "DUCKDB_BUILD_LIBRARY",
@@ -321,9 +321,8 @@ cc_library(
         "DUCKDB_MAJOR_VERSION=2",
         "DUCKDB_MINOR_VERSION=0",
         "DUCKDB_PATCH_VERSION=0",
-        "DUCKDB_SOURCE_ID=\\\"\\\"\\\"9b2ffe4a81\\\"\\\"\\\"",
-        "DUCKDB_VERSION=\\\"\\\"\\\"v2.0.0-dev84469\\\"\\\"\\\"",
         "GENERATED_EXTENSION_HEADERS=1",
+        "DUCKDB_VERSION_INFO_HEADER=1",
     ],
     copts = [
         "-fPIC",
@@ -576,7 +575,7 @@ cc_library(
     ),
     local_defines = [
         "DUCKDB_BUILD_LIBRARY",
-        "EXT_VERSION_CORE_FUNCTIONS=\\\"9b2ffe4a81\\\"",
+        "EXT_VERSION_CORE_FUNCTIONS=\\\"8f7cc6d27a\\\"",
     ],
     copts = [
         "-fPIC",
@@ -717,7 +716,7 @@ cc_library(
     ),
     local_defines = [
         "DUCKDB_BUILD_LIBRARY",
-        "EXT_VERSION_PARQUET=\\\"9b2ffe4a81\\\"",
+        "EXT_VERSION_PARQUET=\\\"8f7cc6d27a\\\"",
     ],
     copts = [
         "-fPIC",
@@ -1926,7 +1925,7 @@ cc_library(
         "DUCKDB_BUILD_LIBRARY",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=9b2ffe4a81",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=8f7cc6d27a",
         "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo",
         "DUCKDB_EXTENSION_PARQUET_LINKED=1",
@@ -1993,9 +1992,9 @@ cc_shared_library(
 
 genrule(
     name = "cpp_api_demo_loadable_extension_file",
-    srcs = [":cpp_api_demo_loadable_extension", ":duckdb_platform_out", "scripts/append_extension_metadata.py"],
+    srcs = [":cpp_api_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
     outs = ["test/extension/cpp_api_demo.duckdb_extension"],
-    cmd = "cp $(location :cpp_api_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version \"9b2ffe4a81\" --extension-version \"default-version\" --abi \"C_STRUCT_UNSTABLE\"",
+    cmd = "cp $(location :cpp_api_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"C_STRUCT_UNSTABLE\"",
 )
 
 cc_library(
@@ -2024,7 +2023,7 @@ cc_library(
         "DUCKDB_BUILD_LIBRARY",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=9b2ffe4a81",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=8f7cc6d27a",
         "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo_fail",
         "DUCKDB_EXTENSION_PARQUET_LINKED=1",
@@ -2091,9 +2090,9 @@ cc_shared_library(
 
 genrule(
     name = "cpp_api_demo_fail_loadable_extension_file",
-    srcs = [":cpp_api_demo_fail_loadable_extension", ":duckdb_platform_out", "scripts/append_extension_metadata.py"],
+    srcs = [":cpp_api_demo_fail_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
     outs = ["test/extension/cpp_api_demo_fail.duckdb_extension"],
-    cmd = "cp $(location :cpp_api_demo_fail_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version \"9b2ffe4a81\" --extension-version \"default-version\" --abi \"C_STRUCT_UNSTABLE\"",
+    cmd = "cp $(location :cpp_api_demo_fail_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"C_STRUCT_UNSTABLE\"",
 )
 
 cc_library(
@@ -2185,9 +2184,9 @@ cc_shared_library(
 
 genrule(
     name = "explicit_extension_schema_loadable_extension_file",
-    srcs = [":explicit_extension_schema_loadable_extension", ":duckdb_platform_out", "scripts/append_extension_metadata.py"],
+    srcs = [":explicit_extension_schema_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
     outs = ["test/extension/explicit_extension_schema.duckdb_extension"],
-    cmd = "cp $(location :explicit_extension_schema_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version \"9b2ffe4a81\" --extension-version \"default-version\" --abi \"CPP\"",
+    cmd = "cp $(location :explicit_extension_schema_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
 )
 
 cc_library(
@@ -2279,9 +2278,9 @@ cc_shared_library(
 
 genrule(
     name = "explicit_extension_schema_alias_loadable_extension_file",
-    srcs = [":explicit_extension_schema_alias_loadable_extension", ":duckdb_platform_out", "scripts/append_extension_metadata.py"],
+    srcs = [":explicit_extension_schema_alias_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
     outs = ["test/extension/explicit_extension_schema_alias.duckdb_extension"],
-    cmd = "cp $(location :explicit_extension_schema_alias_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version \"9b2ffe4a81\" --extension-version \"default-version\" --abi \"CPP\"",
+    cmd = "cp $(location :explicit_extension_schema_alias_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
 )
 
 cc_library(
@@ -2373,9 +2372,9 @@ cc_shared_library(
 
 genrule(
     name = "loadable_extension_demo_loadable_extension_file",
-    srcs = [":loadable_extension_demo_loadable_extension", ":duckdb_platform_out", "scripts/append_extension_metadata.py"],
+    srcs = [":loadable_extension_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
     outs = ["test/extension/loadable_extension_demo.duckdb_extension"],
-    cmd = "cp $(location :loadable_extension_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version \"9b2ffe4a81\" --extension-version \"default-version\" --abi \"CPP\"",
+    cmd = "cp $(location :loadable_extension_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
 )
 
 cc_library(
@@ -2467,9 +2466,9 @@ cc_shared_library(
 
 genrule(
     name = "loadable_extension_demo_double_loadable_extension_file",
-    srcs = [":loadable_extension_demo_double_loadable_extension", ":duckdb_platform_out", "scripts/append_extension_metadata.py"],
+    srcs = [":loadable_extension_demo_double_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
     outs = ["test/extension/loadable_extension_demo_double.duckdb_extension"],
-    cmd = "cp $(location :loadable_extension_demo_double_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version \"9b2ffe4a81\" --extension-version \"default-version\" --abi \"CPP\"",
+    cmd = "cp $(location :loadable_extension_demo_double_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
 )
 
 cc_library(
@@ -2561,9 +2560,9 @@ cc_shared_library(
 
 genrule(
     name = "loadable_extension_optimizer_demo_loadable_extension_file",
-    srcs = [":loadable_extension_optimizer_demo_loadable_extension", ":duckdb_platform_out", "scripts/append_extension_metadata.py"],
+    srcs = [":loadable_extension_optimizer_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
     outs = ["test/extension/loadable_extension_optimizer_demo.duckdb_extension"],
-    cmd = "cp $(location :loadable_extension_optimizer_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version \"9b2ffe4a81\" --extension-version \"default-version\" --abi \"CPP\"",
+    cmd = "cp $(location :loadable_extension_optimizer_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
 )
 
 cc_library(
@@ -2655,9 +2654,9 @@ cc_shared_library(
 
 genrule(
     name = "loadable_grammar_extension_demo_loadable_extension_file",
-    srcs = [":loadable_grammar_extension_demo_loadable_extension", ":duckdb_platform_out", "scripts/append_extension_metadata.py"],
+    srcs = [":loadable_grammar_extension_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
     outs = ["test/extension/loadable_grammar_extension_demo.duckdb_extension"],
-    cmd = "cp $(location :loadable_grammar_extension_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version \"9b2ffe4a81\" --extension-version \"default-version\" --abi \"CPP\"",
+    cmd = "cp $(location :loadable_grammar_extension_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
 )
 
 # --- one cc_test per directory -------------------------------------------
@@ -14661,6 +14660,26 @@ cc_test(
         ":loadable_extension_demo_double_loadable_extension_file",
         ":loadable_extension_optimizer_demo_loadable_extension_file",
         ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
+# The engine's own commit and version, stamped per build from the workspace
+# status rather than baked into the defines: those appear in every compile
+# action, so a new commit would rebuild the world.
+version_info_header(
+    name = "generated_version_info",
+    out = "generated_version_info.hpp",
+)
+
+sh_test(
+    name = "version_info_test",
+    size = "small",
+    srcs = ["scripts/check_source_id.py"],
+    data = [
+        ":generated_version_info",
+        ".git/HEAD",
+        ".git/refs/heads/bazel",
+        "BUILD.bazel",
     ],
 )
 

@@ -3,6 +3,10 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/common/platform.hpp"
 
+#ifdef DUCKDB_VERSION_INFO_HEADER
+#include "generated_version_info.hpp"
+#endif
+
 #include <cstdint>
 
 namespace duckdb {

@@ -7,12 +7,18 @@ loader reads the last ParsedExtensionMetaData::FOOTER_SIZE bytes of the file as
 eight 32-byte fields followed by a 256-byte signature, so the eight fields are
 written back to front, NUL-padded, with META1 last.
 
+The version comes from the file the engine itself reads (--version-from), so the
+two cannot disagree about which build this is.
+
 Usage: append_extension_metadata.py <file> --platform <platform>
-         --version <duckdb version> --extension-version <version>
-         --abi <abi type>
+         (--version <duckdb version> | --version-from <generated header>)
+         --extension-version <version> --abi <abi type>
 """
 import argparse
+import re
 import sys
+
+SOURCE_ID = re.compile(r'#define DUCKDB_SOURCE_ID "(?P<value>[^"]+)"')
 
 # Section id (1) + section length as LEB128 (2) + name length as LEB128 (1) +
 # name (16) + payload length as LEB128 (2) + 8 * 32 fields + a 256 byte
@@ -42,11 +48,19 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("extension")
     parser.add_argument("--platform", required=True)
-    parser.add_argument("--version", required=True)
+    version = parser.add_mutually_exclusive_group(required=True)
+    version.add_argument("--version")
+    version.add_argument("--version-from")
     parser.add_argument("--extension-version", default="")
     parser.add_argument("--abi", required=True)
     args = parser.parse_args()
 
+    if args.version_from:
+        with open(args.version_from) as f:
+            match = SOURCE_ID.search(f.read())
+        if not match:
+            sys.exit(f"no DUCKDB_SOURCE_ID in {args.version_from}")
+        args.version = match.group("value")
     with open(args.platform, "rb") as f:
         platform = f.read().decode().strip("\n")
 
