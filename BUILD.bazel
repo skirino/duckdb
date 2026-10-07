@@ -292,7 +292,7 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + ["EXT_VERSION_CORE_FUNCTIONS=\\\"cd03ff0dc7\\\""]),
+    local_defines = sorted(DUCKDB_DEFINES + ["EXT_VERSION_CORE_FUNCTIONS=\\\"d0762c503b\\\""]),
     includes = DUCKDB_INCLUDES,
 )
 
@@ -366,7 +366,7 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + ["EXT_VERSION_PARQUET=\\\"cd03ff0dc7\\\""]),
+    local_defines = sorted(DUCKDB_DEFINES + ["EXT_VERSION_PARQUET=\\\"d0762c503b\\\""]),
     includes = sorted(DUCKDB_INCLUDES + [
         "third_party/brotli/include",
         "third_party/lz4",
@@ -841,7 +841,7 @@ duckdb_library(
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=cd03ff0dc7",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=d0762c503b",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo",
     ]),
     includes = sorted(DUCKDB_INCLUDES + [
@@ -896,7 +896,7 @@ duckdb_library(
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=cd03ff0dc7",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=d0762c503b",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo_fail",
     ]),
     includes = sorted(DUCKDB_INCLUDES + [
@@ -7746,6 +7746,7 @@ sh_test(
 # with CMake's `unittest` executable for the parity check.
 cc_test(
     name = "unittest",
+    tags = ["manual"],
     srcs = glob(["test/*.cpp"], allow_empty = True),
     local_defines = [
         "DUCKDB_BUILD_LIBRARY",

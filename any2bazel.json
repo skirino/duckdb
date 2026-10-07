@@ -1,6 +1,6 @@
 {
   "bazel_args": [
-    "mnemonic(\"CppCompile|ObjcCompile|CppLink|CppArchive\", //...)",
+    "mnemonic(\"CppCompile|ObjcCompile|CppLink|CppArchive\", //... + //:unittest)",
     "--features=-compiler_param_file",
     "--features=-linker_param_file",
     "--config=macos",
