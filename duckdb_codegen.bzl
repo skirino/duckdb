@@ -96,3 +96,55 @@ extension_codegen_files = rule(
         ),
     },
 )
+
+def _fixture_tree_impl(ctx):
+    """Copy the fixture trees into declared directory outputs.
+
+    Bazel ships a target's data as a runfiles tree of symlinks, and DuckDB's `**`
+    crawl skips symlinks (LocalFileSystem::CrawlDirectoryLevel), so a test that
+    globs `dir/**` finds nothing under such a tree. The affected shards get real
+    copies at the same paths instead, which is what CMake gives them. Symlinks
+    inside the fixtures stay symlinks: one test asserts they are not crawled.
+    """
+    outputs = [ctx.actions.declare_directory(tree) for tree in ctx.attr.trees]
+    dest = outputs[0].dirname
+    commands = []
+    for tree, output in zip(ctx.attr.trees, outputs):
+        # `tree/.` copies the contents, since Bazel has already created the
+        # declared output directory.
+        commands.append("mkdir -p {dest}/{tree} && cp -R {tree}/. {dest}/{tree}/".format(
+            tree = tree,
+            dest = dest,
+        ))
+        # Bazel rejects a tree artifact that holds a dangling symlink, and one
+        # fixture ships one on purpose. Materialize its target: what that test
+        # needs is a symlink the crawl must skip, not an unresolvable one.
+        materialize = "cd {dest}/{tree} && find . -type l | " + \
+            "while IFS= read -r link; do " + \
+            'if [ ! -e "$link" ]; then ' + \
+            'mkdir -p "$(dirname "$link")/$(readlink "$link")"; fi; ' + \
+            "done"
+        commands.append(materialize.format(tree = tree, dest = dest))
+
+    # Un sandboxed: a sandbox materializes every input as a symlink, and cp -R
+    # would copy those instead of the file contents, which is the whole point
+    # here. Unsandboxed, the sources are the checked out files.
+    ctx.actions.run_shell(
+        inputs = ctx.files.srcs,
+        outputs = outputs,
+        command = " && ".join(commands),
+        execution_requirements = {"no-sandbox": "1"},
+        mnemonic = "FixtureTree",
+        progress_message = "Copying the fixture tree of %s" % ctx.label,
+        env = {"LC_ALL": "C"},
+    )
+
+    return [DefaultInfo(files = depset(outputs))]
+
+fixture_tree = rule(
+    implementation = _fixture_tree_impl,
+    attrs = {
+        "trees": attr.string_list(mandatory = True),
+        "srcs": attr.label_list(allow_files = True, mandatory = True),
+    },
+)

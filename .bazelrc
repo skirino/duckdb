@@ -2,6 +2,11 @@
 # run with --config=macos so both sides of the parity diff see the same toolchain.
 common --check_direct_dependencies=error
 
+# The tests reach outside their runfiles (a temp dir under the checkout, a fixed
+# socket) in ways the sandbox does not model, so they run unsandboxed like the
+# CMake build does.
+test --spawn_strategy=local
+
 # CMake Release: -O3 -DNDEBUG; CMAKE_CXX_STANDARD=17; the project adds
 # -Wthread-safety; -mcpu comes from CMake's native-arch detection on Apple Silicon.
 build:macos --copt=-DNDEBUG

@@ -8,6 +8,7 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/limits.hpp"
 #include "duckdb/common/local_file_system.hpp"
+#include "duckdb/common/multi_file/multi_file_list.hpp"
 #include "duckdb/main/database_file_opener.hpp"
 #include "duckdb/main/extension_helper.hpp"
 

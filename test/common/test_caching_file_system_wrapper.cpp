@@ -1,6 +1,7 @@
 #include "catch.hpp"
 #include "caching_test_utils.hpp"
 #include "duckdb/common/mutex.hpp"
+#include "duckdb/common/multi_file/multi_file_list.hpp"
 #include "duckdb/common/opener_file_system.hpp"
 #include "duckdb/common/thread_annotation.hpp"
 #include "duckdb/common/vector.hpp"
