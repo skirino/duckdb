@@ -2807,6 +2807,7 @@ cc_library(
 cc_test(
     name = "unittest_api_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -2942,12 +2943,53 @@ cc_library(
 cc_test(
     name = "unittest_api_adbc_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
         "~third_party/sqllogictest/*",
     ],
     size = "large",
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = [
+        ":unittest_harness",
+        ":test_cpp_api_adbc",
+        ":test_cpp_arrow",
+    ],
+    data = glob(
+        [
+            "test/**",
+            "benchmark/aoc24/**",
+            "benchmark/recursive_cte/**",
+            "data/**",
+            "third_party/**",
+        ],
+        allow_empty = True,
+    ) + [
+        ":cpp_api_demo_loadable_extension_file",
+        ":cpp_api_demo_fail_loadable_extension_file",
+        ":explicit_extension_schema_loadable_extension_file",
+        ":explicit_extension_schema_alias_loadable_extension_file",
+        ":loadable_extension_demo_loadable_extension_file",
+        ":loadable_extension_demo_double_loadable_extension_file",
+        ":loadable_extension_optimizer_demo_loadable_extension_file",
+        ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
+cc_test(
+    name = "unittest_api_adbc_cpp_slow_test",
+    args = [
+        "[.]",
+        "~*.test",
+        "~*.test_slow",
+        "~*.test_coverage",
+        "~third_party/sqllogictest/*",
+    ],
+    size = "small",
     linkopts = [
         "-Wl,-search_paths_first",
         "-Wl,-headerpad_max_install_names",
@@ -3039,6 +3081,7 @@ cc_library(
 cc_test(
     name = "unittest_api_capi_v1_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -3174,6 +3217,7 @@ cc_library(
 cc_test(
     name = "unittest_api_capi_v2_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -3309,6 +3353,7 @@ cc_library(
 cc_test(
     name = "unittest_appender_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -3444,6 +3489,7 @@ cc_library(
 cc_test(
     name = "unittest_arrow_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -3579,6 +3625,46 @@ cc_library(
 cc_test(
     name = "unittest_catalog_cpp_test",
     args = [
+        "~[.]",
+        "~*.test",
+        "~*.test_slow",
+        "~*.test_coverage",
+        "~third_party/sqllogictest/*",
+    ],
+    size = "small",
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = [
+        ":unittest_harness",
+        ":test_cpp_catalog",
+    ],
+    data = glob(
+        [
+            "test/**",
+            "benchmark/aoc24/**",
+            "benchmark/recursive_cte/**",
+            "data/**",
+            "third_party/**",
+        ],
+        allow_empty = True,
+    ) + [
+        ":cpp_api_demo_loadable_extension_file",
+        ":cpp_api_demo_fail_loadable_extension_file",
+        ":explicit_extension_schema_loadable_extension_file",
+        ":explicit_extension_schema_alias_loadable_extension_file",
+        ":loadable_extension_demo_loadable_extension_file",
+        ":loadable_extension_demo_double_loadable_extension_file",
+        ":loadable_extension_optimizer_demo_loadable_extension_file",
+        ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
+cc_test(
+    name = "unittest_catalog_cpp_slow_test",
+    args = [
+        "[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -3724,6 +3810,7 @@ cc_test(
 cc_test(
     name = "unittest_common_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -3863,12 +3950,52 @@ cc_library(
 cc_test(
     name = "unittest_cpp_api_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
         "~third_party/sqllogictest/*",
     ],
     size = "large",
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = [
+        ":unittest_harness",
+        ":test_cpp_cpp_api",
+    ],
+    data = glob(
+        [
+            "test/**",
+            "benchmark/aoc24/**",
+            "benchmark/recursive_cte/**",
+            "data/**",
+            "third_party/**",
+        ],
+        allow_empty = True,
+    ) + [
+        ":cpp_api_demo_loadable_extension_file",
+        ":cpp_api_demo_fail_loadable_extension_file",
+        ":explicit_extension_schema_loadable_extension_file",
+        ":explicit_extension_schema_alias_loadable_extension_file",
+        ":loadable_extension_demo_loadable_extension_file",
+        ":loadable_extension_demo_double_loadable_extension_file",
+        ":loadable_extension_optimizer_demo_loadable_extension_file",
+        ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
+cc_test(
+    name = "unittest_cpp_api_cpp_slow_test",
+    args = [
+        "[.]",
+        "~*.test",
+        "~*.test_slow",
+        "~*.test_coverage",
+        "~third_party/sqllogictest/*",
+    ],
+    size = "small",
     linkopts = [
         "-Wl,-search_paths_first",
         "-Wl,-headerpad_max_install_names",
@@ -4007,6 +4134,46 @@ cc_library(
 cc_test(
     name = "unittest_encryption_cpp_test",
     args = [
+        "~[.]",
+        "~*.test",
+        "~*.test_slow",
+        "~*.test_coverage",
+        "~third_party/sqllogictest/*",
+    ],
+    size = "small",
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = [
+        ":unittest_harness",
+        ":test_cpp_encryption",
+    ],
+    data = glob(
+        [
+            "test/**",
+            "benchmark/aoc24/**",
+            "benchmark/recursive_cte/**",
+            "data/**",
+            "third_party/**",
+        ],
+        allow_empty = True,
+    ) + [
+        ":cpp_api_demo_loadable_extension_file",
+        ":cpp_api_demo_fail_loadable_extension_file",
+        ":explicit_extension_schema_loadable_extension_file",
+        ":explicit_extension_schema_alias_loadable_extension_file",
+        ":loadable_extension_demo_loadable_extension_file",
+        ":loadable_extension_demo_double_loadable_extension_file",
+        ":loadable_extension_optimizer_demo_loadable_extension_file",
+        ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
+cc_test(
+    name = "unittest_encryption_cpp_slow_test",
+    args = [
+        "[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -5024,6 +5191,7 @@ cc_test(
 cc_test(
     name = "unittest_logging_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -5161,6 +5329,46 @@ cc_library(
 cc_test(
     name = "unittest_mbedtls_cpp_test",
     args = [
+        "~[.]",
+        "~*.test",
+        "~*.test_slow",
+        "~*.test_coverage",
+        "~third_party/sqllogictest/*",
+    ],
+    size = "small",
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = [
+        ":unittest_harness",
+        ":test_cpp_mbedtls",
+    ],
+    data = glob(
+        [
+            "test/**",
+            "benchmark/aoc24/**",
+            "benchmark/recursive_cte/**",
+            "data/**",
+            "third_party/**",
+        ],
+        allow_empty = True,
+    ) + [
+        ":cpp_api_demo_loadable_extension_file",
+        ":cpp_api_demo_fail_loadable_extension_file",
+        ":explicit_extension_schema_loadable_extension_file",
+        ":explicit_extension_schema_alias_loadable_extension_file",
+        ":loadable_extension_demo_loadable_extension_file",
+        ":loadable_extension_demo_double_loadable_extension_file",
+        ":loadable_extension_optimizer_demo_loadable_extension_file",
+        ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
+cc_test(
+    name = "unittest_mbedtls_cpp_slow_test",
+    args = [
+        "[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -5257,6 +5465,46 @@ cc_library(
 cc_test(
     name = "unittest_memoryleak_cpp_test",
     args = [
+        "~[.]",
+        "~*.test",
+        "~*.test_slow",
+        "~*.test_coverage",
+        "~third_party/sqllogictest/*",
+    ],
+    size = "small",
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = [
+        ":unittest_harness",
+        ":test_cpp_memoryleak",
+    ],
+    data = glob(
+        [
+            "test/**",
+            "benchmark/aoc24/**",
+            "benchmark/recursive_cte/**",
+            "data/**",
+            "third_party/**",
+        ],
+        allow_empty = True,
+    ) + [
+        ":cpp_api_demo_loadable_extension_file",
+        ":cpp_api_demo_fail_loadable_extension_file",
+        ":explicit_extension_schema_loadable_extension_file",
+        ":explicit_extension_schema_alias_loadable_extension_file",
+        ":loadable_extension_demo_loadable_extension_file",
+        ":loadable_extension_demo_double_loadable_extension_file",
+        ":loadable_extension_optimizer_demo_loadable_extension_file",
+        ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
+cc_test(
+    name = "unittest_memoryleak_cpp_slow_test",
+    args = [
+        "[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -5453,6 +5701,7 @@ cc_test(
 cc_test(
     name = "unittest_optimizer_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -6227,6 +6476,46 @@ cc_library(
 cc_test(
     name = "unittest_ossfuzz_cpp_test",
     args = [
+        "~[.]",
+        "~*.test",
+        "~*.test_slow",
+        "~*.test_coverage",
+        "~third_party/sqllogictest/*",
+    ],
+    size = "small",
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = [
+        ":unittest_harness",
+        ":test_cpp_ossfuzz",
+    ],
+    data = glob(
+        [
+            "test/**",
+            "benchmark/aoc24/**",
+            "benchmark/recursive_cte/**",
+            "data/**",
+            "third_party/**",
+        ],
+        allow_empty = True,
+    ) + [
+        ":cpp_api_demo_loadable_extension_file",
+        ":cpp_api_demo_fail_loadable_extension_file",
+        ":explicit_extension_schema_loadable_extension_file",
+        ":explicit_extension_schema_alias_loadable_extension_file",
+        ":loadable_extension_demo_loadable_extension_file",
+        ":loadable_extension_demo_double_loadable_extension_file",
+        ":loadable_extension_optimizer_demo_loadable_extension_file",
+        ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
+cc_test(
+    name = "unittest_ossfuzz_cpp_slow_test",
+    args = [
+        "[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -6567,6 +6856,7 @@ cc_library(
 cc_test(
     name = "unittest_persistence_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -6798,6 +7088,7 @@ cc_library(
 cc_test(
     name = "unittest_secrets_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -6933,6 +7224,46 @@ cc_library(
 cc_test(
     name = "unittest_serialize_cpp_test",
     args = [
+        "~[.]",
+        "~*.test",
+        "~*.test_slow",
+        "~*.test_coverage",
+        "~third_party/sqllogictest/*",
+    ],
+    size = "small",
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = [
+        ":unittest_harness",
+        ":test_cpp_serialize",
+    ],
+    data = glob(
+        [
+            "test/**",
+            "benchmark/aoc24/**",
+            "benchmark/recursive_cte/**",
+            "data/**",
+            "third_party/**",
+        ],
+        allow_empty = True,
+    ) + [
+        ":cpp_api_demo_loadable_extension_file",
+        ":cpp_api_demo_fail_loadable_extension_file",
+        ":explicit_extension_schema_loadable_extension_file",
+        ":explicit_extension_schema_alias_loadable_extension_file",
+        ":loadable_extension_demo_loadable_extension_file",
+        ":loadable_extension_demo_double_loadable_extension_file",
+        ":loadable_extension_optimizer_demo_loadable_extension_file",
+        ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
+cc_test(
+    name = "unittest_serialize_cpp_slow_test",
+    args = [
+        "[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -8938,6 +9269,7 @@ cc_test(
 cc_test(
     name = "unittest_sql_filter_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -9175,6 +9507,7 @@ cc_library(
 cc_test(
     name = "unittest_sql_function_table_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -9508,6 +9841,7 @@ cc_test(
 cc_test(
     name = "unittest_sql_index_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -10819,6 +11153,7 @@ cc_library(
 cc_test(
     name = "unittest_sql_parallelism_interquery_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -11298,6 +11633,7 @@ cc_test(
 cc_test(
     name = "unittest_sql_pivot_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -12365,6 +12701,7 @@ cc_test(
 cc_test(
     name = "unittest_sql_storage_cpp_test",
     args = [
+        "~[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
@@ -12504,6 +12841,46 @@ cc_library(
 cc_test(
     name = "unittest_sql_storage_catalog_cpp_test",
     args = [
+        "~[.]",
+        "~*.test",
+        "~*.test_slow",
+        "~*.test_coverage",
+        "~third_party/sqllogictest/*",
+    ],
+    size = "small",
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = [
+        ":unittest_harness",
+        ":test_cpp_sql_storage_catalog",
+    ],
+    data = glob(
+        [
+            "test/**",
+            "benchmark/aoc24/**",
+            "benchmark/recursive_cte/**",
+            "data/**",
+            "third_party/**",
+        ],
+        allow_empty = True,
+    ) + [
+        ":cpp_api_demo_loadable_extension_file",
+        ":cpp_api_demo_fail_loadable_extension_file",
+        ":explicit_extension_schema_loadable_extension_file",
+        ":explicit_extension_schema_alias_loadable_extension_file",
+        ":loadable_extension_demo_loadable_extension_file",
+        ":loadable_extension_demo_double_loadable_extension_file",
+        ":loadable_extension_optimizer_demo_loadable_extension_file",
+        ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
+cc_test(
+    name = "unittest_sql_storage_catalog_cpp_slow_test",
+    args = [
+        "[.]",
         "~*.test",
         "~*.test_slow",
         "~*.test_coverage",
