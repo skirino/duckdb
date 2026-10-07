@@ -14,10 +14,7 @@ test --spawn_strategy=local
 
 # CMake Release: -O3 -DNDEBUG; CMAKE_CXX_STANDARD=17; the project adds
 # -Wthread-safety; -mcpu comes from CMake's native-arch detection on Apple Silicon.
-build --copt=-DNDEBUG
-build --cxxopt=-std=c++17
-build --cxxopt=-Wthread-safety
-build --cxxopt=-mcpu=apple-m1
-
-# With non-optimized build we encounter stack exhaustion in some test.
-common --compilation_mode=opt
+build:macos --copt=-DNDEBUG
+build:macos --cxxopt=-std=c++17
+build:macos --cxxopt=-Wthread-safety
+build:macos --cxxopt=-mcpu=apple-m1
