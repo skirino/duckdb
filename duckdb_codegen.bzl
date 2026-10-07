@@ -150,6 +150,7 @@ fixture_tree = rule(
 )
 
 WORKSPACE_STATUS_SCRIPT = "scripts/workspace_status.sh"
+VERSION_HEADER_SCRIPT = "scripts/write_version_header.py"
 
 def _version_info_header_impl(ctx):
     header = ctx.actions.declare_file(ctx.attr.out)
@@ -159,7 +160,7 @@ def _version_info_header_impl(ctx):
     ctx.actions.run_shell(
         inputs = [ctx.file.script, ctx.info_file, ctx.version_file],
         outputs = [header],
-        command = "\"$1\" --write-header \"$2\" \"$3\" \"$4\"",
+        command = "python3 \"$1\" \"$2\" \"$3\" -- \"$4\"",
         arguments = [ctx.file.script.path, ctx.info_file.path,
                      ctx.version_file.path, header.path],
         mnemonic = "VersionInfo",
@@ -179,7 +180,7 @@ version_info_header = rule(
     attrs = {
         "out": attr.string(mandatory = True),
         "script": attr.label(
-            default = Label("//:" + WORKSPACE_STATUS_SCRIPT),
+            default = Label("//:" + VERSION_HEADER_SCRIPT),
             allow_single_file = True,
         ),
     },

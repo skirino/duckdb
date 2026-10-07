@@ -575,7 +575,7 @@ cc_library(
     ),
     local_defines = [
         "DUCKDB_BUILD_LIBRARY",
-        "EXT_VERSION_CORE_FUNCTIONS=\\\"db4306862a\\\"",
+        "EXT_VERSION_CORE_FUNCTIONS=\\\"80060a10b1\\\"",
     ],
     copts = [
         "-fPIC",
@@ -716,7 +716,7 @@ cc_library(
     ),
     local_defines = [
         "DUCKDB_BUILD_LIBRARY",
-        "EXT_VERSION_PARQUET=\\\"db4306862a\\\"",
+        "EXT_VERSION_PARQUET=\\\"80060a10b1\\\"",
     ],
     copts = [
         "-fPIC",
@@ -1925,7 +1925,7 @@ cc_library(
         "DUCKDB_BUILD_LIBRARY",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=db4306862a",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=80060a10b1",
         "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo",
         "DUCKDB_EXTENSION_PARQUET_LINKED=1",
@@ -2023,7 +2023,7 @@ cc_library(
         "DUCKDB_BUILD_LIBRARY",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=db4306862a",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=80060a10b1",
         "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo_fail",
         "DUCKDB_EXTENSION_PARQUET_LINKED=1",
