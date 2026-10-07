@@ -5,7 +5,7 @@ common --check_direct_dependencies=error
 # Once per build: the checkout's commit and version, handed to rules through
 # ctx.info_file. The engine reads them from a generated header rather than the
 # command line, where they would land in every compile action's defines.
-common --workspace_status_command=scripts/workspace_status.py
+common --workspace_status_command=scripts/workspace_status.sh
 
 # The tests reach outside their runfiles (a temp dir under the checkout, a fixed
 # socket) in ways the sandbox does not model, so they run unsandboxed like the
