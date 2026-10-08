@@ -6,8 +6,16 @@ common --check_direct_dependencies=error
 
 # Once per build: the checkout's commit and version, handed to rules through
 # ctx.info_file. The engine reads them from a generated header rather than the
-# command line, where they would land in every compile action's defines.
+# command line, where they would land in every compile action's defines. Only a
+# stamped build reads this file; see --//:stamp_version below.
 common --workspace_status_command=scripts/workspace_status.sh
+
+# Off by default, so committing re-runs nothing: the value can only reach a
+# binary through a relink, and that relinks all 226 test executables, which then
+# all re-run. Unstamped the header carries fixed placeholders that satisfy every
+# assertion in the suite. `build --//:stamp_version` for a build whose binaries
+# name the commit they came from.
+build --//:stamp_version=false
 
 # The tests reach outside their runfiles (a temp dir under the checkout, a fixed
 # socket) in ways the sandbox does not model, so they run unsandboxed like the

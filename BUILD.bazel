@@ -9,6 +9,7 @@ Toolchain-level flags (-std, -Wthread-safety, -mcpu, -DNDEBUG) live in
 .bazelrc under --config=macos, mirroring the CMake Release configure.
 """
 
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library", "cc_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":duckdb_build_config.bzl", "DUCKDB_DEFINES", "DUCKDB_INCLUDES",
@@ -3673,10 +3674,23 @@ cc_test(
     ],
 )
 
-# The engine's own commit and version, stamped per build from the workspace
-# status rather than baked into the defines: those appear in every compile
-# action, so a new commit would rebuild the world.
+# The engine's own commit and version, which reach it through a header rather than
+# the defines, where a new commit would rebuild the world.
+bool_flag(
+    name = "stamp_version",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "stamp_version_enabled",
+    flag_values = {"//:stamp_version": "true"},
+)
+
 version_info_header(
     name = "generated_version_info",
     out = "generated_version_info.hpp",
+    stamp = select({
+        ":stamp_version_enabled": True,
+        "//conditions:default": False,
+    }),
 )

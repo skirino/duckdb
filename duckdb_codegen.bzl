@@ -151,34 +151,63 @@ fixture_tree = rule(
 
 WORKSPACE_STATUS_SCRIPT = "scripts/workspace_status.sh"
 VERSION_HEADER_SCRIPT = "scripts/write_version_header.py"
+VERSION_DEFAULTS = "scripts/version_defaults.hpp"
 
 def _version_info_header_impl(ctx):
     header = ctx.actions.declare_file(ctx.attr.out)
-    # The status script prefixes its keys with STABLE_, so they land in the
-    # stable status file: depending on it alone rather than on both is what makes
-    # this a cache hit unless the commit moved (volatile-status.txt carries
-    # BUILD_TIMESTAMP and would re-run the stamp every build).
+    # Stamped, the values are the workspace status script's; unstamped, they are
+    # the checked-in defaults. Both branches write the same header name, so
+    # nothing downstream has to know which one ran.
+    #
+    # The unstamped branch's inputs are fixed files, so its output is fixed too:
+    # no action in the build then depends on the commit, and building after one
+    # is a cache hit. That is the whole point, because the value cannot reach a
+    # binary any other way than a relink -- and the 226 test executables that
+    # link it would all re-run.
+    if ctx.attr.stamp:
+        # The status script prefixes its keys with STABLE_, so they land in the
+        # stable status file: depending on it alone rather than on both is what
+        # makes this a cache hit unless the commit moved (volatile-status.txt
+        # carries BUILD_TIMESTAMP and would re-run the stamp every build).
+        source = ctx.info_file
+        inputs = [ctx.file.script, source]
+        command = "python3 \"$1\" \"$2\" -- \"$3\""
+        arguments = [ctx.file.script.path, source.path, header.path]
+    else:
+        source = ctx.file.defaults
+        inputs = [source]
+        command = "cp \"$1\" \"$2\""
+        arguments = [source.path, header.path]
     ctx.actions.run_shell(
-        inputs = [ctx.file.script, ctx.info_file],
+        inputs = inputs,
         outputs = [header],
-        command = "python3 \"$1\" \"$2\" -- \"$3\"",
-        arguments = [ctx.file.script.path, ctx.info_file.path, header.path],
+        command = command,
+        arguments = arguments,
         mnemonic = "VersionInfo",
-        progress_message = "Stamping %s from the workspace status" % ctx.label,
+        progress_message = "Writing %s from %s" % (ctx.label, source.basename),
         env = {"LC_ALL": "C"},
     )
 
     return [DefaultInfo(files = depset([header]))]
 
-# A header carrying the values of the workspace status script, which is where a
-# build gets the checkout's commit and version without those appearing on the
-# command line: they would otherwise sit in the defines of every compile action,
-# so a new commit would rebuild the world. CMake has the same tension and solves
-# it the other way, re-running its configure instead.
+# A header carrying the values the workspace status script reports, which is where
+# a stamped build gets the checkout's commit and version without those appearing
+# on the command line: they would otherwise sit in the defines of every compile
+# action, so a new commit would rebuild the world. CMake has the same tension and
+# solves it the other way, re-running its configure instead.
+#
+# Stamping is opt-in, because even isolated this way the header feeds a link of
+# every binary that reports a version. Unstamped it is a copy of VERSION_DEFAULTS
+# and committing costs nothing.
 version_info_header = rule(
     implementation = _version_info_header_impl,
     attrs = {
         "out": attr.string(mandatory = True),
+        "stamp": attr.bool(default = False),
+        "defaults": attr.label(
+            default = Label("//:" + VERSION_DEFAULTS),
+            allow_single_file = True,
+        ),
         "script": attr.label(
             default = Label("//:" + VERSION_HEADER_SCRIPT),
             allow_single_file = True,
