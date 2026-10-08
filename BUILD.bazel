@@ -1377,7 +1377,7 @@ subdirectory_test(
 subdirectory_test(
     name = "api_adbc_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
-    size = "small",
+    size = "medium",
     deps = [":unittest_harness", ":test_cpp_api_adbc", ":test_cpp_arrow"],
 )
 
