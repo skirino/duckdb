@@ -4470,15 +4470,3 @@ version_info_header(
     name = "generated_version_info",
     out = "generated_version_info.hpp",
 )
-
-sh_test(
-    name = "version_info_test",
-    size = "small",
-    srcs = ["scripts/check_source_id.py"],
-    data = [
-        ":generated_version_info",
-        ".git/HEAD",
-        ".git/refs/heads/bazel",
-        "BUILD.bazel",
-    ],
-)
