@@ -102,7 +102,7 @@ def _fixture_tree_impl(ctx):
 
     Bazel ships a target's data as a runfiles tree of symlinks, and DuckDB's `**`
     crawl skips symlinks (LocalFileSystem::CrawlDirectoryLevel), so a test that
-    globs `dir/**` finds nothing under such a tree. The affected shards get real
+    globs `dir/**` finds nothing under such a tree. The affected targets get real
     copies at the same paths instead, which is what CMake gives them. Symlinks
     inside the fixtures stay symlinks: one test asserts they are not crawled.
     """

@@ -2,15 +2,15 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 
 """Macros for the generated unittest targets.
 
-The unittest shards are mechanical: one sqllogictest list per directory and speed
-class, and one cc_test per directory and speed class with the same link flags and
-the same fixture tree. Spelling that out 225 times is what made BUILD.bazel grow
-past 14k lines, so it lives here instead.
+The unittest targets are mechanical: one sqllogictest list per test subdirectory
+and speed class, and one cc_test per subdirectory and speed class with the same
+link flags and the same fixture tree. Spelling that out 225 times is what made
+BUILD.bazel grow past 14k lines, so it lives here instead.
 """
 
-# The trees every shard ships, as CMake's unittest sees them: the tests include
+# The trees every target ships, as CMake's unittest sees them: the tests include
 # fixtures from other directories by path (a .test_template in test/sql/tpch, the
-# CSVs under test/sakila/data), so each shard ships all of them. BUILD.bazel turns
+# CSVs under test/sakila/data), so each target ships all of them. BUILD.bazel turns
 # this into a single filegroup, so the glob is expanded once.
 TEST_DATA_GLOBS = [
     "test/**",
@@ -20,15 +20,15 @@ TEST_DATA_GLOBS = [
     "third_party/**",
 ]
 
-# The same list for a shard that takes data/ as a real copy (see FIXTURE_TREES):
+# The same list for a target that takes data/ as a real copy (see FIXTURE_TREES):
 # it cannot also glob data/**, or the two would claim the same paths.
 TEST_DATA_GLOBS_WITHOUT_FIXTURES = [g for g in TEST_DATA_GLOBS if not g.startswith("data/")]
 
-# The top-level trees a shard copies instead of symlinking, when its corpus globs
+# The top-level trees a target copies instead of symlinking, when its corpus globs
 # `dir/**`: DuckDB's crawl skips symlinks (LocalFileSystem::CrawlDirectoryLevel).
 FIXTURE_TREES = ["data"]
 
-SHARD_LINKOPTS = [
+TEST_LINKOPTS = [
     "-Wl,-search_paths_first",
     "-Wl,-headerpad_max_install_names",
 ]
@@ -51,13 +51,13 @@ def sql_logic_test_list(name, globs, kind):
         cmd = 'for f in $(SRCS); do case "$$f" in %s) echo "$$f";; esac; done > $@' % SQL_LOGIC_SUFFIXES[kind],
     )
 
-def shard_test(name, args, size, data, deps = ["//:unittest_harness"]):
-    """One unittest shard: a directory's tests, and only that directory's."""
+def subdirectory_test(name, args, size, data, deps = ["//:unittest_harness"]):
+    """One test subdirectory's tests, and only that subdirectory's."""
     cc_test(
         name = name,
         args = args,
         size = size,
-        linkopts = SHARD_LINKOPTS,
+        linkopts = TEST_LINKOPTS,
         deps = deps,
         data = data,
     )

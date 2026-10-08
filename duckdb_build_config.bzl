@@ -39,10 +39,6 @@ DUCKDB_INCLUDES = [
 
 # What the test libraries add: the Catch2 and test helper headers.
 DUCKDB_TEST_INCLUDES = [
-    "codegen",
-    "extension",
-    "extension/core_functions/include",
-    "extension/parquet/include",
     "test/extension/debug_fs/include",
     "test/include",
     "third_party/catch",
@@ -52,15 +48,15 @@ DUCKDB_TEST_INCLUDES = [
 
 # The defines every library carries, beyond what .bazelrc passes.
 DUCKDB_DEFINES = [
+    "DUCKDB_MAJOR_VERSION=2",
     "DUCKDB",
     "DUCKDB_BUILD_LIBRARY",
     "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-    "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-    "DUCKDB_MAIN_LIBRARY",
-    "DUCKDB_MAJOR_VERSION=2",
-    "DUCKDB_MINOR_VERSION=0",
-    "DUCKDB_PATCH_VERSION=0",
     "GENERATED_EXTENSION_HEADERS=1",
+    "DUCKDB_PATCH_VERSION=0",
+    "DUCKDB_MAIN_LIBRARY",
+    "DUCKDB_MINOR_VERSION=0",
+    "DUCKDB_EXTENSION_PARQUET_LINKED=1",
 ]
 
 # -fPIC is Bazel's spelling of CMake's POSITION_INDEPENDENT_CODE property.

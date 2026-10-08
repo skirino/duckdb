@@ -16,7 +16,8 @@ load(":duckdb_build_config.bzl", "DUCKDB_DEFINES", "DUCKDB_INCLUDES",
 load(":duckdb_codegen.bzl", "extension_codegen_files", "fixture_tree",
       "version_info_header")
 load(":duckdb_test.bzl", "FIXTURE_TREES", "TEST_DATA_GLOBS",
-      "TEST_DATA_GLOBS_WITHOUT_FIXTURES", "shard_test", "sql_logic_test_list")
+      "TEST_DATA_GLOBS_WITHOUT_FIXTURES", "subdirectory_test",
+      "sql_logic_test_list")
 
 # --- configure_file() equivalents -------------------------------------------
 
@@ -774,7 +775,7 @@ cc_binary(
     deps = [":duckdb_static"],
 )
 
-# The test harness every shard links: Catch2's main, the helpers and the
+# The test harness every target links: Catch2's main, the helpers and the
 # sqllogictest engine. The engine statically loads DebugFsExtension, so the
 # extension libraries are here too, exactly as CMake's `unittest` does.
 duckdb_library(
@@ -782,13 +783,7 @@ duckdb_library(
     srcs = glob(["test/*.cpp"], allow_empty = True),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_ROOT_DIRECTORY=\\\".\\\"", "DUCKDB_UNITTEST_CRASH_STACKTRACE"]),
     copts = ["-fPIC", "-fPIE"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-        "tools/cpp",
-    ]),
+    includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
     deps = [
         ":duckdb_headers",
         ":generated_extension_loader",
@@ -841,16 +836,10 @@ duckdb_library(
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=f9ae2d098a",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=925225f89b",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo",
     ]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-        "tools/cpp",
-    ]),
+    includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
     linkopts = ["-Wl,-exported_symbol,_cpp_api_demo_init_c_api_v2", "-Wl,-dead_strip"],
 )
 
@@ -896,16 +885,10 @@ duckdb_library(
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=f9ae2d098a",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=925225f89b",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo_fail",
     ]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-        "tools/cpp",
-    ]),
+    includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
     linkopts = ["-Wl,-exported_symbol,_cpp_api_demo_fail_init_c_api_v2", "-Wl,-dead_strip"],
 )
 
@@ -1246,13 +1229,13 @@ filegroup(
 # A directory's .test files and its C++ TEST_CASEs cannot share a binary:
 # `-f` clears the whole Catch2 registry (test/unittest.cpp) and registers only
 # the listed files, so the two halves get their own targets per directory:
-#   unittest_<slug>_test         -f <its .test>       -> its non-hidden corpus
-#   unittest_<slug>_slow_test     -f <its .test_slow>  -> its hidden corpus
-#   unittest_<slug>_cpp_test      ~*.test ...        -> its C++ cases
-#   unittest_<slug>_cpp_slow_test [.] ~*.test ...    -> its hidden C++ cases
+#   <slug>_test         -f <its .test>       -> its non-hidden corpus
+#   <slug>_slow_test     -f <its .test_slow>  -> its hidden corpus
+#   <slug>_cpp_test      ~*.test ...        -> its C++ cases
+#   <slug>_cpp_slow_test [.] ~*.test ...    -> its hidden C++ cases
 #
 # Corpus is split by an exact file list rather than a `prefix*` Catch2 pattern,
-# which cannot exclude .test_slow. The C++ shards drop the corpus by extension
+# which cannot exclude .test_slow. The C++ targets drop the corpus by extension
 # instead (CPP_ONLY_ARGS below): a trailing `*` in a Catch2 pattern means
 # startsWith and a leading one means endsWith, so `~*.test` is the exclusion
 # that reads. `~test/*` would also drop the registered-by-hand cases such as
@@ -1335,50 +1318,17 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_api_cpp_test",
+subdirectory_test(
+    name = "api_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api"],
@@ -1395,8 +1345,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_api_cpp_slow_test",
+subdirectory_test(
+    name = "api_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api"],
@@ -1416,50 +1366,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_api_adbc",
     srcs = glob(["test/api/adbc/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_api_adbc_cpp_test",
+subdirectory_test(
+    name = "api_adbc_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api_adbc", ":test_cpp_arrow"],
@@ -1476,8 +1393,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_api_adbc_cpp_slow_test",
+subdirectory_test(
+    name = "api_adbc_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_api_adbc", ":test_cpp_arrow"],
@@ -1497,50 +1414,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_api_capi_v1",
     srcs = glob(["test/api/capi/v1/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_api_capi_v1_cpp_test",
+subdirectory_test(
+    name = "api_capi_v1_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api_capi_v1"],
@@ -1557,8 +1441,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_api_capi_v1_cpp_slow_test",
+subdirectory_test(
+    name = "api_capi_v1_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api_capi_v1"],
@@ -1578,50 +1462,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_api_capi_v2",
     srcs = glob(["test/api/capi/v2/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_api_capi_v2_cpp_test",
+subdirectory_test(
+    name = "api_capi_v2_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api_capi_v2"],
@@ -1638,8 +1489,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_api_capi_v2_cpp_slow_test",
+subdirectory_test(
+    name = "api_capi_v2_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api_capi_v2"],
@@ -1659,50 +1510,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_appender",
     srcs = glob(["test/appender/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_appender_cpp_test",
+subdirectory_test(
+    name = "appender_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_appender"],
@@ -1719,8 +1537,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_appender_cpp_slow_test",
+subdirectory_test(
+    name = "appender_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_appender"],
@@ -1740,50 +1558,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_arrow",
     srcs = glob(["test/arrow/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_arrow_cpp_test",
+subdirectory_test(
+    name = "arrow_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_arrow"],
@@ -1800,8 +1585,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_arrow_cpp_slow_test",
+subdirectory_test(
+    name = "arrow_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_arrow"],
@@ -1821,50 +1606,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_catalog",
     srcs = glob(["test/catalog/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_catalog_cpp_test",
+subdirectory_test(
+    name = "catalog_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_catalog"],
@@ -1881,8 +1633,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_catalog_cpp_slow_test",
+subdirectory_test(
+    name = "catalog_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_catalog"],
@@ -1902,45 +1654,12 @@ shard_test(
 duckdb_library(
     name = "test_cpp_common",
     srcs = glob(["test/common/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
@@ -1950,8 +1669,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_common_test",
+subdirectory_test(
+    name = "common_test",
     args = ["-f", "common_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_common"],
@@ -1969,8 +1688,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_common_cpp_test",
+subdirectory_test(
+    name = "common_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_common"],
@@ -1987,8 +1706,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_common_cpp_slow_test",
+subdirectory_test(
+    name = "common_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_common"],
@@ -2008,52 +1727,19 @@ shard_test(
 duckdb_library(
     name = "test_cpp_cpp_api",
     srcs = glob(["tools/cpp/tests/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
         "tools/cpp",
         "tools/cpp/tests",
     ]),
 )
 
-shard_test(
-    name = "unittest_cpp_api_cpp_test",
+subdirectory_test(
+    name = "cpp_api_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_cpp_api"],
@@ -2070,8 +1756,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_cpp_api_cpp_slow_test",
+subdirectory_test(
+    name = "cpp_api_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_cpp_api"],
@@ -2094,8 +1780,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_db-benchmark_slow_test",
+subdirectory_test(
+    name = "db-benchmark_slow_test",
     args = ["-f", "db-benchmark_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -2116,50 +1802,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_encryption",
     srcs = glob(["test/encryption/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_encryption_cpp_test",
+subdirectory_test(
+    name = "encryption_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_encryption"],
@@ -2176,8 +1829,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_encryption_cpp_slow_test",
+subdirectory_test(
+    name = "encryption_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_encryption"],
@@ -2206,8 +1859,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_extension_test",
+subdirectory_test(
+    name = "extension_test",
     args = ["-f", "extension_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2225,8 +1878,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_extension_slow_test",
+subdirectory_test(
+    name = "extension_slow_test",
     args = ["-f", "extension_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -2250,8 +1903,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_fuzzer_test",
+subdirectory_test(
+    name = "fuzzer_test",
     args = ["-f", "fuzzer_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2275,8 +1928,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_fuzzer_afl_test",
+subdirectory_test(
+    name = "fuzzer_afl_test",
     args = ["-f", "fuzzer_afl_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2306,8 +1959,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_fuzzer_duckfuzz_test",
+subdirectory_test(
+    name = "fuzzer_duckfuzz_test",
     args = ["-f", "fuzzer_duckfuzz_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2325,8 +1978,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_fuzzer_duckfuzz_slow_test",
+subdirectory_test(
+    name = "fuzzer_duckfuzz_slow_test",
     args = ["-f", "fuzzer_duckfuzz_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -2350,8 +2003,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_fuzzer_pedro_test",
+subdirectory_test(
+    name = "fuzzer_pedro_test",
     args = ["-f", "fuzzer_pedro_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2375,8 +2028,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_fuzzer_public_test",
+subdirectory_test(
+    name = "fuzzer_public_test",
     args = ["-f", "fuzzer_public_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2400,8 +2053,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_fuzzer_sqlsmith_test",
+subdirectory_test(
+    name = "fuzzer_sqlsmith_test",
     args = ["-f", "fuzzer_sqlsmith_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2425,8 +2078,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_geoparquet_test",
+subdirectory_test(
+    name = "geoparquet_test",
     args = ["-f", "geoparquet_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2450,8 +2103,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_issues_fuzz_test",
+subdirectory_test(
+    name = "issues_fuzz_test",
     args = ["-f", "issues_fuzz_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2481,8 +2134,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_issues_general_test",
+subdirectory_test(
+    name = "issues_general_test",
     args = ["-f", "issues_general_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2500,8 +2153,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_issues_general_slow_test",
+subdirectory_test(
+    name = "issues_general_slow_test",
     args = ["-f", "issues_general_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -2525,8 +2178,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_issues_internal_test",
+subdirectory_test(
+    name = "issues_internal_test",
     args = ["-f", "issues_internal_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2556,8 +2209,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_issues_monetdb_test",
+subdirectory_test(
+    name = "issues_monetdb_test",
     args = ["-f", "issues_monetdb_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2575,8 +2228,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_issues_monetdb_slow_test",
+subdirectory_test(
+    name = "issues_monetdb_slow_test",
     args = ["-f", "issues_monetdb_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -2600,8 +2253,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_issues_rigger_test",
+subdirectory_test(
+    name = "issues_rigger_test",
     args = ["-f", "issues_rigger_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2625,8 +2278,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_ldbc_test",
+subdirectory_test(
+    name = "ldbc_test",
     args = ["-f", "ldbc_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -2647,45 +2300,12 @@ shard_test(
 duckdb_library(
     name = "test_cpp_logging",
     srcs = glob(["test/logging/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
@@ -2695,8 +2315,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_logging_test",
+subdirectory_test(
+    name = "logging_test",
     args = ["-f", "logging_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_logging"],
@@ -2714,8 +2334,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_logging_cpp_test",
+subdirectory_test(
+    name = "logging_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_logging"],
@@ -2732,8 +2352,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_logging_cpp_slow_test",
+subdirectory_test(
+    name = "logging_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_logging"],
@@ -2753,50 +2373,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_mbedtls",
     srcs = glob(["test/mbedtls/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_mbedtls_cpp_test",
+subdirectory_test(
+    name = "mbedtls_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_mbedtls"],
@@ -2813,8 +2400,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_mbedtls_cpp_slow_test",
+subdirectory_test(
+    name = "mbedtls_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_mbedtls"],
@@ -2834,50 +2421,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_memoryleak",
     srcs = glob(["test/memoryleak/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_memoryleak_cpp_test",
+subdirectory_test(
+    name = "memoryleak_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_memoryleak"],
@@ -2894,8 +2448,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_memoryleak_cpp_slow_test",
+subdirectory_test(
+    name = "memoryleak_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_memoryleak"],
@@ -2915,45 +2469,12 @@ shard_test(
 duckdb_library(
     name = "test_cpp_optimizer",
     srcs = glob(["test/optimizer/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
@@ -2969,8 +2490,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_optimizer_test",
+subdirectory_test(
+    name = "optimizer_test",
     args = ["-f", "optimizer_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_optimizer"],
@@ -2988,8 +2509,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_optimizer_slow_test",
+subdirectory_test(
+    name = "optimizer_slow_test",
     args = ["-f", "optimizer_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_optimizer"],
@@ -3007,8 +2528,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_optimizer_cpp_test",
+subdirectory_test(
+    name = "optimizer_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_optimizer"],
@@ -3025,8 +2546,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_optimizer_cpp_slow_test",
+subdirectory_test(
+    name = "optimizer_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_optimizer"],
@@ -3049,8 +2570,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_optimizer_column_lifetime_analyzer_test",
+subdirectory_test(
+    name = "optimizer_column_lifetime_analyzer_test",
     args = ["-f", "optimizer_column_lifetime_analyzer_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3074,8 +2595,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_optimizer_expression_rewriter_test",
+subdirectory_test(
+    name = "optimizer_expression_rewriter_test",
     args = ["-f", "optimizer_expression_rewriter_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3099,8 +2620,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_optimizer_filter_pushdown_test",
+subdirectory_test(
+    name = "optimizer_filter_pushdown_test",
     args = ["-f", "optimizer_filter_pushdown_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3130,8 +2651,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_optimizer_joins_test",
+subdirectory_test(
+    name = "optimizer_joins_test",
     args = ["-f", "optimizer_joins_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3149,8 +2670,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_optimizer_joins_slow_test",
+subdirectory_test(
+    name = "optimizer_joins_slow_test",
     args = ["-f", "optimizer_joins_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -3174,8 +2695,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_optimizer_misc_test",
+subdirectory_test(
+    name = "optimizer_misc_test",
     args = ["-f", "optimizer_misc_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3205,8 +2726,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_optimizer_pushdown_test",
+subdirectory_test(
+    name = "optimizer_pushdown_test",
     args = ["-f", "optimizer_pushdown_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3224,8 +2745,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_optimizer_pushdown_slow_test",
+subdirectory_test(
+    name = "optimizer_pushdown_slow_test",
     args = ["-f", "optimizer_pushdown_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -3249,8 +2770,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_optimizer_reported_bugs_test",
+subdirectory_test(
+    name = "optimizer_reported_bugs_test",
     args = ["-f", "optimizer_reported_bugs_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3280,8 +2801,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_optimizer_statistics_test",
+subdirectory_test(
+    name = "optimizer_statistics_test",
     args = ["-f", "optimizer_statistics_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3299,8 +2820,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_optimizer_statistics_slow_test",
+subdirectory_test(
+    name = "optimizer_statistics_slow_test",
     args = ["-f", "optimizer_statistics_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -3324,8 +2845,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_optimizer_topn_test",
+subdirectory_test(
+    name = "optimizer_topn_test",
     args = ["-f", "optimizer_topn_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3349,8 +2870,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_optimizer_unused_columns_test",
+subdirectory_test(
+    name = "optimizer_unused_columns_test",
     args = ["-f", "optimizer_unused_columns_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3381,50 +2902,17 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_ossfuzz_cpp_test",
+subdirectory_test(
+    name = "ossfuzz_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_ossfuzz"],
@@ -3441,8 +2929,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_ossfuzz_cpp_slow_test",
+subdirectory_test(
+    name = "ossfuzz_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_ossfuzz"],
@@ -3471,8 +2959,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_parquet_test",
+subdirectory_test(
+    name = "parquet_test",
     args = ["-f", "parquet_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3490,8 +2978,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_parquet_slow_test",
+subdirectory_test(
+    name = "parquet_slow_test",
     args = ["-f", "parquet_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -3515,8 +3003,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_parquet_delta_encoding_test",
+subdirectory_test(
+    name = "parquet_delta_encoding_test",
     args = ["-f", "parquet_delta_encoding_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3546,8 +3034,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_parquet_variant_test",
+subdirectory_test(
+    name = "parquet_variant_test",
     args = ["-f", "parquet_variant_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3565,8 +3053,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_parquet_variant_slow_test",
+subdirectory_test(
+    name = "parquet_variant_slow_test",
     args = ["-f", "parquet_variant_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -3587,50 +3075,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_persistence",
     srcs = glob(["test/persistence/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_persistence_cpp_test",
+subdirectory_test(
+    name = "persistence_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_persistence"],
@@ -3647,8 +3102,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_persistence_cpp_slow_test",
+subdirectory_test(
+    name = "persistence_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_persistence"],
@@ -3671,8 +3126,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_planner_test",
+subdirectory_test(
+    name = "planner_test",
     args = ["-f", "planner_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3696,8 +3151,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sakila_slow_test",
+subdirectory_test(
+    name = "sakila_slow_test",
     args = ["-f", "sakila_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -3718,50 +3173,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_secrets",
     srcs = glob(["test/secrets/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_secrets_cpp_test",
+subdirectory_test(
+    name = "secrets_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_secrets"],
@@ -3778,8 +3200,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_secrets_cpp_slow_test",
+subdirectory_test(
+    name = "secrets_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_secrets"],
@@ -3799,50 +3221,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_serialize",
     srcs = glob(["test/serialize/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_serialize_cpp_test",
+subdirectory_test(
+    name = "serialize_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_serialize"],
@@ -3859,8 +3248,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_serialize_cpp_slow_test",
+subdirectory_test(
+    name = "serialize_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_serialize"],
@@ -3889,8 +3278,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_aggregate_test",
+subdirectory_test(
+    name = "sql_aggregate_test",
     args = ["-f", "sql_aggregate_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3908,8 +3297,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_aggregate_slow_test",
+subdirectory_test(
+    name = "sql_aggregate_slow_test",
     args = ["-f", "sql_aggregate_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -3939,8 +3328,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_alter_test",
+subdirectory_test(
+    name = "sql_alter_test",
     args = ["-f", "sql_alter_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -3958,8 +3347,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_alter_slow_test",
+subdirectory_test(
+    name = "sql_alter_slow_test",
     args = ["-f", "sql_alter_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -3983,8 +3372,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_aoc24_slow_test",
+subdirectory_test(
+    name = "sql_aoc24_slow_test",
     args = ["-f", "sql_aoc24_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4008,8 +3397,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_append_slow_test",
+subdirectory_test(
+    name = "sql_append_slow_test",
     args = ["-f", "sql_append_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4039,8 +3428,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_attach_test",
+subdirectory_test(
+    name = "sql_attach_test",
     args = ["-f", "sql_attach_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4058,8 +3447,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_attach_slow_test",
+subdirectory_test(
+    name = "sql_attach_slow_test",
     args = ["-f", "sql_attach_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4083,8 +3472,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_binder_test",
+subdirectory_test(
+    name = "sql_binder_test",
     args = ["-f", "sql_binder_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4114,8 +3503,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_cast_test",
+subdirectory_test(
+    name = "sql_cast_test",
     args = ["-f", "sql_cast_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4133,8 +3522,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_cast_slow_test",
+subdirectory_test(
+    name = "sql_cast_slow_test",
     args = ["-f", "sql_cast_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4164,8 +3553,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_catalog_test",
+subdirectory_test(
+    name = "sql_catalog_test",
     args = ["-f", "sql_catalog_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4183,8 +3572,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_catalog_slow_test",
+subdirectory_test(
+    name = "sql_catalog_slow_test",
     args = ["-f", "sql_catalog_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4214,8 +3603,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_collate_test",
+subdirectory_test(
+    name = "sql_collate_test",
     args = ["-f", "sql_collate_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4233,8 +3622,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_collate_slow_test",
+subdirectory_test(
+    name = "sql_collate_slow_test",
     args = ["-f", "sql_collate_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4258,8 +3647,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_conjunction_test",
+subdirectory_test(
+    name = "sql_conjunction_test",
     args = ["-f", "sql_conjunction_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4283,8 +3672,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_connect_test",
+subdirectory_test(
+    name = "sql_connect_test",
     args = ["-f", "sql_connect_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4314,8 +3703,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_constraints_test",
+subdirectory_test(
+    name = "sql_constraints_test",
     args = ["-f", "sql_constraints_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4333,8 +3722,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_constraints_slow_test",
+subdirectory_test(
+    name = "sql_constraints_slow_test",
     args = ["-f", "sql_constraints_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4379,16 +3768,16 @@ fixture_tree(
     ),
 )
 
-shard_test(
-    name = "unittest_sql_copy_test",
+subdirectory_test(
+    name = "sql_copy_test",
     args = ["-f", "sql_copy_fast_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
     data = [":sql_copy_fixture_tree", ":test_data_without_fixtures", ":sql_copy_fast_testlist"],
 )
 
-shard_test(
-    name = "unittest_sql_copy_slow_test",
+subdirectory_test(
+    name = "sql_copy_slow_test",
     args = ["-f", "sql_copy_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4407,8 +3796,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_copy_database_test",
+subdirectory_test(
+    name = "sql_copy_database_test",
     args = ["-f", "sql_copy_database_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4426,8 +3815,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_copy_database_slow_test",
+subdirectory_test(
+    name = "sql_copy_database_slow_test",
     args = ["-f", "sql_copy_database_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4457,8 +3846,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_create_test",
+subdirectory_test(
+    name = "sql_create_test",
     args = ["-f", "sql_create_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4476,8 +3865,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_create_slow_test",
+subdirectory_test(
+    name = "sql_create_slow_test",
     args = ["-f", "sql_create_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4507,8 +3896,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_cte_test",
+subdirectory_test(
+    name = "sql_cte_test",
     args = ["-f", "sql_cte_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4526,8 +3915,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_cte_slow_test",
+subdirectory_test(
+    name = "sql_cte_slow_test",
     args = ["-f", "sql_cte_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4557,8 +3946,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_delete_test",
+subdirectory_test(
+    name = "sql_delete_test",
     args = ["-f", "sql_delete_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4576,8 +3965,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_delete_slow_test",
+subdirectory_test(
+    name = "sql_delete_slow_test",
     args = ["-f", "sql_delete_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4607,8 +3996,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_detailed_profiler_test",
+subdirectory_test(
+    name = "sql_detailed_profiler_test",
     args = ["-f", "sql_detailed_profiler_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4626,8 +4015,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_detailed_profiler_slow_test",
+subdirectory_test(
+    name = "sql_detailed_profiler_slow_test",
     args = ["-f", "sql_detailed_profiler_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4657,8 +4046,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_error_test",
+subdirectory_test(
+    name = "sql_error_test",
     args = ["-f", "sql_error_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4676,8 +4065,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_error_slow_test",
+subdirectory_test(
+    name = "sql_error_slow_test",
     args = ["-f", "sql_error_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4707,8 +4096,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_explain_test",
+subdirectory_test(
+    name = "sql_explain_test",
     args = ["-f", "sql_explain_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4726,8 +4115,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_explain_slow_test",
+subdirectory_test(
+    name = "sql_explain_slow_test",
     args = ["-f", "sql_explain_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4751,8 +4140,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_export_test",
+subdirectory_test(
+    name = "sql_export_test",
     args = ["-f", "sql_export_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4776,8 +4165,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_extensions_test",
+subdirectory_test(
+    name = "sql_extensions_test",
     args = ["-f", "sql_extensions_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -4798,45 +4187,12 @@ shard_test(
 duckdb_library(
     name = "test_cpp_sql_filter",
     srcs = glob(["test/sql/filter/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
@@ -4852,8 +4208,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_filter_test",
+subdirectory_test(
+    name = "sql_filter_test",
     args = ["-f", "sql_filter_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_sql_filter"],
@@ -4871,8 +4227,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_filter_slow_test",
+subdirectory_test(
+    name = "sql_filter_slow_test",
     args = ["-f", "sql_filter_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_filter"],
@@ -4890,8 +4246,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_filter_cpp_test",
+subdirectory_test(
+    name = "sql_filter_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_filter"],
@@ -4908,8 +4264,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_filter_cpp_slow_test",
+subdirectory_test(
+    name = "sql_filter_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_filter"],
@@ -4938,8 +4294,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_function_test",
+subdirectory_test(
+    name = "sql_function_test",
     args = ["-f", "sql_function_fast_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4957,8 +4313,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_function_slow_test",
+subdirectory_test(
+    name = "sql_function_slow_test",
     args = ["-f", "sql_function_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -4979,50 +4335,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_sql_function_table",
     srcs = glob(["test/sql/function/table/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_sql_function_table_cpp_test",
+subdirectory_test(
+    name = "sql_function_table_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_function_table"],
@@ -5039,8 +4362,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_function_table_cpp_slow_test",
+subdirectory_test(
+    name = "sql_function_table_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_function_table"],
@@ -5069,8 +4392,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_generated_columns_test",
+subdirectory_test(
+    name = "sql_generated_columns_test",
     args = ["-f", "sql_generated_columns_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5088,8 +4411,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_generated_columns_slow_test",
+subdirectory_test(
+    name = "sql_generated_columns_slow_test",
     args = ["-f", "sql_generated_columns_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5110,45 +4433,12 @@ shard_test(
 duckdb_library(
     name = "test_cpp_sql_index",
     srcs = glob(["test/sql/index/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
@@ -5164,8 +4454,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_index_test",
+subdirectory_test(
+    name = "sql_index_test",
     args = ["-f", "sql_index_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_sql_index"],
@@ -5183,8 +4473,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_index_slow_test",
+subdirectory_test(
+    name = "sql_index_slow_test",
     args = ["-f", "sql_index_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_index"],
@@ -5202,8 +4492,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_index_cpp_test",
+subdirectory_test(
+    name = "sql_index_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_index"],
@@ -5220,8 +4510,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_index_cpp_slow_test",
+subdirectory_test(
+    name = "sql_index_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_index"],
@@ -5250,8 +4540,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_insert_test",
+subdirectory_test(
+    name = "sql_insert_test",
     args = ["-f", "sql_insert_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5269,8 +4559,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_insert_slow_test",
+subdirectory_test(
+    name = "sql_insert_slow_test",
     args = ["-f", "sql_insert_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5300,8 +4590,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_join_test",
+subdirectory_test(
+    name = "sql_join_test",
     args = ["-f", "sql_join_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5319,8 +4609,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_join_slow_test",
+subdirectory_test(
+    name = "sql_join_slow_test",
     args = ["-f", "sql_join_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5350,8 +4640,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_json_test",
+subdirectory_test(
+    name = "sql_json_test",
     args = ["-f", "sql_json_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5369,8 +4659,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_json_slow_test",
+subdirectory_test(
+    name = "sql_json_slow_test",
     args = ["-f", "sql_json_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5394,8 +4684,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_keywords_test",
+subdirectory_test(
+    name = "sql_keywords_test",
     args = ["-f", "sql_keywords_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5425,8 +4715,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_limit_test",
+subdirectory_test(
+    name = "sql_limit_test",
     args = ["-f", "sql_limit_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5444,8 +4734,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_limit_slow_test",
+subdirectory_test(
+    name = "sql_limit_slow_test",
     args = ["-f", "sql_limit_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5475,8 +4765,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_logging_test",
+subdirectory_test(
+    name = "sql_logging_test",
     args = ["-f", "sql_logging_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5494,8 +4784,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_logging_slow_test",
+subdirectory_test(
+    name = "sql_logging_slow_test",
     args = ["-f", "sql_logging_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5525,8 +4815,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_merge_test",
+subdirectory_test(
+    name = "sql_merge_test",
     args = ["-f", "sql_merge_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5544,8 +4834,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_merge_slow_test",
+subdirectory_test(
+    name = "sql_merge_slow_test",
     args = ["-f", "sql_merge_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5569,8 +4859,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_multi_file_test",
+subdirectory_test(
+    name = "sql_multi_file_test",
     args = ["-f", "sql_multi_file_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5600,8 +4890,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_optimizer_test",
+subdirectory_test(
+    name = "sql_optimizer_test",
     args = ["-f", "sql_optimizer_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5619,8 +4909,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_optimizer_slow_test",
+subdirectory_test(
+    name = "sql_optimizer_slow_test",
     args = ["-f", "sql_optimizer_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5650,8 +4940,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_order_test",
+subdirectory_test(
+    name = "sql_order_test",
     args = ["-f", "sql_order_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5669,8 +4959,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_order_slow_test",
+subdirectory_test(
+    name = "sql_order_slow_test",
     args = ["-f", "sql_order_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5700,8 +4990,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_ordinality_test",
+subdirectory_test(
+    name = "sql_ordinality_test",
     args = ["-f", "sql_ordinality_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5719,8 +5009,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_ordinality_slow_test",
+subdirectory_test(
+    name = "sql_ordinality_slow_test",
     args = ["-f", "sql_ordinality_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5744,8 +5034,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_outofcore_slow_test",
+subdirectory_test(
+    name = "sql_outofcore_slow_test",
     args = ["-f", "sql_outofcore_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5769,8 +5059,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_overflow_test",
+subdirectory_test(
+    name = "sql_overflow_test",
     args = ["-f", "sql_overflow_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5800,8 +5090,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_parallelism_test",
+subdirectory_test(
+    name = "sql_parallelism_test",
     args = ["-f", "sql_parallelism_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5819,8 +5109,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_parallelism_slow_test",
+subdirectory_test(
+    name = "sql_parallelism_slow_test",
     args = ["-f", "sql_parallelism_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5841,50 +5131,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_sql_parallelism_interquery",
     srcs = glob(["test/sql/parallelism/interquery/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_sql_parallelism_interquery_cpp_test",
+subdirectory_test(
+    name = "sql_parallelism_interquery_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_parallelism_interquery"],
@@ -5901,8 +5158,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_parallelism_interquery_cpp_slow_test",
+subdirectory_test(
+    name = "sql_parallelism_interquery_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_parallelism_interquery"],
@@ -5931,8 +5188,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_parser_test",
+subdirectory_test(
+    name = "sql_parser_test",
     args = ["-f", "sql_parser_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -5950,8 +5207,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_parser_slow_test",
+subdirectory_test(
+    name = "sql_parser_slow_test",
     args = ["-f", "sql_parser_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -5975,8 +5232,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_peg_parser_test",
+subdirectory_test(
+    name = "sql_peg_parser_test",
     args = ["-f", "sql_peg_parser_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6006,8 +5263,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_pg_catalog_test",
+subdirectory_test(
+    name = "sql_pg_catalog_test",
     args = ["-f", "sql_pg_catalog_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6025,8 +5282,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_pg_catalog_slow_test",
+subdirectory_test(
+    name = "sql_pg_catalog_slow_test",
     args = ["-f", "sql_pg_catalog_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6047,45 +5304,12 @@ shard_test(
 duckdb_library(
     name = "test_cpp_sql_pivot",
     srcs = glob(["test/sql/pivot/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
@@ -6101,8 +5325,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_pivot_test",
+subdirectory_test(
+    name = "sql_pivot_test",
     args = ["-f", "sql_pivot_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_sql_pivot"],
@@ -6120,8 +5344,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_pivot_slow_test",
+subdirectory_test(
+    name = "sql_pivot_slow_test",
     args = ["-f", "sql_pivot_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_pivot"],
@@ -6139,8 +5363,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_pivot_cpp_test",
+subdirectory_test(
+    name = "sql_pivot_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_pivot"],
@@ -6157,8 +5381,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_pivot_cpp_slow_test",
+subdirectory_test(
+    name = "sql_pivot_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_pivot"],
@@ -6187,8 +5411,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_pragma_test",
+subdirectory_test(
+    name = "sql_pragma_test",
     args = ["-f", "sql_pragma_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6206,8 +5430,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_pragma_slow_test",
+subdirectory_test(
+    name = "sql_pragma_slow_test",
     args = ["-f", "sql_pragma_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6237,8 +5461,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_prepared_test",
+subdirectory_test(
+    name = "sql_prepared_test",
     args = ["-f", "sql_prepared_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6256,8 +5480,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_prepared_slow_test",
+subdirectory_test(
+    name = "sql_prepared_slow_test",
     args = ["-f", "sql_prepared_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6281,8 +5505,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_progress_bar_slow_test",
+subdirectory_test(
+    name = "sql_progress_bar_slow_test",
     args = ["-f", "sql_progress_bar_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6312,8 +5536,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_projection_test",
+subdirectory_test(
+    name = "sql_projection_test",
     args = ["-f", "sql_projection_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6331,8 +5555,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_projection_slow_test",
+subdirectory_test(
+    name = "sql_projection_slow_test",
     args = ["-f", "sql_projection_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6356,8 +5580,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_returning_test",
+subdirectory_test(
+    name = "sql_returning_test",
     args = ["-f", "sql_returning_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6387,8 +5611,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_sample_test",
+subdirectory_test(
+    name = "sql_sample_test",
     args = ["-f", "sql_sample_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6406,8 +5630,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_sample_slow_test",
+subdirectory_test(
+    name = "sql_sample_slow_test",
     args = ["-f", "sql_sample_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6431,8 +5655,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_secrets_test",
+subdirectory_test(
+    name = "sql_secrets_test",
     args = ["-f", "sql_secrets_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6456,8 +5680,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_select_test",
+subdirectory_test(
+    name = "sql_select_test",
     args = ["-f", "sql_select_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6487,8 +5711,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_setops_test",
+subdirectory_test(
+    name = "sql_setops_test",
     args = ["-f", "sql_setops_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6506,8 +5730,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_setops_slow_test",
+subdirectory_test(
+    name = "sql_setops_slow_test",
     args = ["-f", "sql_setops_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6537,8 +5761,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_settings_test",
+subdirectory_test(
+    name = "sql_settings_test",
     args = ["-f", "sql_settings_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6556,8 +5780,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_settings_slow_test",
+subdirectory_test(
+    name = "sql_settings_slow_test",
     args = ["-f", "sql_settings_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6581,8 +5805,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_show_select_test",
+subdirectory_test(
+    name = "sql_show_select_test",
     args = ["-f", "sql_show_select_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6603,45 +5827,12 @@ shard_test(
 duckdb_library(
     name = "test_cpp_sql_storage",
     srcs = glob(["test/sql/storage/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
@@ -6657,8 +5848,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_storage_test",
+subdirectory_test(
+    name = "sql_storage_test",
     args = ["-f", "sql_storage_fast_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_storage"],
@@ -6676,8 +5867,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_storage_slow_test",
+subdirectory_test(
+    name = "sql_storage_slow_test",
     args = ["-f", "sql_storage_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_storage"],
@@ -6695,8 +5886,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_storage_cpp_test",
+subdirectory_test(
+    name = "sql_storage_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_sql_storage"],
@@ -6713,8 +5904,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_storage_cpp_slow_test",
+subdirectory_test(
+    name = "sql_storage_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_storage"],
@@ -6734,50 +5925,17 @@ shard_test(
 duckdb_library(
     name = "test_cpp_sql_storage_catalog",
     srcs = glob(["test/sql/storage/catalog/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
-        "codegen",
-        "extension",
-        "extension/core_functions/include",
-        "extension/parquet/include",
-        "src/include",
         "test/extension/debug_fs/include",
         "test/include",
         "third_party/catch",
-        "third_party/concurrentqueue",
-        "third_party/fast_float",
-        "third_party/fastpforlib",
-        "third_party/fmt/include",
-        "third_party/fsst",
-        "third_party/httplib",
-        "third_party/hyperloglog",
-        "third_party/jaro_winkler",
-        "third_party/mbedtls/include",
-        "third_party/miniz",
-        "third_party/pcg",
-        "third_party/pdqsort",
-        "third_party/re2",
-        "third_party/ska_sort",
-        "third_party/skiplist",
         "third_party/sqlite/include",
-        "third_party/tdigest",
-        "third_party/utf8proc/include",
-        "third_party/vergesort",
-        "third_party/yyjson/include",
-        "third_party/zstd/include",
     ]),
 )
 
-shard_test(
-    name = "unittest_sql_storage_catalog_cpp_test",
+subdirectory_test(
+    name = "sql_storage_catalog_cpp_test",
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_storage_catalog"],
@@ -6794,8 +5952,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_storage_catalog_cpp_slow_test",
+subdirectory_test(
+    name = "sql_storage_catalog_cpp_slow_test",
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_storage_catalog"],
@@ -6824,8 +5982,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_storage_version_test",
+subdirectory_test(
+    name = "sql_storage_version_test",
     args = ["-f", "sql_storage_version_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6843,8 +6001,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_storage_version_slow_test",
+subdirectory_test(
+    name = "sql_storage_version_slow_test",
     args = ["-f", "sql_storage_version_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6874,8 +6032,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_subquery_test",
+subdirectory_test(
+    name = "sql_subquery_test",
     args = ["-f", "sql_subquery_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6893,8 +6051,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_subquery_slow_test",
+subdirectory_test(
+    name = "sql_subquery_slow_test",
     args = ["-f", "sql_subquery_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6924,8 +6082,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_table_function_test",
+subdirectory_test(
+    name = "sql_table_function_test",
     args = ["-f", "sql_table_function_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6943,8 +6101,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_table_function_slow_test",
+subdirectory_test(
+    name = "sql_table_function_slow_test",
     args = ["-f", "sql_table_function_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -6974,8 +6132,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_timezone_test",
+subdirectory_test(
+    name = "sql_timezone_test",
     args = ["-f", "sql_timezone_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -6993,8 +6151,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_timezone_slow_test",
+subdirectory_test(
+    name = "sql_timezone_slow_test",
     args = ["-f", "sql_timezone_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7024,8 +6182,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_topn_test",
+subdirectory_test(
+    name = "sql_topn_test",
     args = ["-f", "sql_topn_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7043,8 +6201,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_topn_slow_test",
+subdirectory_test(
+    name = "sql_topn_slow_test",
     args = ["-f", "sql_topn_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7074,8 +6232,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_tpcds_test",
+subdirectory_test(
+    name = "sql_tpcds_test",
     args = ["-f", "sql_tpcds_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7093,8 +6251,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_tpcds_slow_test",
+subdirectory_test(
+    name = "sql_tpcds_slow_test",
     args = ["-f", "sql_tpcds_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7124,8 +6282,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_tpch_test",
+subdirectory_test(
+    name = "sql_tpch_test",
     args = ["-f", "sql_tpch_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7143,8 +6301,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_tpch_slow_test",
+subdirectory_test(
+    name = "sql_tpch_slow_test",
     args = ["-f", "sql_tpch_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7174,8 +6332,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_transactions_test",
+subdirectory_test(
+    name = "sql_transactions_test",
     args = ["-f", "sql_transactions_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7193,8 +6351,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_transactions_slow_test",
+subdirectory_test(
+    name = "sql_transactions_slow_test",
     args = ["-f", "sql_transactions_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7218,8 +6376,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_trigger_test",
+subdirectory_test(
+    name = "sql_trigger_test",
     args = ["-f", "sql_trigger_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7249,8 +6407,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_types_test",
+subdirectory_test(
+    name = "sql_types_test",
     args = ["-f", "sql_types_fast_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7268,8 +6426,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_types_slow_test",
+subdirectory_test(
+    name = "sql_types_slow_test",
     args = ["-f", "sql_types_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7299,8 +6457,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_update_test",
+subdirectory_test(
+    name = "sql_update_test",
     args = ["-f", "sql_update_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7318,8 +6476,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_update_slow_test",
+subdirectory_test(
+    name = "sql_update_slow_test",
     args = ["-f", "sql_update_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7349,8 +6507,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_upsert_test",
+subdirectory_test(
+    name = "sql_upsert_test",
     args = ["-f", "sql_upsert_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7368,8 +6526,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_upsert_slow_test",
+subdirectory_test(
+    name = "sql_upsert_slow_test",
     args = ["-f", "sql_upsert_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7393,8 +6551,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_vacuum_test",
+subdirectory_test(
+    name = "sql_vacuum_test",
     args = ["-f", "sql_vacuum_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7418,8 +6576,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_variables_test",
+subdirectory_test(
+    name = "sql_variables_test",
     args = ["-f", "sql_variables_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7443,8 +6601,8 @@ sql_logic_test_list(
     kind = "fast",
 )
 
-shard_test(
-    name = "unittest_sql_variant_test",
+subdirectory_test(
+    name = "sql_variant_test",
     args = ["-f", "sql_variant_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7474,8 +6632,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_vector_types_test",
+subdirectory_test(
+    name = "sql_vector_types_test",
     args = ["-f", "sql_vector_types_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7493,8 +6651,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_vector_types_slow_test",
+subdirectory_test(
+    name = "sql_vector_types_slow_test",
     args = ["-f", "sql_vector_types_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7524,8 +6682,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sql_window_test",
+subdirectory_test(
+    name = "sql_window_test",
     args = ["-f", "sql_window_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7543,8 +6701,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sql_window_slow_test",
+subdirectory_test(
+    name = "sql_window_slow_test",
     args = ["-f", "sql_window_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7568,8 +6726,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sqlite_slow_test",
+subdirectory_test(
+    name = "sqlite_slow_test",
     args = ["-f", "sqlite_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7599,8 +6757,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sqlite_tags_test",
+subdirectory_test(
+    name = "sqlite_tags_test",
     args = ["-f", "sqlite_tags_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7618,8 +6776,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sqlite_tags_slow_test",
+subdirectory_test(
+    name = "sqlite_tags_slow_test",
     args = ["-f", "sqlite_tags_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7649,8 +6807,8 @@ sql_logic_test_list(
     kind = "slow",
 )
 
-shard_test(
-    name = "unittest_sqlserver_test",
+subdirectory_test(
+    name = "sqlserver_test",
     args = ["-f", "sqlserver_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
@@ -7668,8 +6826,8 @@ shard_test(
     ],
 )
 
-shard_test(
-    name = "unittest_sqlserver_slow_test",
+subdirectory_test(
+    name = "sqlserver_slow_test",
     args = ["-f", "sqlserver_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
@@ -7688,7 +6846,7 @@ shard_test(
 )
 
 cc_test(
-    name = "unittest_extension_cpp_test",
+    name = "extension_cpp_test",
     args = ["~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     linkopts = [
