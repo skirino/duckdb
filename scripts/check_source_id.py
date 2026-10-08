@@ -2,12 +2,13 @@
 """Fail when the stamped version header does not describe the current HEAD.
 
 The engine's commit and version come from generated_version_info.hpp, which a rule
-fills in from the workspace status script (scripts/workspace_status.py) once per
+fills in from the workspace status script (scripts/workspace_status.sh) once per
 build. CMake takes the same two values from its configure instead, so its binaries
 go stale between configures; this checks the Bazel side has not.
 
-Two things are checked: the header agrees with HEAD, and BUILD.bazel defines
-neither value, so the header is the only thing that can supply them.
+Three things are checked: the header agrees with HEAD, BUILD.bazel defines neither
+value the header owns, and the one checkout-derived define that has to stay -- the
+identity an unstable extension reports on load -- still matches the engine.
 
 Usage (standalone): check_source_id.py [<repo root>]
 Usage (as a test):   check_source_id.py   # runfiles root holds the header, .git/
@@ -19,6 +20,11 @@ import sys
 
 HEADER = "generated_version_info.hpp"
 HEADER_OWNED = ("DUCKDB_SOURCE_ID", "DUCKDB_VERSION")
+# An unstable extension reports this as its version, and the engine rejects the load
+# when it differs from its own (src/main/extension.cpp:50). It has to be compiled in,
+# so unlike the header's values it cannot come from the header -- but it must not
+# drift from DUCKDB_SOURCE_ID either, or every loadable extension fails to load.
+LOAD_IDENTITY_DEFINE = "DUCKDB_EXTENSION_API_VERSION_UNSTABLE"
 
 
 def head_from_git_dir(git_dir):
@@ -57,6 +63,12 @@ def stamped(repo):
     return values
 
 
+def build_define(build, name):
+    """A define's value as BUILD.bazel spells it, or None when it is absent."""
+    match = re.search(rf'"{name}=([^"]*)"', build)
+    return match.group(1) if match else None
+
+
 def main():
     if len(sys.argv) > 1:
         repo = sys.argv[1]
@@ -79,11 +91,21 @@ def main():
         if re.search(rf'"{name}=', build):
             failures.append(f"BUILD.bazel still defines {name}; {HEADER} owns it, and a "
                             f"define would silently win where the header is not included")
+    load_identity = build_define(build, LOAD_IDENTITY_DEFINE)
+    if load_identity is None:
+        failures.append(f"BUILD.bazel no longer defines {LOAD_IDENTITY_DEFINE}; a "
+                        f"loadable extension would report an empty version")
+    elif load_identity != values["DUCKDB_SOURCE_ID"]:
+        failures.append(f"BUILD.bazel defines {LOAD_IDENTITY_DEFINE}={load_identity}, the "
+                        f"engine reports {values['DUCKDB_SOURCE_ID']}; an unstable "
+                        f"extension is rejected when the two differ, so every loadable "
+                        f"extension would fail to load")
     if failures:
         print("\n".join(failures))
         print("\nRe-run the BUILD.bazel generator, then commit the result.")
         return 1
-    print(f"{HEADER} matches HEAD {head} (version {values['DUCKDB_VERSION']})")
+    print(f"{HEADER} matches HEAD {head} (version {values['DUCKDB_VERSION']}), "
+          f"{LOAD_IDENTITY_DEFINE} agrees")
     return 0
 
 

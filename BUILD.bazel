@@ -292,7 +292,7 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + ["EXT_VERSION_CORE_FUNCTIONS=\\\"be5a5fecc9\\\""]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = DUCKDB_INCLUDES,
 )
 
@@ -366,7 +366,7 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + ["EXT_VERSION_PARQUET=\\\"be5a5fecc9\\\""]),
+    local_defines = sorted(DUCKDB_DEFINES + []),
     includes = sorted(DUCKDB_INCLUDES + [
         "third_party/brotli/include",
         "third_party/lz4",
@@ -841,7 +841,7 @@ duckdb_library(
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=be5a5fecc9",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=f9ae2d098a",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo",
     ]),
     includes = sorted(DUCKDB_INCLUDES + [
@@ -896,7 +896,7 @@ duckdb_library(
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=be5a5fecc9",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=f9ae2d098a",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo_fail",
     ]),
     includes = sorted(DUCKDB_INCLUDES + [

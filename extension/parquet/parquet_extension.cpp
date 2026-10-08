@@ -1106,11 +1106,7 @@ std::string ParquetExtension::Name() {
 }
 
 std::string ParquetExtension::Version() const {
-#ifdef EXT_VERSION_PARQUET
-	return EXT_VERSION_PARQUET;
-#else
-	return "";
-#endif
+	return DefaultVersion();
 }
 
 } // namespace duckdb

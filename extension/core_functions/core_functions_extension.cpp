@@ -16,11 +16,7 @@ std::string CoreFunctionsExtension::Name() {
 }
 
 std::string CoreFunctionsExtension::Version() const {
-#ifdef EXT_VERSION_CORE_FUNCTIONS
-	return EXT_VERSION_CORE_FUNCTIONS;
-#else
-	return "";
-#endif
+	return DefaultVersion();
 }
 
 } // namespace duckdb
