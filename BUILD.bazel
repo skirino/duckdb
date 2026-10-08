@@ -55,7 +55,7 @@ duckdb_library(
     srcs = [
         ":generated_extension_loader_files",
     ],
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     deps = [":duckdb_headers", ":generated_extension_headers"],
 )
 
@@ -293,7 +293,7 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = DUCKDB_INCLUDES,
 )
 
@@ -308,7 +308,7 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = DUCKDB_INCLUDES,
 )
 
@@ -367,7 +367,7 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "third_party/brotli/include",
         "third_party/lz4",
@@ -397,7 +397,7 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "third_party/brotli/include",
         "third_party/lz4",
@@ -410,14 +410,14 @@ duckdb_library(
 duckdb_library(
     name = "third_party_fsst",
     srcs = glob(["third_party/fsst/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     copts = ["-fPIC", "-fvisibility=hidden", "-w"],
 )
 
 duckdb_library(
     name = "third_party_mbedtls",
     srcs = glob(["third_party/mbedtls/*.cpp", "third_party/mbedtls/library/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     copts = ["-fPIC", "-fvisibility=hidden"],
 )
 
@@ -439,13 +439,13 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
 )
 
 duckdb_library(
     name = "dummy_static_extension_loader",
     srcs = glob(["extension/loader/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     alwayslink = 0,
 )
 
@@ -467,21 +467,21 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     copts = ["-fPIC", "-w"],
 )
 
 duckdb_library(
     name = "duckdb_linenoise",
     srcs = glob(["tools/shell/linenoise/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + ["tools/shell/include", "tools/shell/linenoise/include"]),
 )
 
 duckdb_library(
     name = "duckdb_cpp_api",
     srcs = glob(["tools/cpp/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     copts = ["-fPIC", "-fvisibility-inlines-hidden", "-fvisibility=hidden"],
     includes = sorted(DUCKDB_INCLUDES + ["tools/cpp"]),
 )
@@ -1332,7 +1332,7 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1358,7 +1358,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_api_adbc",
     srcs = glob(["test/api/adbc/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1384,7 +1384,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_api_capi_v1",
     srcs = glob(["test/api/capi/v1/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1410,7 +1410,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_api_capi_v2",
     srcs = glob(["test/api/capi/v2/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1436,7 +1436,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_appender",
     srcs = glob(["test/appender/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1462,7 +1462,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_arrow",
     srcs = glob(["test/arrow/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1488,7 +1488,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_catalog",
     srcs = glob(["test/catalog/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1514,7 +1514,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_common",
     srcs = glob(["test/common/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1554,7 +1554,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_cpp_api",
     srcs = glob(["tools/cpp/tests/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1596,7 +1596,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_encryption",
     srcs = glob(["test/encryption/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1874,7 +1874,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_logging",
     srcs = glob(["test/logging/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1914,7 +1914,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_mbedtls",
     srcs = glob(["test/mbedtls/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1940,7 +1940,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_memoryleak",
     srcs = glob(["test/memoryleak/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1966,7 +1966,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_optimizer",
     srcs = glob(["test/optimizer/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -2212,7 +2212,7 @@ duckdb_library(
         ],
         allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -2308,7 +2308,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_persistence",
     srcs = glob(["test/persistence/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -2362,7 +2362,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_secrets",
     srcs = glob(["test/secrets/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -2388,7 +2388,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_serialize",
     srcs = glob(["test/serialize/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -2949,7 +2949,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_sql_filter",
     srcs = glob(["test/sql/filter/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3031,7 +3031,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_sql_function_table",
     srcs = glob(["test/sql/function/table/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3085,7 +3085,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_sql_index",
     srcs = glob(["test/sql/index/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3475,7 +3475,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_sql_parallelism_interquery",
     srcs = glob(["test/sql/parallelism/interquery/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3571,7 +3571,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_sql_pivot",
     srcs = glob(["test/sql/pivot/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3863,7 +3863,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_sql_storage",
     srcs = glob(["test/sql/storage/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3917,7 +3917,7 @@ subdirectory_test(
 duckdb_library(
     name = "test_cpp_sql_storage_catalog",
     srcs = glob(["test/sql/storage/catalog/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
