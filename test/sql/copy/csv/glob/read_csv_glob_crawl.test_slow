@@ -3,12 +3,14 @@
 # group: [glob]
 
 # tests without previous directories
+# files from: '{DATA_DIR}/csv/glob/crawl/' -- a bare '**' crawls the working
+# directory, whose entries are all symlinks under Bazel runfiles and are skipped
 query I
-select count(*) > 0 from glob('**');
+select count(*) > 0 from glob('{DATA_DIR}/csv/glob/crawl/**');
 ----
 true
 
 query I
-select count(*) from glob('**/samename/*');
+select count(*) from glob('{DATA_DIR}/csv/glob/crawl/**/samename/*');
 ----
 8
