@@ -51,7 +51,7 @@ def sql_logic_test_list(name, globs, kind):
         cmd = 'for f in $(SRCS); do case "$$f" in %s) echo "$$f";; esac; done > $@' % SQL_LOGIC_SUFFIXES[kind],
     )
 
-def subdirectory_test(name, args, size, testlist = None, deps = ["//:unittest_harness"],
+def subdirectory_test(name, args, size = "medium", testlist = None, deps = [],
                       fixture_tree = None):
     """One test subdirectory's tests, and only that subdirectory's.
 
@@ -70,6 +70,6 @@ def subdirectory_test(name, args, size, testlist = None, deps = ["//:unittest_ha
         args = args,
         size = size,
         linkopts = TEST_LINKOPTS,
-        deps = deps,
+        deps = ["//:unittest_harness"] + deps,
         data = trees + ([testlist] if testlist else []),
     )

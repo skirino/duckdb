@@ -67,7 +67,7 @@ DUCKDB_LIB_DEPS = [":duckdb_headers", ":generated_extension_loader"]
 def duckdb_library(
         name,
         srcs,
-        local_defines,
+        local_defines = DUCKDB_DEFINES,
         includes = DUCKDB_INCLUDES,
         copts = DUCKDB_COPTS,
         deps = DUCKDB_LIB_DEPS,
