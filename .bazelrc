@@ -1,5 +1,7 @@
-# Mirrors of the flags the CMake configure puts on the command line. aquery must be
-# run with --config=macos so both sides of the parity diff see the same toolchain.
+# Mirrors of the flags the CMake configure puts on the command line. These are the
+# default, so a plain `bazel build //...` is the configuration the parity diff
+# compares against and `bazel test //...` is the suite that passes; a debug build is
+# --config=debug below.
 common --check_direct_dependencies=error
 
 # Once per build: the checkout's commit and version, handed to rules through
@@ -14,7 +16,11 @@ test --spawn_strategy=local
 
 # CMake Release: -O3 -DNDEBUG; CMAKE_CXX_STANDARD=17; the project adds
 # -Wthread-safety; -mcpu comes from CMake's native-arch detection on Apple Silicon.
-build:macos --copt=-DNDEBUG
-build:macos --cxxopt=-std=c++17
-build:macos --cxxopt=-Wthread-safety
-build:macos --cxxopt=-mcpu=apple-m1
+# opt is the default rather than a config because a -O0 build does not fit the stack
+# on test/ossfuzz case 49 (SIGILL), so the suite only passes in the release
+# configuration -- and the parity diff has to compare that same configuration.
+common --compilation_mode=opt
+build --copt=-DNDEBUG
+build --cxxopt=-std=c++17
+build --cxxopt=-Wthread-safety
+build --cxxopt=-mcpu=apple-m1
