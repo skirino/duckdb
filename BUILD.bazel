@@ -52,10 +52,8 @@ cc_library(
 
 duckdb_library(
     name = "generated_extension_loader",
-    srcs = [
-        ":generated_extension_loader_files",
-    ],
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = [":generated_extension_loader_files"],
+    local_defines = DUCKDB_DEFINES,
     deps = [":duckdb_headers", ":generated_extension_headers"],
 )
 
@@ -69,27 +67,15 @@ cc_library(
         [
             "src/include/**/*.h",
             "src/include/**/*.hpp",
-            "src/include/**/*.tcc",
-            "extension/**/*.h",
             "extension/**/*.hpp",
             "third_party/**/*.h",
             "third_party/**/*.hpp",
-            "third_party/**/*.hh",
-            "third_party/**/*.hxx",
-            "third_party/**/*.inc",
-            "third_party/**/*.inl",
             "third_party/**/*.tcc",
-            "third_party/**/*.ipp",
-            "third_party/**/*.def",
             "tools/**/*.h",
             "tools/**/*.hpp",
-            "tools/**/*.hh",
             "test/**/*.h",
             "test/**/*.hpp",
-            "test/**/*.hh",
-            "test/**/*.inc",
         ],
-        allow_empty = True,
     ),
     textual_hdrs = [
         "third_party/utf8proc/utf8proc_data.cpp",
@@ -100,19 +86,19 @@ cc_library(
 
 duckdb_library(
     name = "duckdb_catalog",
-    srcs = glob(["src/catalog/*.cpp"], allow_empty = True),
+    srcs = glob(["src/catalog/*.cpp"]),
     local_defines = sorted(DUCKDB_DEFINES + ["DISABLE_CORE_FUNCTIONS_EXTENSION=1"]),
 )
 
 duckdb_library(
     name = "duckdb_main_extension",
-    srcs = glob(["src/main/extension/*.cpp"], allow_empty = True),
+    srcs = glob(["src/main/extension/*.cpp"]),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_EXTENSION_DIRECTORIES=\\\"~/.duckdb/extensions\\\""]),
 )
 
 duckdb_library(
     name = "duckdb_common_http",
-    srcs = glob(["src/main/http/*.cpp"], allow_empty = True),
+    srcs = glob(["src/main/http/*.cpp"]),
     local_defines = DUCKDB_DEFINES,
     includes = DUCKDB_INCLUDES,
 )
@@ -159,156 +145,24 @@ duckdb_library(
             "src/main/http/http_transport_manager.cpp",
             "src/main/http/http_util.cpp",
         ],
-        allow_empty = True,
     ),
     local_defines = DUCKDB_DEFINES,
 )
 
 duckdb_library(
     name = "core_functions_extension_init",
-    srcs = glob(
-        [
-            "extension/core_functions/**/*.cpp",
-        ],
-        exclude = [
-            "extension/core_functions/aggregate/algebraic/avg.cpp",
-            "extension/core_functions/aggregate/algebraic/corr.cpp",
-            "extension/core_functions/aggregate/algebraic/covar.cpp",
-            "extension/core_functions/aggregate/algebraic/stddev.cpp",
-            "extension/core_functions/aggregate/distributive/approx_count.cpp",
-            "extension/core_functions/aggregate/distributive/arg_min_max.cpp",
-            "extension/core_functions/aggregate/distributive/bitagg.cpp",
-            "extension/core_functions/aggregate/distributive/bitstring_agg.cpp",
-            "extension/core_functions/aggregate/distributive/bool.cpp",
-            "extension/core_functions/aggregate/distributive/kurtosis.cpp",
-            "extension/core_functions/aggregate/distributive/product.cpp",
-            "extension/core_functions/aggregate/distributive/skew.cpp",
-            "extension/core_functions/aggregate/distributive/string_agg.cpp",
-            "extension/core_functions/aggregate/distributive/sum.cpp",
-            "extension/core_functions/aggregate/holistic/approx_top_k.cpp",
-            "extension/core_functions/aggregate/holistic/approximate_quantile.cpp",
-            "extension/core_functions/aggregate/holistic/lttb.cpp",
-            "extension/core_functions/aggregate/holistic/mad.cpp",
-            "extension/core_functions/aggregate/holistic/mode.cpp",
-            "extension/core_functions/aggregate/holistic/quantile.cpp",
-            "extension/core_functions/aggregate/holistic/reservoir_quantile.cpp",
-            "extension/core_functions/aggregate/nested/binned_histogram.cpp",
-            "extension/core_functions/aggregate/nested/histogram.cpp",
-            "extension/core_functions/aggregate/nested/list.cpp",
-            "extension/core_functions/aggregate/regression/regr_avg.cpp",
-            "extension/core_functions/aggregate/regression/regr_count.cpp",
-            "extension/core_functions/aggregate/regression/regr_intercept.cpp",
-            "extension/core_functions/aggregate/regression/regr_r2.cpp",
-            "extension/core_functions/aggregate/regression/regr_slope.cpp",
-            "extension/core_functions/aggregate/regression/regr_sxx_syy.cpp",
-            "extension/core_functions/aggregate/regression/regr_sxy.cpp",
-            "extension/core_functions/aggregate/variant/variant_group_object.cpp",
-            "extension/core_functions/function_list.cpp",
-            "extension/core_functions/lambda_functions.cpp",
-            "extension/core_functions/scalar/array/array_functions.cpp",
-            "extension/core_functions/scalar/array/array_value.cpp",
-            "extension/core_functions/scalar/bit/bitstring.cpp",
-            "extension/core_functions/scalar/blob/base64.cpp",
-            "extension/core_functions/scalar/blob/encode.cpp",
-            "extension/core_functions/scalar/date/age.cpp",
-            "extension/core_functions/scalar/date/current.cpp",
-            "extension/core_functions/scalar/date/date_diff.cpp",
-            "extension/core_functions/scalar/date/date_part.cpp",
-            "extension/core_functions/scalar/date/date_sub.cpp",
-            "extension/core_functions/scalar/date/date_trunc.cpp",
-            "extension/core_functions/scalar/date/epoch.cpp",
-            "extension/core_functions/scalar/date/make_date.cpp",
-            "extension/core_functions/scalar/date/time_bucket.cpp",
-            "extension/core_functions/scalar/date/to_interval.cpp",
-            "extension/core_functions/scalar/debug/index_key.cpp",
-            "extension/core_functions/scalar/debug/sleep.cpp",
-            "extension/core_functions/scalar/debug/vector_type.cpp",
-            "extension/core_functions/scalar/enum/enum_functions.cpp",
-            "extension/core_functions/scalar/generic/alias.cpp",
-            "extension/core_functions/scalar/generic/binning.cpp",
-            "extension/core_functions/scalar/generic/can_implicitly_cast.cpp",
-            "extension/core_functions/scalar/generic/cast_to_type.cpp",
-            "extension/core_functions/scalar/generic/current_setting.cpp",
-            "extension/core_functions/scalar/generic/hash.cpp",
-            "extension/core_functions/scalar/generic/least.cpp",
-            "extension/core_functions/scalar/generic/replace_type.cpp",
-            "extension/core_functions/scalar/generic/stats.cpp",
-            "extension/core_functions/scalar/generic/system_functions.cpp",
-            "extension/core_functions/scalar/generic/type_functions.cpp",
-            "extension/core_functions/scalar/list/array_slice.cpp",
-            "extension/core_functions/scalar/list/flatten.cpp",
-            "extension/core_functions/scalar/list/list_aggregates.cpp",
-            "extension/core_functions/scalar/list/list_distance.cpp",
-            "extension/core_functions/scalar/list/list_filter.cpp",
-            "extension/core_functions/scalar/list/list_has_any_or_all.cpp",
-            "extension/core_functions/scalar/list/list_reduce.cpp",
-            "extension/core_functions/scalar/list/list_sort.cpp",
-            "extension/core_functions/scalar/list/list_transform.cpp",
-            "extension/core_functions/scalar/list/list_value.cpp",
-            "extension/core_functions/scalar/list/range.cpp",
-            "extension/core_functions/scalar/map/cardinality.cpp",
-            "extension/core_functions/scalar/map/map.cpp",
-            "extension/core_functions/scalar/map/map_concat.cpp",
-            "extension/core_functions/scalar/map/map_entries.cpp",
-            "extension/core_functions/scalar/map/map_extract.cpp",
-            "extension/core_functions/scalar/map/map_from_entries.cpp",
-            "extension/core_functions/scalar/map/map_keys_values.cpp",
-            "extension/core_functions/scalar/map/switch.cpp",
-            "extension/core_functions/scalar/math/numeric.cpp",
-            "extension/core_functions/scalar/operators/bitwise.cpp",
-            "extension/core_functions/scalar/random/random.cpp",
-            "extension/core_functions/scalar/random/setseed.cpp",
-            "extension/core_functions/scalar/string/ascii.cpp",
-            "extension/core_functions/scalar/string/bar.cpp",
-            "extension/core_functions/scalar/string/chr.cpp",
-            "extension/core_functions/scalar/string/damerau_levenshtein.cpp",
-            "extension/core_functions/scalar/string/format_bytes.cpp",
-            "extension/core_functions/scalar/string/hamming.cpp",
-            "extension/core_functions/scalar/string/hex.cpp",
-            "extension/core_functions/scalar/string/instr.cpp",
-            "extension/core_functions/scalar/string/jaccard.cpp",
-            "extension/core_functions/scalar/string/jaro_winkler.cpp",
-            "extension/core_functions/scalar/string/left_right.cpp",
-            "extension/core_functions/scalar/string/levenshtein.cpp",
-            "extension/core_functions/scalar/string/pad.cpp",
-            "extension/core_functions/scalar/string/parse_formatted_bytes.cpp",
-            "extension/core_functions/scalar/string/parse_path.cpp",
-            "extension/core_functions/scalar/string/printf.cpp",
-            "extension/core_functions/scalar/string/repeat.cpp",
-            "extension/core_functions/scalar/string/replace.cpp",
-            "extension/core_functions/scalar/string/reverse.cpp",
-            "extension/core_functions/scalar/string/starts_with.cpp",
-            "extension/core_functions/scalar/string/to_base.cpp",
-            "extension/core_functions/scalar/string/translate.cpp",
-            "extension/core_functions/scalar/string/trim.cpp",
-            "extension/core_functions/scalar/string/unicode.cpp",
-            "extension/core_functions/scalar/string/url_encode.cpp",
-            "extension/core_functions/scalar/struct/struct_insert.cpp",
-            "extension/core_functions/scalar/struct/struct_keys.cpp",
-            "extension/core_functions/scalar/struct/struct_update.cpp",
-            "extension/core_functions/scalar/struct/struct_values.cpp",
-            "extension/core_functions/scalar/union/union_extract.cpp",
-            "extension/core_functions/scalar/union/union_tag.cpp",
-            "extension/core_functions/scalar/union/union_value.cpp",
-        ],
-        allow_empty = True,
-    ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = ["extension/core_functions/core_functions_extension.cpp"],
+    local_defines = DUCKDB_DEFINES,
     includes = DUCKDB_INCLUDES,
 )
 
 duckdb_library(
     name = "core_functions",
     srcs = glob(
-        [
-            "extension/core_functions/**/*.cpp",
-        ],
-        exclude = [
-            "extension/core_functions/core_functions_extension.cpp",
-        ],
-        allow_empty = True,
+        ["extension/core_functions/**/*.cpp"],
+        exclude = ["extension/core_functions/core_functions_extension.cpp"],
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = DUCKDB_INCLUDES,
 )
 
@@ -365,9 +219,8 @@ duckdb_library(
             "extension/parquet/writer/variant_column_writer.cpp",
             "extension/parquet/zstd_file_system.cpp",
         ],
-        allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "third_party/brotli/include",
         "third_party/lz4",
@@ -395,9 +248,8 @@ duckdb_library(
             "extension/parquet/parquet_extension.cpp",
             "third_party/snappy/snappy-stubs-internal.cc",
         ],
-        allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "third_party/brotli/include",
         "third_party/lz4",
@@ -409,21 +261,21 @@ duckdb_library(
 
 duckdb_library(
     name = "third_party_fsst",
-    srcs = glob(["third_party/fsst/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["third_party/fsst/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     copts = ["-fPIC", "-fvisibility=hidden", "-w"],
 )
 
 duckdb_library(
     name = "third_party_mbedtls",
-    srcs = glob(["third_party/mbedtls/*.cpp", "third_party/mbedtls/library/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["third_party/mbedtls/*.cpp", "third_party/mbedtls/library/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     copts = ["-fPIC", "-fvisibility=hidden"],
 )
 
 duckdb_library(
     name = "third_party_re2",
-    srcs = glob(["third_party/re2/re2/*.cc", "third_party/re2/util/*.cc"], allow_empty = True),
+    srcs = glob(["third_party/re2/re2/*.cc", "third_party/re2/util/*.cc"]),
     local_defines = sorted(DUCKDB_DEFINES + ["RE2_ON_VALGRIND"]),
     copts = ["-fPIC", "-fvisibility=hidden", "-w"],
 )
@@ -431,21 +283,16 @@ duckdb_library(
 duckdb_library(
     name = "extension_loader",
     srcs = glob(
-        [
-            "third_party/utf8proc/**/*.cpp",
-        ],
-        exclude = [
-            "third_party/utf8proc/utf8proc_data.cpp",
-        ],
-        allow_empty = True,
+        ["third_party/utf8proc/**/*.cpp"],
+        exclude = ["third_party/utf8proc/utf8proc_data.cpp"],
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
 )
 
 duckdb_library(
     name = "dummy_static_extension_loader",
-    srcs = glob(["extension/loader/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["extension/loader/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     alwayslink = 0,
 )
 
@@ -465,30 +312,29 @@ duckdb_library(
             "third_party/zstd/deprecated/*.cpp",
             "third_party/zstd/dict/*.cpp",
         ],
-        allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     copts = ["-fPIC", "-w"],
 )
 
 duckdb_library(
     name = "duckdb_linenoise",
-    srcs = glob(["tools/shell/linenoise/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["tools/shell/linenoise/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + ["tools/shell/include", "tools/shell/linenoise/include"]),
 )
 
 duckdb_library(
     name = "duckdb_cpp_api",
-    srcs = glob(["tools/cpp/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["tools/cpp/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     copts = ["-fPIC", "-fvisibility-inlines-hidden", "-fvisibility=hidden"],
     includes = sorted(DUCKDB_INCLUDES + ["tools/cpp"]),
 )
 
 duckdb_library(
     name = "test_helpers",
-    srcs = glob(["test/helpers/*.cpp"], allow_empty = True),
+    srcs = glob(["test/helpers/*.cpp"]),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_ROOT_DIRECTORY=\\\".\\\""]),
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
@@ -500,7 +346,7 @@ duckdb_library(
 
 duckdb_library(
     name = "test_sqlite_libs",
-    srcs = glob(["test/sqlite/*.cpp"], allow_empty = True),
+    srcs = glob(["test/sqlite/*.cpp"]),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_ROOT_DIRECTORY=\\\".\\\""]),
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
@@ -512,7 +358,7 @@ duckdb_library(
 
 duckdb_library(
     name = "test_debug_fs_libs",
-    srcs = glob(["test/extension/debug_fs/*.cpp"], allow_empty = True),
+    srcs = glob(["test/extension/debug_fs/*.cpp"]),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\""]),
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
@@ -541,7 +387,6 @@ duckdb_library(
             "test/extension/loadable_extension_optimizer_demo.cpp",
             "test/extension/loadable_grammar_extension_demo.cpp",
         ],
-        allow_empty = True,
     ),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\""]),
     includes = sorted(DUCKDB_INCLUDES + [
@@ -554,7 +399,7 @@ duckdb_library(
 
 duckdb_library(
     name = "test_static_extension_demo",
-    srcs = glob(["test/api/capi/v2/static_extension/*.cpp"], allow_empty = True),
+    srcs = glob(["test/api/capi/v2/static_extension/*.cpp"]),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_EXTENSION_NAME=cpp_api_static_demo"]),
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
@@ -598,7 +443,7 @@ cc_shared_library(
 
 cc_binary(
     name = "shell",
-    srcs = glob(["tools/shell/*.cpp"], allow_empty = True),
+    srcs = glob(["tools/shell/*.cpp"]),
     local_defines = [
         "DUCKDB_BUILD_LIBRARY",
         "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
@@ -668,13 +513,8 @@ cc_binary(
 cc_binary(
     name = "duckdb_platform_binary",
     srcs = glob(
-        [
-            "tools/utils/**/*.cpp",
-        ],
-        exclude = [
-            "tools/utils/plan_serializer.cpp",
-        ],
-        allow_empty = True,
+        ["tools/utils/**/*.cpp"],
+        exclude = ["tools/utils/plan_serializer.cpp"],
     ),
     local_defines = [
         "DUCKDB_BUILD_LIBRARY",
@@ -723,13 +563,8 @@ cc_binary(
 cc_binary(
     name = "plan_serializer",
     srcs = glob(
-        [
-            "tools/utils/**/*.cpp",
-        ],
-        exclude = [
-            "tools/utils/test_platform.cpp",
-        ],
-        allow_empty = True,
+        ["tools/utils/**/*.cpp"],
+        exclude = ["tools/utils/test_platform.cpp"],
     ),
     local_defines = [
         "DUCKDB_BUILD_LIBRARY",
@@ -780,7 +615,7 @@ cc_binary(
 # extension libraries are here too, exactly as CMake's `unittest` does.
 duckdb_library(
     name = "unittest_harness",
-    srcs = glob(["test/*.cpp"], allow_empty = True),
+    srcs = glob(["test/*.cpp"]),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_ROOT_DIRECTORY=\\\".\\\"", "DUCKDB_UNITTEST_CRASH_STACKTRACE"]),
     copts = ["-fPIC", "-fPIE"],
     includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
@@ -830,7 +665,6 @@ duckdb_library(
             "test/extension/loadable_grammar_extension_demo.cpp",
             "test/extension/test_remote_optimizer.cpp",
         ],
-        allow_empty = True,
     ),
     local_defines = sorted(DUCKDB_DEFINES + [
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
@@ -879,7 +713,6 @@ duckdb_library(
             "test/extension/loadable_grammar_extension_demo.cpp",
             "test/extension/test_remote_optimizer.cpp",
         ],
-        allow_empty = True,
     ),
     local_defines = sorted(DUCKDB_DEFINES + [
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
@@ -928,7 +761,6 @@ duckdb_library(
             "test/extension/loadable_grammar_extension_demo.cpp",
             "test/extension/test_remote_optimizer.cpp",
         ],
-        allow_empty = True,
     ),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
     copts = ["-fPIC", "-fvisibility=hidden"],
@@ -976,7 +808,6 @@ duckdb_library(
             "test/extension/loadable_grammar_extension_demo.cpp",
             "test/extension/test_remote_optimizer.cpp",
         ],
-        allow_empty = True,
     ),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
     copts = ["-fPIC", "-fvisibility=hidden"],
@@ -1024,7 +855,6 @@ duckdb_library(
             "test/extension/loadable_grammar_extension_demo.cpp",
             "test/extension/test_remote_optimizer.cpp",
         ],
-        allow_empty = True,
     ),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
     copts = ["-fPIC", "-fvisibility=hidden"],
@@ -1072,7 +902,6 @@ duckdb_library(
             "test/extension/loadable_grammar_extension_demo.cpp",
             "test/extension/test_remote_optimizer.cpp",
         ],
-        allow_empty = True,
     ),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
     copts = ["-fPIC", "-fvisibility=hidden"],
@@ -1120,7 +949,6 @@ duckdb_library(
             "test/extension/loadable_grammar_extension_demo.cpp",
             "test/extension/test_remote_optimizer.cpp",
         ],
-        allow_empty = True,
     ),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
     copts = ["-fPIC", "-fvisibility=hidden"],
@@ -1168,7 +996,6 @@ duckdb_library(
             "test/extension/loadable_extension_optimizer_demo.cpp",
             "test/extension/test_remote_optimizer.cpp",
         ],
-        allow_empty = True,
     ),
     local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
     copts = ["-fPIC", "-fvisibility=hidden"],
@@ -1207,7 +1034,6 @@ filegroup(
             "data/**",
             "third_party/**",
         ],
-        allow_empty = True,
     ),
 )
 
@@ -1220,7 +1046,6 @@ filegroup(
             "benchmark/recursive_cte/**",
             "third_party/**",
         ],
-        allow_empty = True,
     ),
 )
 
@@ -1330,9 +1155,8 @@ duckdb_library(
             "test/api/test_tpch_with_relations.cpp",
             "test/api/test_tpch_with_streaming.cpp",
         ],
-        allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1357,8 +1181,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_api_adbc",
-    srcs = glob(["test/api/adbc/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/api/adbc/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1383,8 +1207,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_api_capi_v1",
-    srcs = glob(["test/api/capi/v1/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/api/capi/v1/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1409,8 +1233,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_api_capi_v2",
-    srcs = glob(["test/api/capi/v2/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/api/capi/v2/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1435,8 +1259,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_appender",
-    srcs = glob(["test/appender/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/appender/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1461,8 +1285,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_arrow",
-    srcs = glob(["test/arrow/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/arrow/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1487,8 +1311,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_catalog",
-    srcs = glob(["test/catalog/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/catalog/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1513,8 +1337,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_common",
-    srcs = glob(["test/common/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/common/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1525,7 +1349,7 @@ duckdb_library(
 
 sql_logic_test_list(
     name = "common_fast_testlist",
-    globs = glob(["test/common/*"], allow_empty = True),
+    globs = glob(["test/common/*"]),
     kind = "fast",
 )
 
@@ -1553,8 +1377,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_cpp_api",
-    srcs = glob(["tools/cpp/tests/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["tools/cpp/tests/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1581,7 +1405,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "db-benchmark_slow_testlist",
-    globs = glob(["test/db-benchmark/*"], allow_empty = True),
+    globs = glob(["test/db-benchmark/*"]),
     kind = "slow",
 )
 
@@ -1595,8 +1419,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_encryption",
-    srcs = glob(["test/encryption/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/encryption/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1621,13 +1445,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "extension_fast_testlist",
-    globs = glob(["test/extension/*"], allow_empty = True),
+    globs = glob(["test/extension/*"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "extension_slow_testlist",
-    globs = glob(["test/extension/*"], allow_empty = True),
+    globs = glob(["test/extension/*"]),
     kind = "slow",
 )
 
@@ -1649,7 +1473,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "fuzzer_fast_testlist",
-    globs = glob(["test/fuzzer/*"], allow_empty = True),
+    globs = glob(["test/fuzzer/*"]),
     kind = "fast",
 )
 
@@ -1663,7 +1487,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "fuzzer_afl_fast_testlist",
-    globs = glob(["test/fuzzer/afl/**"], allow_empty = True),
+    globs = glob(["test/fuzzer/afl/**"]),
     kind = "fast",
 )
 
@@ -1677,13 +1501,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "fuzzer_duckfuzz_fast_testlist",
-    globs = glob(["test/fuzzer/duckfuzz/**"], allow_empty = True),
+    globs = glob(["test/fuzzer/duckfuzz/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "fuzzer_duckfuzz_slow_testlist",
-    globs = glob(["test/fuzzer/duckfuzz/**"], allow_empty = True),
+    globs = glob(["test/fuzzer/duckfuzz/**"]),
     kind = "slow",
 )
 
@@ -1705,7 +1529,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "fuzzer_pedro_fast_testlist",
-    globs = glob(["test/fuzzer/pedro/**"], allow_empty = True),
+    globs = glob(["test/fuzzer/pedro/**"]),
     kind = "fast",
 )
 
@@ -1719,7 +1543,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "fuzzer_public_fast_testlist",
-    globs = glob(["test/fuzzer/public/**"], allow_empty = True),
+    globs = glob(["test/fuzzer/public/**"]),
     kind = "fast",
 )
 
@@ -1733,7 +1557,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "fuzzer_sqlsmith_fast_testlist",
-    globs = glob(["test/fuzzer/sqlsmith/**"], allow_empty = True),
+    globs = glob(["test/fuzzer/sqlsmith/**"]),
     kind = "fast",
 )
 
@@ -1747,7 +1571,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "geoparquet_fast_testlist",
-    globs = glob(["test/geoparquet/*"], allow_empty = True),
+    globs = glob(["test/geoparquet/*"]),
     kind = "fast",
 )
 
@@ -1761,7 +1585,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "issues_fuzz_fast_testlist",
-    globs = glob(["test/issues/fuzz/**"], allow_empty = True),
+    globs = glob(["test/issues/fuzz/**"]),
     kind = "fast",
 )
 
@@ -1775,13 +1599,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "issues_general_fast_testlist",
-    globs = glob(["test/issues/general/**"], allow_empty = True),
+    globs = glob(["test/issues/general/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "issues_general_slow_testlist",
-    globs = glob(["test/issues/general/**"], allow_empty = True),
+    globs = glob(["test/issues/general/**"]),
     kind = "slow",
 )
 
@@ -1803,7 +1627,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "issues_internal_fast_testlist",
-    globs = glob(["test/issues/internal/**"], allow_empty = True),
+    globs = glob(["test/issues/internal/**"]),
     kind = "fast",
 )
 
@@ -1817,13 +1641,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "issues_monetdb_fast_testlist",
-    globs = glob(["test/issues/monetdb/**"], allow_empty = True),
+    globs = glob(["test/issues/monetdb/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "issues_monetdb_slow_testlist",
-    globs = glob(["test/issues/monetdb/**"], allow_empty = True),
+    globs = glob(["test/issues/monetdb/**"]),
     kind = "slow",
 )
 
@@ -1845,7 +1669,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "issues_rigger_fast_testlist",
-    globs = glob(["test/issues/rigger/**"], allow_empty = True),
+    globs = glob(["test/issues/rigger/**"]),
     kind = "fast",
 )
 
@@ -1859,7 +1683,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "ldbc_fast_testlist",
-    globs = glob(["test/ldbc/*"], allow_empty = True),
+    globs = glob(["test/ldbc/*"]),
     kind = "fast",
 )
 
@@ -1873,8 +1697,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_logging",
-    srcs = glob(["test/logging/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/logging/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1885,7 +1709,7 @@ duckdb_library(
 
 sql_logic_test_list(
     name = "logging_fast_testlist",
-    globs = glob(["test/logging/*"], allow_empty = True),
+    globs = glob(["test/logging/*"]),
     kind = "fast",
 )
 
@@ -1913,8 +1737,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_mbedtls",
-    srcs = glob(["test/mbedtls/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/mbedtls/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1939,8 +1763,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_memoryleak",
-    srcs = glob(["test/memoryleak/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/memoryleak/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1965,8 +1789,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_optimizer",
-    srcs = glob(["test/optimizer/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/optimizer/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -1977,13 +1801,13 @@ duckdb_library(
 
 sql_logic_test_list(
     name = "optimizer_fast_testlist",
-    globs = glob(["test/optimizer/*"], allow_empty = True),
+    globs = glob(["test/optimizer/*"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "optimizer_slow_testlist",
-    globs = glob(["test/optimizer/*"], allow_empty = True),
+    globs = glob(["test/optimizer/*"]),
     kind = "slow",
 )
 
@@ -2019,7 +1843,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "optimizer_column_lifetime_analyzer_fast_testlist",
-    globs = glob(["test/optimizer/column_lifetime_analyzer/**"], allow_empty = True),
+    globs = glob(["test/optimizer/column_lifetime_analyzer/**"]),
     kind = "fast",
 )
 
@@ -2033,7 +1857,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "optimizer_expression_rewriter_fast_testlist",
-    globs = glob(["test/optimizer/expression_rewriter/**"], allow_empty = True),
+    globs = glob(["test/optimizer/expression_rewriter/**"]),
     kind = "fast",
 )
 
@@ -2047,7 +1871,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "optimizer_filter_pushdown_fast_testlist",
-    globs = glob(["test/optimizer/filter_pushdown/**"], allow_empty = True),
+    globs = glob(["test/optimizer/filter_pushdown/**"]),
     kind = "fast",
 )
 
@@ -2061,13 +1885,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "optimizer_joins_fast_testlist",
-    globs = glob(["test/optimizer/joins/**"], allow_empty = True),
+    globs = glob(["test/optimizer/joins/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "optimizer_joins_slow_testlist",
-    globs = glob(["test/optimizer/joins/**"], allow_empty = True),
+    globs = glob(["test/optimizer/joins/**"]),
     kind = "slow",
 )
 
@@ -2089,7 +1913,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "optimizer_misc_fast_testlist",
-    globs = glob(["test/optimizer/misc/**"], allow_empty = True),
+    globs = glob(["test/optimizer/misc/**"]),
     kind = "fast",
 )
 
@@ -2103,13 +1927,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "optimizer_pushdown_fast_testlist",
-    globs = glob(["test/optimizer/pushdown/**"], allow_empty = True),
+    globs = glob(["test/optimizer/pushdown/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "optimizer_pushdown_slow_testlist",
-    globs = glob(["test/optimizer/pushdown/**"], allow_empty = True),
+    globs = glob(["test/optimizer/pushdown/**"]),
     kind = "slow",
 )
 
@@ -2131,7 +1955,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "optimizer_reported_bugs_fast_testlist",
-    globs = glob(["test/optimizer/reported_bugs/**"], allow_empty = True),
+    globs = glob(["test/optimizer/reported_bugs/**"]),
     kind = "fast",
 )
 
@@ -2145,13 +1969,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "optimizer_statistics_fast_testlist",
-    globs = glob(["test/optimizer/statistics/**"], allow_empty = True),
+    globs = glob(["test/optimizer/statistics/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "optimizer_statistics_slow_testlist",
-    globs = glob(["test/optimizer/statistics/**"], allow_empty = True),
+    globs = glob(["test/optimizer/statistics/**"]),
     kind = "slow",
 )
 
@@ -2173,7 +1997,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "optimizer_topn_fast_testlist",
-    globs = glob(["test/optimizer/topn/**"], allow_empty = True),
+    globs = glob(["test/optimizer/topn/**"]),
     kind = "fast",
 )
 
@@ -2187,7 +2011,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "optimizer_unused_columns_fast_testlist",
-    globs = glob(["test/optimizer/unused_columns/**"], allow_empty = True),
+    globs = glob(["test/optimizer/unused_columns/**"]),
     kind = "fast",
 )
 
@@ -2210,9 +2034,8 @@ duckdb_library(
             "test/ossfuzz/parquet_fuzz_test.cpp",
             "test/ossfuzz/parse_fuzz_test.cpp",
         ],
-        allow_empty = True,
     ),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -2237,13 +2060,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "parquet_fast_testlist",
-    globs = glob(["test/parquet/*"], allow_empty = True),
+    globs = glob(["test/parquet/*"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "parquet_slow_testlist",
-    globs = glob(["test/parquet/*"], allow_empty = True),
+    globs = glob(["test/parquet/*"]),
     kind = "slow",
 )
 
@@ -2265,7 +2088,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "parquet_delta_encoding_fast_testlist",
-    globs = glob(["test/parquet/delta_encoding/**"], allow_empty = True),
+    globs = glob(["test/parquet/delta_encoding/**"]),
     kind = "fast",
 )
 
@@ -2279,13 +2102,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "parquet_variant_fast_testlist",
-    globs = glob(["test/parquet/variant/**"], allow_empty = True),
+    globs = glob(["test/parquet/variant/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "parquet_variant_slow_testlist",
-    globs = glob(["test/parquet/variant/**"], allow_empty = True),
+    globs = glob(["test/parquet/variant/**"]),
     kind = "slow",
 )
 
@@ -2307,8 +2130,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_persistence",
-    srcs = glob(["test/persistence/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/persistence/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -2333,7 +2156,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "planner_fast_testlist",
-    globs = glob(["test/planner/*"], allow_empty = True),
+    globs = glob(["test/planner/*"]),
     kind = "fast",
 )
 
@@ -2347,7 +2170,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sakila_slow_testlist",
-    globs = glob(["test/sakila/*"], allow_empty = True),
+    globs = glob(["test/sakila/*"]),
     kind = "slow",
 )
 
@@ -2361,8 +2184,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_secrets",
-    srcs = glob(["test/secrets/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/secrets/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -2387,8 +2210,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_serialize",
-    srcs = glob(["test/serialize/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/serialize/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -2413,13 +2236,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_aggregate_fast_testlist",
-    globs = glob(["test/sql/aggregate/**"], allow_empty = True),
+    globs = glob(["test/sql/aggregate/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_aggregate_slow_testlist",
-    globs = glob(["test/sql/aggregate/**"], allow_empty = True),
+    globs = glob(["test/sql/aggregate/**"]),
     kind = "slow",
 )
 
@@ -2441,13 +2264,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_alter_fast_testlist",
-    globs = glob(["test/sql/alter/**"], allow_empty = True),
+    globs = glob(["test/sql/alter/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_alter_slow_testlist",
-    globs = glob(["test/sql/alter/**"], allow_empty = True),
+    globs = glob(["test/sql/alter/**"]),
     kind = "slow",
 )
 
@@ -2469,7 +2292,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_aoc24_slow_testlist",
-    globs = glob(["test/sql/aoc24/**"], allow_empty = True),
+    globs = glob(["test/sql/aoc24/**"]),
     kind = "slow",
 )
 
@@ -2483,7 +2306,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_append_slow_testlist",
-    globs = glob(["test/sql/append/**"], allow_empty = True),
+    globs = glob(["test/sql/append/**"]),
     kind = "slow",
 )
 
@@ -2497,13 +2320,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_attach_fast_testlist",
-    globs = glob(["test/sql/attach/**"], allow_empty = True),
+    globs = glob(["test/sql/attach/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_attach_slow_testlist",
-    globs = glob(["test/sql/attach/**"], allow_empty = True),
+    globs = glob(["test/sql/attach/**"]),
     kind = "slow",
 )
 
@@ -2525,7 +2348,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_binder_fast_testlist",
-    globs = glob(["test/sql/binder/**"], allow_empty = True),
+    globs = glob(["test/sql/binder/**"]),
     kind = "fast",
 )
 
@@ -2539,13 +2362,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_cast_fast_testlist",
-    globs = glob(["test/sql/cast/**"], allow_empty = True),
+    globs = glob(["test/sql/cast/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_cast_slow_testlist",
-    globs = glob(["test/sql/cast/**"], allow_empty = True),
+    globs = glob(["test/sql/cast/**"]),
     kind = "slow",
 )
 
@@ -2567,13 +2390,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_catalog_fast_testlist",
-    globs = glob(["test/sql/catalog/**"], allow_empty = True),
+    globs = glob(["test/sql/catalog/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_catalog_slow_testlist",
-    globs = glob(["test/sql/catalog/**"], allow_empty = True),
+    globs = glob(["test/sql/catalog/**"]),
     kind = "slow",
 )
 
@@ -2595,13 +2418,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_collate_fast_testlist",
-    globs = glob(["test/sql/collate/**"], allow_empty = True),
+    globs = glob(["test/sql/collate/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_collate_slow_testlist",
-    globs = glob(["test/sql/collate/**"], allow_empty = True),
+    globs = glob(["test/sql/collate/**"]),
     kind = "slow",
 )
 
@@ -2623,7 +2446,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_conjunction_fast_testlist",
-    globs = glob(["test/sql/conjunction/**"], allow_empty = True),
+    globs = glob(["test/sql/conjunction/**"]),
     kind = "fast",
 )
 
@@ -2637,7 +2460,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_connect_fast_testlist",
-    globs = glob(["test/sql/connect/**"], allow_empty = True),
+    globs = glob(["test/sql/connect/**"]),
     kind = "fast",
 )
 
@@ -2651,13 +2474,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_constraints_fast_testlist",
-    globs = glob(["test/sql/constraints/**"], allow_empty = True),
+    globs = glob(["test/sql/constraints/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_constraints_slow_testlist",
-    globs = glob(["test/sql/constraints/**"], allow_empty = True),
+    globs = glob(["test/sql/constraints/**"]),
     kind = "slow",
 )
 
@@ -2679,13 +2502,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_copy_fast_testlist",
-    globs = glob(["test/sql/copy/**"], allow_empty = True),
+    globs = glob(["test/sql/copy/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_copy_slow_testlist",
-    globs = glob(["test/sql/copy/**"], allow_empty = True),
+    globs = glob(["test/sql/copy/**"]),
     kind = "slow",
 )
 
@@ -2700,7 +2523,6 @@ fixture_tree(
             "data/**",
             "third_party/**",
         ],
-        allow_empty = True,
     ),
 )
 
@@ -2724,13 +2546,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_copy_database_fast_testlist",
-    globs = glob(["test/sql/copy_database/**"], allow_empty = True),
+    globs = glob(["test/sql/copy_database/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_copy_database_slow_testlist",
-    globs = glob(["test/sql/copy_database/**"], allow_empty = True),
+    globs = glob(["test/sql/copy_database/**"]),
     kind = "slow",
 )
 
@@ -2752,13 +2574,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_create_fast_testlist",
-    globs = glob(["test/sql/create/**"], allow_empty = True),
+    globs = glob(["test/sql/create/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_create_slow_testlist",
-    globs = glob(["test/sql/create/**"], allow_empty = True),
+    globs = glob(["test/sql/create/**"]),
     kind = "slow",
 )
 
@@ -2780,13 +2602,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_cte_fast_testlist",
-    globs = glob(["test/sql/cte/**"], allow_empty = True),
+    globs = glob(["test/sql/cte/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_cte_slow_testlist",
-    globs = glob(["test/sql/cte/**"], allow_empty = True),
+    globs = glob(["test/sql/cte/**"]),
     kind = "slow",
 )
 
@@ -2808,13 +2630,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_delete_fast_testlist",
-    globs = glob(["test/sql/delete/**"], allow_empty = True),
+    globs = glob(["test/sql/delete/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_delete_slow_testlist",
-    globs = glob(["test/sql/delete/**"], allow_empty = True),
+    globs = glob(["test/sql/delete/**"]),
     kind = "slow",
 )
 
@@ -2836,13 +2658,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_detailed_profiler_fast_testlist",
-    globs = glob(["test/sql/detailed_profiler/**"], allow_empty = True),
+    globs = glob(["test/sql/detailed_profiler/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_detailed_profiler_slow_testlist",
-    globs = glob(["test/sql/detailed_profiler/**"], allow_empty = True),
+    globs = glob(["test/sql/detailed_profiler/**"]),
     kind = "slow",
 )
 
@@ -2864,13 +2686,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_error_fast_testlist",
-    globs = glob(["test/sql/error/**"], allow_empty = True),
+    globs = glob(["test/sql/error/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_error_slow_testlist",
-    globs = glob(["test/sql/error/**"], allow_empty = True),
+    globs = glob(["test/sql/error/**"]),
     kind = "slow",
 )
 
@@ -2892,13 +2714,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_explain_fast_testlist",
-    globs = glob(["test/sql/explain/**"], allow_empty = True),
+    globs = glob(["test/sql/explain/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_explain_slow_testlist",
-    globs = glob(["test/sql/explain/**"], allow_empty = True),
+    globs = glob(["test/sql/explain/**"]),
     kind = "slow",
 )
 
@@ -2920,7 +2742,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_export_fast_testlist",
-    globs = glob(["test/sql/export/**"], allow_empty = True),
+    globs = glob(["test/sql/export/**"]),
     kind = "fast",
 )
 
@@ -2934,7 +2756,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_extensions_fast_testlist",
-    globs = glob(["test/sql/extensions/**"], allow_empty = True),
+    globs = glob(["test/sql/extensions/**"]),
     kind = "fast",
 )
 
@@ -2948,8 +2770,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_sql_filter",
-    srcs = glob(["test/sql/filter/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/sql/filter/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -2960,13 +2782,13 @@ duckdb_library(
 
 sql_logic_test_list(
     name = "sql_filter_fast_testlist",
-    globs = glob(["test/sql/filter/**"], allow_empty = True),
+    globs = glob(["test/sql/filter/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_filter_slow_testlist",
-    globs = glob(["test/sql/filter/**"], allow_empty = True),
+    globs = glob(["test/sql/filter/**"]),
     kind = "slow",
 )
 
@@ -3002,13 +2824,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_function_fast_testlist",
-    globs = glob(["test/sql/function/**"], allow_empty = True),
+    globs = glob(["test/sql/function/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_function_slow_testlist",
-    globs = glob(["test/sql/function/**"], allow_empty = True),
+    globs = glob(["test/sql/function/**"]),
     kind = "slow",
 )
 
@@ -3030,8 +2852,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_sql_function_table",
-    srcs = glob(["test/sql/function/table/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/sql/function/table/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3056,13 +2878,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_generated_columns_fast_testlist",
-    globs = glob(["test/sql/generated_columns/**"], allow_empty = True),
+    globs = glob(["test/sql/generated_columns/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_generated_columns_slow_testlist",
-    globs = glob(["test/sql/generated_columns/**"], allow_empty = True),
+    globs = glob(["test/sql/generated_columns/**"]),
     kind = "slow",
 )
 
@@ -3084,8 +2906,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_sql_index",
-    srcs = glob(["test/sql/index/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/sql/index/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3096,13 +2918,13 @@ duckdb_library(
 
 sql_logic_test_list(
     name = "sql_index_fast_testlist",
-    globs = glob(["test/sql/index/**"], allow_empty = True),
+    globs = glob(["test/sql/index/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_index_slow_testlist",
-    globs = glob(["test/sql/index/**"], allow_empty = True),
+    globs = glob(["test/sql/index/**"]),
     kind = "slow",
 )
 
@@ -3138,13 +2960,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_insert_fast_testlist",
-    globs = glob(["test/sql/insert/**"], allow_empty = True),
+    globs = glob(["test/sql/insert/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_insert_slow_testlist",
-    globs = glob(["test/sql/insert/**"], allow_empty = True),
+    globs = glob(["test/sql/insert/**"]),
     kind = "slow",
 )
 
@@ -3166,13 +2988,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_join_fast_testlist",
-    globs = glob(["test/sql/join/**"], allow_empty = True),
+    globs = glob(["test/sql/join/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_join_slow_testlist",
-    globs = glob(["test/sql/join/**"], allow_empty = True),
+    globs = glob(["test/sql/join/**"]),
     kind = "slow",
 )
 
@@ -3194,13 +3016,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_json_fast_testlist",
-    globs = glob(["test/sql/json/**"], allow_empty = True),
+    globs = glob(["test/sql/json/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_json_slow_testlist",
-    globs = glob(["test/sql/json/**"], allow_empty = True),
+    globs = glob(["test/sql/json/**"]),
     kind = "slow",
 )
 
@@ -3222,7 +3044,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_keywords_fast_testlist",
-    globs = glob(["test/sql/keywords/**"], allow_empty = True),
+    globs = glob(["test/sql/keywords/**"]),
     kind = "fast",
 )
 
@@ -3236,13 +3058,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_limit_fast_testlist",
-    globs = glob(["test/sql/limit/**"], allow_empty = True),
+    globs = glob(["test/sql/limit/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_limit_slow_testlist",
-    globs = glob(["test/sql/limit/**"], allow_empty = True),
+    globs = glob(["test/sql/limit/**"]),
     kind = "slow",
 )
 
@@ -3264,13 +3086,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_logging_fast_testlist",
-    globs = glob(["test/sql/logging/**"], allow_empty = True),
+    globs = glob(["test/sql/logging/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_logging_slow_testlist",
-    globs = glob(["test/sql/logging/**"], allow_empty = True),
+    globs = glob(["test/sql/logging/**"]),
     kind = "slow",
 )
 
@@ -3292,13 +3114,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_merge_fast_testlist",
-    globs = glob(["test/sql/merge/**"], allow_empty = True),
+    globs = glob(["test/sql/merge/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_merge_slow_testlist",
-    globs = glob(["test/sql/merge/**"], allow_empty = True),
+    globs = glob(["test/sql/merge/**"]),
     kind = "slow",
 )
 
@@ -3320,7 +3142,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_multi_file_fast_testlist",
-    globs = glob(["test/sql/multi_file/**"], allow_empty = True),
+    globs = glob(["test/sql/multi_file/**"]),
     kind = "fast",
 )
 
@@ -3334,13 +3156,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_optimizer_fast_testlist",
-    globs = glob(["test/sql/optimizer/**"], allow_empty = True),
+    globs = glob(["test/sql/optimizer/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_optimizer_slow_testlist",
-    globs = glob(["test/sql/optimizer/**"], allow_empty = True),
+    globs = glob(["test/sql/optimizer/**"]),
     kind = "slow",
 )
 
@@ -3362,13 +3184,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_order_fast_testlist",
-    globs = glob(["test/sql/order/**"], allow_empty = True),
+    globs = glob(["test/sql/order/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_order_slow_testlist",
-    globs = glob(["test/sql/order/**"], allow_empty = True),
+    globs = glob(["test/sql/order/**"]),
     kind = "slow",
 )
 
@@ -3390,13 +3212,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_ordinality_fast_testlist",
-    globs = glob(["test/sql/ordinality/**"], allow_empty = True),
+    globs = glob(["test/sql/ordinality/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_ordinality_slow_testlist",
-    globs = glob(["test/sql/ordinality/**"], allow_empty = True),
+    globs = glob(["test/sql/ordinality/**"]),
     kind = "slow",
 )
 
@@ -3418,7 +3240,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_outofcore_slow_testlist",
-    globs = glob(["test/sql/outofcore/**"], allow_empty = True),
+    globs = glob(["test/sql/outofcore/**"]),
     kind = "slow",
 )
 
@@ -3432,7 +3254,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_overflow_fast_testlist",
-    globs = glob(["test/sql/overflow/**"], allow_empty = True),
+    globs = glob(["test/sql/overflow/**"]),
     kind = "fast",
 )
 
@@ -3446,13 +3268,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_parallelism_fast_testlist",
-    globs = glob(["test/sql/parallelism/**"], allow_empty = True),
+    globs = glob(["test/sql/parallelism/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_parallelism_slow_testlist",
-    globs = glob(["test/sql/parallelism/**"], allow_empty = True),
+    globs = glob(["test/sql/parallelism/**"]),
     kind = "slow",
 )
 
@@ -3474,8 +3296,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_sql_parallelism_interquery",
-    srcs = glob(["test/sql/parallelism/interquery/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/sql/parallelism/interquery/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3500,13 +3322,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_parser_fast_testlist",
-    globs = glob(["test/sql/parser/**"], allow_empty = True),
+    globs = glob(["test/sql/parser/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_parser_slow_testlist",
-    globs = glob(["test/sql/parser/**"], allow_empty = True),
+    globs = glob(["test/sql/parser/**"]),
     kind = "slow",
 )
 
@@ -3528,7 +3350,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_peg_parser_fast_testlist",
-    globs = glob(["test/sql/peg_parser/**"], allow_empty = True),
+    globs = glob(["test/sql/peg_parser/**"]),
     kind = "fast",
 )
 
@@ -3542,13 +3364,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_pg_catalog_fast_testlist",
-    globs = glob(["test/sql/pg_catalog/**"], allow_empty = True),
+    globs = glob(["test/sql/pg_catalog/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_pg_catalog_slow_testlist",
-    globs = glob(["test/sql/pg_catalog/**"], allow_empty = True),
+    globs = glob(["test/sql/pg_catalog/**"]),
     kind = "slow",
 )
 
@@ -3570,8 +3392,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_sql_pivot",
-    srcs = glob(["test/sql/pivot/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/sql/pivot/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3582,13 +3404,13 @@ duckdb_library(
 
 sql_logic_test_list(
     name = "sql_pivot_fast_testlist",
-    globs = glob(["test/sql/pivot/**"], allow_empty = True),
+    globs = glob(["test/sql/pivot/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_pivot_slow_testlist",
-    globs = glob(["test/sql/pivot/**"], allow_empty = True),
+    globs = glob(["test/sql/pivot/**"]),
     kind = "slow",
 )
 
@@ -3624,13 +3446,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_pragma_fast_testlist",
-    globs = glob(["test/sql/pragma/**"], allow_empty = True),
+    globs = glob(["test/sql/pragma/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_pragma_slow_testlist",
-    globs = glob(["test/sql/pragma/**"], allow_empty = True),
+    globs = glob(["test/sql/pragma/**"]),
     kind = "slow",
 )
 
@@ -3652,13 +3474,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_prepared_fast_testlist",
-    globs = glob(["test/sql/prepared/**"], allow_empty = True),
+    globs = glob(["test/sql/prepared/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_prepared_slow_testlist",
-    globs = glob(["test/sql/prepared/**"], allow_empty = True),
+    globs = glob(["test/sql/prepared/**"]),
     kind = "slow",
 )
 
@@ -3680,7 +3502,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_progress_bar_slow_testlist",
-    globs = glob(["test/sql/progress_bar/**"], allow_empty = True),
+    globs = glob(["test/sql/progress_bar/**"]),
     kind = "slow",
 )
 
@@ -3694,13 +3516,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_projection_fast_testlist",
-    globs = glob(["test/sql/projection/**"], allow_empty = True),
+    globs = glob(["test/sql/projection/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_projection_slow_testlist",
-    globs = glob(["test/sql/projection/**"], allow_empty = True),
+    globs = glob(["test/sql/projection/**"]),
     kind = "slow",
 )
 
@@ -3722,7 +3544,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_returning_fast_testlist",
-    globs = glob(["test/sql/returning/**"], allow_empty = True),
+    globs = glob(["test/sql/returning/**"]),
     kind = "fast",
 )
 
@@ -3736,13 +3558,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_sample_fast_testlist",
-    globs = glob(["test/sql/sample/**"], allow_empty = True),
+    globs = glob(["test/sql/sample/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_sample_slow_testlist",
-    globs = glob(["test/sql/sample/**"], allow_empty = True),
+    globs = glob(["test/sql/sample/**"]),
     kind = "slow",
 )
 
@@ -3764,7 +3586,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_secrets_fast_testlist",
-    globs = glob(["test/sql/secrets/**"], allow_empty = True),
+    globs = glob(["test/sql/secrets/**"]),
     kind = "fast",
 )
 
@@ -3778,7 +3600,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_select_fast_testlist",
-    globs = glob(["test/sql/select/**"], allow_empty = True),
+    globs = glob(["test/sql/select/**"]),
     kind = "fast",
 )
 
@@ -3792,13 +3614,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_setops_fast_testlist",
-    globs = glob(["test/sql/setops/**"], allow_empty = True),
+    globs = glob(["test/sql/setops/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_setops_slow_testlist",
-    globs = glob(["test/sql/setops/**"], allow_empty = True),
+    globs = glob(["test/sql/setops/**"]),
     kind = "slow",
 )
 
@@ -3820,13 +3642,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_settings_fast_testlist",
-    globs = glob(["test/sql/settings/**"], allow_empty = True),
+    globs = glob(["test/sql/settings/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_settings_slow_testlist",
-    globs = glob(["test/sql/settings/**"], allow_empty = True),
+    globs = glob(["test/sql/settings/**"]),
     kind = "slow",
 )
 
@@ -3848,7 +3670,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_show_select_fast_testlist",
-    globs = glob(["test/sql/show_select/**"], allow_empty = True),
+    globs = glob(["test/sql/show_select/**"]),
     kind = "fast",
 )
 
@@ -3862,8 +3684,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_sql_storage",
-    srcs = glob(["test/sql/storage/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/sql/storage/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3874,13 +3696,13 @@ duckdb_library(
 
 sql_logic_test_list(
     name = "sql_storage_fast_testlist",
-    globs = glob(["test/sql/storage/**"], allow_empty = True),
+    globs = glob(["test/sql/storage/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_storage_slow_testlist",
-    globs = glob(["test/sql/storage/**"], allow_empty = True),
+    globs = glob(["test/sql/storage/**"]),
     kind = "slow",
 )
 
@@ -3916,8 +3738,8 @@ subdirectory_test(
 
 duckdb_library(
     name = "test_cpp_sql_storage_catalog",
-    srcs = glob(["test/sql/storage/catalog/*.cpp"], allow_empty = True),
-    local_defines = sorted(DUCKDB_DEFINES + []),
+    srcs = glob(["test/sql/storage/catalog/*.cpp"]),
+    local_defines = DUCKDB_DEFINES,
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -3942,13 +3764,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_storage_version_fast_testlist",
-    globs = glob(["test/sql/storage_version/**"], allow_empty = True),
+    globs = glob(["test/sql/storage_version/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_storage_version_slow_testlist",
-    globs = glob(["test/sql/storage_version/**"], allow_empty = True),
+    globs = glob(["test/sql/storage_version/**"]),
     kind = "slow",
 )
 
@@ -3970,13 +3792,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_subquery_fast_testlist",
-    globs = glob(["test/sql/subquery/**"], allow_empty = True),
+    globs = glob(["test/sql/subquery/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_subquery_slow_testlist",
-    globs = glob(["test/sql/subquery/**"], allow_empty = True),
+    globs = glob(["test/sql/subquery/**"]),
     kind = "slow",
 )
 
@@ -3998,13 +3820,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_table_function_fast_testlist",
-    globs = glob(["test/sql/table_function/**"], allow_empty = True),
+    globs = glob(["test/sql/table_function/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_table_function_slow_testlist",
-    globs = glob(["test/sql/table_function/**"], allow_empty = True),
+    globs = glob(["test/sql/table_function/**"]),
     kind = "slow",
 )
 
@@ -4026,13 +3848,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_timezone_fast_testlist",
-    globs = glob(["test/sql/timezone/**"], allow_empty = True),
+    globs = glob(["test/sql/timezone/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_timezone_slow_testlist",
-    globs = glob(["test/sql/timezone/**"], allow_empty = True),
+    globs = glob(["test/sql/timezone/**"]),
     kind = "slow",
 )
 
@@ -4054,13 +3876,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_topn_fast_testlist",
-    globs = glob(["test/sql/topn/**"], allow_empty = True),
+    globs = glob(["test/sql/topn/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_topn_slow_testlist",
-    globs = glob(["test/sql/topn/**"], allow_empty = True),
+    globs = glob(["test/sql/topn/**"]),
     kind = "slow",
 )
 
@@ -4082,13 +3904,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_tpcds_fast_testlist",
-    globs = glob(["test/sql/tpcds/**"], allow_empty = True),
+    globs = glob(["test/sql/tpcds/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_tpcds_slow_testlist",
-    globs = glob(["test/sql/tpcds/**"], allow_empty = True),
+    globs = glob(["test/sql/tpcds/**"]),
     kind = "slow",
 )
 
@@ -4110,13 +3932,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_tpch_fast_testlist",
-    globs = glob(["test/sql/tpch/**"], allow_empty = True),
+    globs = glob(["test/sql/tpch/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_tpch_slow_testlist",
-    globs = glob(["test/sql/tpch/**"], allow_empty = True),
+    globs = glob(["test/sql/tpch/**"]),
     kind = "slow",
 )
 
@@ -4138,13 +3960,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_transactions_fast_testlist",
-    globs = glob(["test/sql/transactions/**"], allow_empty = True),
+    globs = glob(["test/sql/transactions/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_transactions_slow_testlist",
-    globs = glob(["test/sql/transactions/**"], allow_empty = True),
+    globs = glob(["test/sql/transactions/**"]),
     kind = "slow",
 )
 
@@ -4166,7 +3988,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_trigger_fast_testlist",
-    globs = glob(["test/sql/trigger/**"], allow_empty = True),
+    globs = glob(["test/sql/trigger/**"]),
     kind = "fast",
 )
 
@@ -4180,13 +4002,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_types_fast_testlist",
-    globs = glob(["test/sql/types/**"], allow_empty = True),
+    globs = glob(["test/sql/types/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_types_slow_testlist",
-    globs = glob(["test/sql/types/**"], allow_empty = True),
+    globs = glob(["test/sql/types/**"]),
     kind = "slow",
 )
 
@@ -4208,13 +4030,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_update_fast_testlist",
-    globs = glob(["test/sql/update/**"], allow_empty = True),
+    globs = glob(["test/sql/update/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_update_slow_testlist",
-    globs = glob(["test/sql/update/**"], allow_empty = True),
+    globs = glob(["test/sql/update/**"]),
     kind = "slow",
 )
 
@@ -4236,13 +4058,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_upsert_fast_testlist",
-    globs = glob(["test/sql/upsert/**"], allow_empty = True),
+    globs = glob(["test/sql/upsert/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_upsert_slow_testlist",
-    globs = glob(["test/sql/upsert/**"], allow_empty = True),
+    globs = glob(["test/sql/upsert/**"]),
     kind = "slow",
 )
 
@@ -4264,7 +4086,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_vacuum_fast_testlist",
-    globs = glob(["test/sql/vacuum/**"], allow_empty = True),
+    globs = glob(["test/sql/vacuum/**"]),
     kind = "fast",
 )
 
@@ -4278,7 +4100,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_variables_fast_testlist",
-    globs = glob(["test/sql/variables/**"], allow_empty = True),
+    globs = glob(["test/sql/variables/**"]),
     kind = "fast",
 )
 
@@ -4292,7 +4114,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_variant_fast_testlist",
-    globs = glob(["test/sql/variant/**"], allow_empty = True),
+    globs = glob(["test/sql/variant/**"]),
     kind = "fast",
 )
 
@@ -4306,13 +4128,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_vector_types_fast_testlist",
-    globs = glob(["test/sql/vector_types/**"], allow_empty = True),
+    globs = glob(["test/sql/vector_types/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_vector_types_slow_testlist",
-    globs = glob(["test/sql/vector_types/**"], allow_empty = True),
+    globs = glob(["test/sql/vector_types/**"]),
     kind = "slow",
 )
 
@@ -4334,13 +4156,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sql_window_fast_testlist",
-    globs = glob(["test/sql/window/**"], allow_empty = True),
+    globs = glob(["test/sql/window/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sql_window_slow_testlist",
-    globs = glob(["test/sql/window/**"], allow_empty = True),
+    globs = glob(["test/sql/window/**"]),
     kind = "slow",
 )
 
@@ -4362,7 +4184,7 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sqlite_slow_testlist",
-    globs = glob(["test/sqlite/*"], allow_empty = True),
+    globs = glob(["test/sqlite/*"]),
     kind = "slow",
 )
 
@@ -4376,13 +4198,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sqlite_tags_fast_testlist",
-    globs = glob(["test/sqlite/tags/**"], allow_empty = True),
+    globs = glob(["test/sqlite/tags/**"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sqlite_tags_slow_testlist",
-    globs = glob(["test/sqlite/tags/**"], allow_empty = True),
+    globs = glob(["test/sqlite/tags/**"]),
     kind = "slow",
 )
 
@@ -4404,13 +4226,13 @@ subdirectory_test(
 
 sql_logic_test_list(
     name = "sqlserver_fast_testlist",
-    globs = glob(["test/sqlserver/*"], allow_empty = True),
+    globs = glob(["test/sqlserver/*"]),
     kind = "fast",
 )
 
 sql_logic_test_list(
     name = "sqlserver_slow_testlist",
-    globs = glob(["test/sqlserver/*"], allow_empty = True),
+    globs = glob(["test/sqlserver/*"]),
     kind = "slow",
 )
 
@@ -4450,7 +4272,6 @@ cc_test(
             "data/**",
             "third_party/**",
         ],
-        allow_empty = True,
     ) + [
         ":cpp_api_demo_loadable_extension_file",
         ":cpp_api_demo_fail_loadable_extension_file",
