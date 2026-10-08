@@ -836,7 +836,7 @@ duckdb_library(
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=925225f89b",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=9c0d77c9d0",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo",
     ]),
     includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
@@ -885,7 +885,7 @@ duckdb_library(
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=925225f89b",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=9c0d77c9d0",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo_fail",
     ]),
     includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
@@ -1224,6 +1224,20 @@ filegroup(
     ),
 )
 
+filegroup(
+    name = "test_extension_artifacts",
+    srcs = [
+        ":cpp_api_demo_loadable_extension_file",
+        ":cpp_api_demo_fail_loadable_extension_file",
+        ":explicit_extension_schema_loadable_extension_file",
+        ":explicit_extension_schema_alias_loadable_extension_file",
+        ":loadable_extension_demo_loadable_extension_file",
+        ":loadable_extension_demo_double_loadable_extension_file",
+        ":loadable_extension_optimizer_demo_loadable_extension_file",
+        ":loadable_grammar_extension_demo_loadable_extension_file",
+    ],
+)
+
 # --- one cc_test per directory -------------------------------------------
 #
 # A directory's .test files and its C++ TEST_CASEs cannot share a binary:
@@ -1332,17 +1346,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -1350,17 +1353,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -1380,17 +1372,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api_adbc", ":test_cpp_arrow"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -1398,17 +1379,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_api_adbc", ":test_cpp_arrow"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -1428,17 +1398,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api_capi_v1"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -1446,17 +1405,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api_capi_v1"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -1476,17 +1424,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api_capi_v2"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -1494,17 +1431,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_api_capi_v2"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -1524,17 +1450,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_appender"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -1542,17 +1457,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_appender"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -1572,17 +1476,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_arrow"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -1590,17 +1483,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_arrow"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -1620,17 +1502,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_catalog"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -1638,17 +1509,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_catalog"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -1674,18 +1534,7 @@ subdirectory_test(
     args = ["-f", "common_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_common"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":common_fast_testlist",
-    ],
+    testlist = ":common_fast_testlist",
 )
 
 subdirectory_test(
@@ -1693,17 +1542,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_common"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -1711,17 +1549,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_common"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -1743,17 +1570,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_cpp_api"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -1761,17 +1577,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_cpp_api"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -1785,18 +1590,7 @@ subdirectory_test(
     args = ["-f", "db-benchmark_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":db-benchmark_slow_testlist",
-    ],
+    testlist = ":db-benchmark_slow_testlist",
 )
 
 duckdb_library(
@@ -1816,17 +1610,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_encryption"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -1834,17 +1617,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_encryption"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -1864,18 +1636,7 @@ subdirectory_test(
     args = ["-f", "extension_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":extension_fast_testlist",
-    ],
+    testlist = ":extension_fast_testlist",
 )
 
 subdirectory_test(
@@ -1883,18 +1644,7 @@ subdirectory_test(
     args = ["-f", "extension_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":extension_slow_testlist",
-    ],
+    testlist = ":extension_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -1908,18 +1658,7 @@ subdirectory_test(
     args = ["-f", "fuzzer_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":fuzzer_fast_testlist",
-    ],
+    testlist = ":fuzzer_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -1933,18 +1672,7 @@ subdirectory_test(
     args = ["-f", "fuzzer_afl_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":fuzzer_afl_fast_testlist",
-    ],
+    testlist = ":fuzzer_afl_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -1964,18 +1692,7 @@ subdirectory_test(
     args = ["-f", "fuzzer_duckfuzz_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":fuzzer_duckfuzz_fast_testlist",
-    ],
+    testlist = ":fuzzer_duckfuzz_fast_testlist",
 )
 
 subdirectory_test(
@@ -1983,18 +1700,7 @@ subdirectory_test(
     args = ["-f", "fuzzer_duckfuzz_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":fuzzer_duckfuzz_slow_testlist",
-    ],
+    testlist = ":fuzzer_duckfuzz_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -2008,18 +1714,7 @@ subdirectory_test(
     args = ["-f", "fuzzer_pedro_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":fuzzer_pedro_fast_testlist",
-    ],
+    testlist = ":fuzzer_pedro_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2033,18 +1728,7 @@ subdirectory_test(
     args = ["-f", "fuzzer_public_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":fuzzer_public_fast_testlist",
-    ],
+    testlist = ":fuzzer_public_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2058,18 +1742,7 @@ subdirectory_test(
     args = ["-f", "fuzzer_sqlsmith_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":fuzzer_sqlsmith_fast_testlist",
-    ],
+    testlist = ":fuzzer_sqlsmith_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2083,18 +1756,7 @@ subdirectory_test(
     args = ["-f", "geoparquet_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":geoparquet_fast_testlist",
-    ],
+    testlist = ":geoparquet_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2108,18 +1770,7 @@ subdirectory_test(
     args = ["-f", "issues_fuzz_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":issues_fuzz_fast_testlist",
-    ],
+    testlist = ":issues_fuzz_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2139,18 +1790,7 @@ subdirectory_test(
     args = ["-f", "issues_general_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":issues_general_fast_testlist",
-    ],
+    testlist = ":issues_general_fast_testlist",
 )
 
 subdirectory_test(
@@ -2158,18 +1798,7 @@ subdirectory_test(
     args = ["-f", "issues_general_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":issues_general_slow_testlist",
-    ],
+    testlist = ":issues_general_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -2183,18 +1812,7 @@ subdirectory_test(
     args = ["-f", "issues_internal_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":issues_internal_fast_testlist",
-    ],
+    testlist = ":issues_internal_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2214,18 +1832,7 @@ subdirectory_test(
     args = ["-f", "issues_monetdb_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":issues_monetdb_fast_testlist",
-    ],
+    testlist = ":issues_monetdb_fast_testlist",
 )
 
 subdirectory_test(
@@ -2233,18 +1840,7 @@ subdirectory_test(
     args = ["-f", "issues_monetdb_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":issues_monetdb_slow_testlist",
-    ],
+    testlist = ":issues_monetdb_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -2258,18 +1854,7 @@ subdirectory_test(
     args = ["-f", "issues_rigger_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":issues_rigger_fast_testlist",
-    ],
+    testlist = ":issues_rigger_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2283,18 +1868,7 @@ subdirectory_test(
     args = ["-f", "ldbc_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":ldbc_fast_testlist",
-    ],
+    testlist = ":ldbc_fast_testlist",
 )
 
 duckdb_library(
@@ -2320,18 +1894,7 @@ subdirectory_test(
     args = ["-f", "logging_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_logging"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":logging_fast_testlist",
-    ],
+    testlist = ":logging_fast_testlist",
 )
 
 subdirectory_test(
@@ -2339,17 +1902,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_logging"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -2357,17 +1909,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_logging"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -2387,17 +1928,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_mbedtls"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -2405,17 +1935,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_mbedtls"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -2435,17 +1954,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_memoryleak"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -2453,17 +1961,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_memoryleak"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -2495,18 +1992,7 @@ subdirectory_test(
     args = ["-f", "optimizer_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_optimizer"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_fast_testlist",
-    ],
+    testlist = ":optimizer_fast_testlist",
 )
 
 subdirectory_test(
@@ -2514,18 +2000,7 @@ subdirectory_test(
     args = ["-f", "optimizer_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_optimizer"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_slow_testlist",
-    ],
+    testlist = ":optimizer_slow_testlist",
 )
 
 subdirectory_test(
@@ -2533,17 +2008,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_optimizer"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -2551,17 +2015,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_optimizer"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -2575,18 +2028,7 @@ subdirectory_test(
     args = ["-f", "optimizer_column_lifetime_analyzer_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_column_lifetime_analyzer_fast_testlist",
-    ],
+    testlist = ":optimizer_column_lifetime_analyzer_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2600,18 +2042,7 @@ subdirectory_test(
     args = ["-f", "optimizer_expression_rewriter_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_expression_rewriter_fast_testlist",
-    ],
+    testlist = ":optimizer_expression_rewriter_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2625,18 +2056,7 @@ subdirectory_test(
     args = ["-f", "optimizer_filter_pushdown_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_filter_pushdown_fast_testlist",
-    ],
+    testlist = ":optimizer_filter_pushdown_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2656,18 +2076,7 @@ subdirectory_test(
     args = ["-f", "optimizer_joins_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_joins_fast_testlist",
-    ],
+    testlist = ":optimizer_joins_fast_testlist",
 )
 
 subdirectory_test(
@@ -2675,18 +2084,7 @@ subdirectory_test(
     args = ["-f", "optimizer_joins_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_joins_slow_testlist",
-    ],
+    testlist = ":optimizer_joins_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -2700,18 +2098,7 @@ subdirectory_test(
     args = ["-f", "optimizer_misc_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_misc_fast_testlist",
-    ],
+    testlist = ":optimizer_misc_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2731,18 +2118,7 @@ subdirectory_test(
     args = ["-f", "optimizer_pushdown_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_pushdown_fast_testlist",
-    ],
+    testlist = ":optimizer_pushdown_fast_testlist",
 )
 
 subdirectory_test(
@@ -2750,18 +2126,7 @@ subdirectory_test(
     args = ["-f", "optimizer_pushdown_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_pushdown_slow_testlist",
-    ],
+    testlist = ":optimizer_pushdown_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -2775,18 +2140,7 @@ subdirectory_test(
     args = ["-f", "optimizer_reported_bugs_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_reported_bugs_fast_testlist",
-    ],
+    testlist = ":optimizer_reported_bugs_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2806,18 +2160,7 @@ subdirectory_test(
     args = ["-f", "optimizer_statistics_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_statistics_fast_testlist",
-    ],
+    testlist = ":optimizer_statistics_fast_testlist",
 )
 
 subdirectory_test(
@@ -2825,18 +2168,7 @@ subdirectory_test(
     args = ["-f", "optimizer_statistics_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_statistics_slow_testlist",
-    ],
+    testlist = ":optimizer_statistics_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -2850,18 +2182,7 @@ subdirectory_test(
     args = ["-f", "optimizer_topn_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_topn_fast_testlist",
-    ],
+    testlist = ":optimizer_topn_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -2875,18 +2196,7 @@ subdirectory_test(
     args = ["-f", "optimizer_unused_columns_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":optimizer_unused_columns_fast_testlist",
-    ],
+    testlist = ":optimizer_unused_columns_fast_testlist",
 )
 
 duckdb_library(
@@ -2916,17 +2226,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_ossfuzz"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -2934,17 +2233,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_ossfuzz"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -2964,18 +2252,7 @@ subdirectory_test(
     args = ["-f", "parquet_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":parquet_fast_testlist",
-    ],
+    testlist = ":parquet_fast_testlist",
 )
 
 subdirectory_test(
@@ -2983,18 +2260,7 @@ subdirectory_test(
     args = ["-f", "parquet_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":parquet_slow_testlist",
-    ],
+    testlist = ":parquet_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3008,18 +2274,7 @@ subdirectory_test(
     args = ["-f", "parquet_delta_encoding_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":parquet_delta_encoding_fast_testlist",
-    ],
+    testlist = ":parquet_delta_encoding_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -3039,18 +2294,7 @@ subdirectory_test(
     args = ["-f", "parquet_variant_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":parquet_variant_fast_testlist",
-    ],
+    testlist = ":parquet_variant_fast_testlist",
 )
 
 subdirectory_test(
@@ -3058,18 +2302,7 @@ subdirectory_test(
     args = ["-f", "parquet_variant_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":parquet_variant_slow_testlist",
-    ],
+    testlist = ":parquet_variant_slow_testlist",
 )
 
 duckdb_library(
@@ -3089,17 +2322,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_persistence"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -3107,17 +2329,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_persistence"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -3131,18 +2342,7 @@ subdirectory_test(
     args = ["-f", "planner_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":planner_fast_testlist",
-    ],
+    testlist = ":planner_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -3156,18 +2356,7 @@ subdirectory_test(
     args = ["-f", "sakila_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sakila_slow_testlist",
-    ],
+    testlist = ":sakila_slow_testlist",
 )
 
 duckdb_library(
@@ -3187,17 +2376,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_secrets"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -3205,17 +2383,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_secrets"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -3235,17 +2402,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_serialize"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -3253,17 +2409,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_serialize"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -3283,18 +2428,7 @@ subdirectory_test(
     args = ["-f", "sql_aggregate_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_aggregate_fast_testlist",
-    ],
+    testlist = ":sql_aggregate_fast_testlist",
 )
 
 subdirectory_test(
@@ -3302,18 +2436,7 @@ subdirectory_test(
     args = ["-f", "sql_aggregate_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_aggregate_slow_testlist",
-    ],
+    testlist = ":sql_aggregate_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3333,18 +2456,7 @@ subdirectory_test(
     args = ["-f", "sql_alter_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_alter_fast_testlist",
-    ],
+    testlist = ":sql_alter_fast_testlist",
 )
 
 subdirectory_test(
@@ -3352,18 +2464,7 @@ subdirectory_test(
     args = ["-f", "sql_alter_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_alter_slow_testlist",
-    ],
+    testlist = ":sql_alter_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3377,18 +2478,7 @@ subdirectory_test(
     args = ["-f", "sql_aoc24_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_aoc24_slow_testlist",
-    ],
+    testlist = ":sql_aoc24_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3402,18 +2492,7 @@ subdirectory_test(
     args = ["-f", "sql_append_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_append_slow_testlist",
-    ],
+    testlist = ":sql_append_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3433,18 +2512,7 @@ subdirectory_test(
     args = ["-f", "sql_attach_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_attach_fast_testlist",
-    ],
+    testlist = ":sql_attach_fast_testlist",
 )
 
 subdirectory_test(
@@ -3452,18 +2520,7 @@ subdirectory_test(
     args = ["-f", "sql_attach_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_attach_slow_testlist",
-    ],
+    testlist = ":sql_attach_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3477,18 +2534,7 @@ subdirectory_test(
     args = ["-f", "sql_binder_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_binder_fast_testlist",
-    ],
+    testlist = ":sql_binder_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -3508,18 +2554,7 @@ subdirectory_test(
     args = ["-f", "sql_cast_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_cast_fast_testlist",
-    ],
+    testlist = ":sql_cast_fast_testlist",
 )
 
 subdirectory_test(
@@ -3527,18 +2562,7 @@ subdirectory_test(
     args = ["-f", "sql_cast_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_cast_slow_testlist",
-    ],
+    testlist = ":sql_cast_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3558,18 +2582,7 @@ subdirectory_test(
     args = ["-f", "sql_catalog_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_catalog_fast_testlist",
-    ],
+    testlist = ":sql_catalog_fast_testlist",
 )
 
 subdirectory_test(
@@ -3577,18 +2590,7 @@ subdirectory_test(
     args = ["-f", "sql_catalog_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_catalog_slow_testlist",
-    ],
+    testlist = ":sql_catalog_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3608,18 +2610,7 @@ subdirectory_test(
     args = ["-f", "sql_collate_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_collate_fast_testlist",
-    ],
+    testlist = ":sql_collate_fast_testlist",
 )
 
 subdirectory_test(
@@ -3627,18 +2618,7 @@ subdirectory_test(
     args = ["-f", "sql_collate_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_collate_slow_testlist",
-    ],
+    testlist = ":sql_collate_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3652,18 +2632,7 @@ subdirectory_test(
     args = ["-f", "sql_conjunction_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_conjunction_fast_testlist",
-    ],
+    testlist = ":sql_conjunction_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -3677,18 +2646,7 @@ subdirectory_test(
     args = ["-f", "sql_connect_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_connect_fast_testlist",
-    ],
+    testlist = ":sql_connect_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -3708,18 +2666,7 @@ subdirectory_test(
     args = ["-f", "sql_constraints_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_constraints_fast_testlist",
-    ],
+    testlist = ":sql_constraints_fast_testlist",
 )
 
 subdirectory_test(
@@ -3727,18 +2674,7 @@ subdirectory_test(
     args = ["-f", "sql_constraints_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_constraints_slow_testlist",
-    ],
+    testlist = ":sql_constraints_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3773,7 +2709,8 @@ subdirectory_test(
     args = ["-f", "sql_copy_fast_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [":sql_copy_fixture_tree", ":test_data_without_fixtures", ":sql_copy_fast_testlist"],
+    testlist = ":sql_copy_fast_testlist",
+    fixture_tree = "sql_copy_fixture_tree",
 )
 
 subdirectory_test(
@@ -3781,7 +2718,8 @@ subdirectory_test(
     args = ["-f", "sql_copy_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [":sql_copy_fixture_tree", ":test_data_without_fixtures", ":sql_copy_slow_testlist"],
+    testlist = ":sql_copy_slow_testlist",
+    fixture_tree = "sql_copy_fixture_tree",
 )
 
 sql_logic_test_list(
@@ -3801,18 +2739,7 @@ subdirectory_test(
     args = ["-f", "sql_copy_database_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_copy_database_fast_testlist",
-    ],
+    testlist = ":sql_copy_database_fast_testlist",
 )
 
 subdirectory_test(
@@ -3820,18 +2747,7 @@ subdirectory_test(
     args = ["-f", "sql_copy_database_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_copy_database_slow_testlist",
-    ],
+    testlist = ":sql_copy_database_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3851,18 +2767,7 @@ subdirectory_test(
     args = ["-f", "sql_create_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_create_fast_testlist",
-    ],
+    testlist = ":sql_create_fast_testlist",
 )
 
 subdirectory_test(
@@ -3870,18 +2775,7 @@ subdirectory_test(
     args = ["-f", "sql_create_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_create_slow_testlist",
-    ],
+    testlist = ":sql_create_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3901,18 +2795,7 @@ subdirectory_test(
     args = ["-f", "sql_cte_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_cte_fast_testlist",
-    ],
+    testlist = ":sql_cte_fast_testlist",
 )
 
 subdirectory_test(
@@ -3920,18 +2803,7 @@ subdirectory_test(
     args = ["-f", "sql_cte_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_cte_slow_testlist",
-    ],
+    testlist = ":sql_cte_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -3951,18 +2823,7 @@ subdirectory_test(
     args = ["-f", "sql_delete_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_delete_fast_testlist",
-    ],
+    testlist = ":sql_delete_fast_testlist",
 )
 
 subdirectory_test(
@@ -3970,18 +2831,7 @@ subdirectory_test(
     args = ["-f", "sql_delete_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_delete_slow_testlist",
-    ],
+    testlist = ":sql_delete_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4001,18 +2851,7 @@ subdirectory_test(
     args = ["-f", "sql_detailed_profiler_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_detailed_profiler_fast_testlist",
-    ],
+    testlist = ":sql_detailed_profiler_fast_testlist",
 )
 
 subdirectory_test(
@@ -4020,18 +2859,7 @@ subdirectory_test(
     args = ["-f", "sql_detailed_profiler_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_detailed_profiler_slow_testlist",
-    ],
+    testlist = ":sql_detailed_profiler_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4051,18 +2879,7 @@ subdirectory_test(
     args = ["-f", "sql_error_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_error_fast_testlist",
-    ],
+    testlist = ":sql_error_fast_testlist",
 )
 
 subdirectory_test(
@@ -4070,18 +2887,7 @@ subdirectory_test(
     args = ["-f", "sql_error_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_error_slow_testlist",
-    ],
+    testlist = ":sql_error_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4101,18 +2907,7 @@ subdirectory_test(
     args = ["-f", "sql_explain_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_explain_fast_testlist",
-    ],
+    testlist = ":sql_explain_fast_testlist",
 )
 
 subdirectory_test(
@@ -4120,18 +2915,7 @@ subdirectory_test(
     args = ["-f", "sql_explain_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_explain_slow_testlist",
-    ],
+    testlist = ":sql_explain_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4145,18 +2929,7 @@ subdirectory_test(
     args = ["-f", "sql_export_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_export_fast_testlist",
-    ],
+    testlist = ":sql_export_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -4170,18 +2943,7 @@ subdirectory_test(
     args = ["-f", "sql_extensions_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_extensions_fast_testlist",
-    ],
+    testlist = ":sql_extensions_fast_testlist",
 )
 
 duckdb_library(
@@ -4213,18 +2975,7 @@ subdirectory_test(
     args = ["-f", "sql_filter_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_sql_filter"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_filter_fast_testlist",
-    ],
+    testlist = ":sql_filter_fast_testlist",
 )
 
 subdirectory_test(
@@ -4232,18 +2983,7 @@ subdirectory_test(
     args = ["-f", "sql_filter_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_filter"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_filter_slow_testlist",
-    ],
+    testlist = ":sql_filter_slow_testlist",
 )
 
 subdirectory_test(
@@ -4251,17 +2991,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_filter"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -4269,17 +2998,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_filter"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -4299,18 +3017,7 @@ subdirectory_test(
     args = ["-f", "sql_function_fast_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_function_fast_testlist",
-    ],
+    testlist = ":sql_function_fast_testlist",
 )
 
 subdirectory_test(
@@ -4318,18 +3025,7 @@ subdirectory_test(
     args = ["-f", "sql_function_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_function_slow_testlist",
-    ],
+    testlist = ":sql_function_slow_testlist",
 )
 
 duckdb_library(
@@ -4349,17 +3045,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_function_table"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -4367,17 +3052,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_function_table"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -4397,18 +3071,7 @@ subdirectory_test(
     args = ["-f", "sql_generated_columns_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_generated_columns_fast_testlist",
-    ],
+    testlist = ":sql_generated_columns_fast_testlist",
 )
 
 subdirectory_test(
@@ -4416,18 +3079,7 @@ subdirectory_test(
     args = ["-f", "sql_generated_columns_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_generated_columns_slow_testlist",
-    ],
+    testlist = ":sql_generated_columns_slow_testlist",
 )
 
 duckdb_library(
@@ -4459,18 +3111,7 @@ subdirectory_test(
     args = ["-f", "sql_index_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_sql_index"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_index_fast_testlist",
-    ],
+    testlist = ":sql_index_fast_testlist",
 )
 
 subdirectory_test(
@@ -4478,18 +3119,7 @@ subdirectory_test(
     args = ["-f", "sql_index_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_index"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_index_slow_testlist",
-    ],
+    testlist = ":sql_index_slow_testlist",
 )
 
 subdirectory_test(
@@ -4497,17 +3127,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_index"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -4515,17 +3134,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_index"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -4545,18 +3153,7 @@ subdirectory_test(
     args = ["-f", "sql_insert_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_insert_fast_testlist",
-    ],
+    testlist = ":sql_insert_fast_testlist",
 )
 
 subdirectory_test(
@@ -4564,18 +3161,7 @@ subdirectory_test(
     args = ["-f", "sql_insert_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_insert_slow_testlist",
-    ],
+    testlist = ":sql_insert_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4595,18 +3181,7 @@ subdirectory_test(
     args = ["-f", "sql_join_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_join_fast_testlist",
-    ],
+    testlist = ":sql_join_fast_testlist",
 )
 
 subdirectory_test(
@@ -4614,18 +3189,7 @@ subdirectory_test(
     args = ["-f", "sql_join_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_join_slow_testlist",
-    ],
+    testlist = ":sql_join_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4645,18 +3209,7 @@ subdirectory_test(
     args = ["-f", "sql_json_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_json_fast_testlist",
-    ],
+    testlist = ":sql_json_fast_testlist",
 )
 
 subdirectory_test(
@@ -4664,18 +3217,7 @@ subdirectory_test(
     args = ["-f", "sql_json_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_json_slow_testlist",
-    ],
+    testlist = ":sql_json_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4689,18 +3231,7 @@ subdirectory_test(
     args = ["-f", "sql_keywords_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_keywords_fast_testlist",
-    ],
+    testlist = ":sql_keywords_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -4720,18 +3251,7 @@ subdirectory_test(
     args = ["-f", "sql_limit_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_limit_fast_testlist",
-    ],
+    testlist = ":sql_limit_fast_testlist",
 )
 
 subdirectory_test(
@@ -4739,18 +3259,7 @@ subdirectory_test(
     args = ["-f", "sql_limit_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_limit_slow_testlist",
-    ],
+    testlist = ":sql_limit_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4770,18 +3279,7 @@ subdirectory_test(
     args = ["-f", "sql_logging_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_logging_fast_testlist",
-    ],
+    testlist = ":sql_logging_fast_testlist",
 )
 
 subdirectory_test(
@@ -4789,18 +3287,7 @@ subdirectory_test(
     args = ["-f", "sql_logging_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_logging_slow_testlist",
-    ],
+    testlist = ":sql_logging_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4820,18 +3307,7 @@ subdirectory_test(
     args = ["-f", "sql_merge_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_merge_fast_testlist",
-    ],
+    testlist = ":sql_merge_fast_testlist",
 )
 
 subdirectory_test(
@@ -4839,18 +3315,7 @@ subdirectory_test(
     args = ["-f", "sql_merge_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_merge_slow_testlist",
-    ],
+    testlist = ":sql_merge_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4864,18 +3329,7 @@ subdirectory_test(
     args = ["-f", "sql_multi_file_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_multi_file_fast_testlist",
-    ],
+    testlist = ":sql_multi_file_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -4895,18 +3349,7 @@ subdirectory_test(
     args = ["-f", "sql_optimizer_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_optimizer_fast_testlist",
-    ],
+    testlist = ":sql_optimizer_fast_testlist",
 )
 
 subdirectory_test(
@@ -4914,18 +3357,7 @@ subdirectory_test(
     args = ["-f", "sql_optimizer_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_optimizer_slow_testlist",
-    ],
+    testlist = ":sql_optimizer_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4945,18 +3377,7 @@ subdirectory_test(
     args = ["-f", "sql_order_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_order_fast_testlist",
-    ],
+    testlist = ":sql_order_fast_testlist",
 )
 
 subdirectory_test(
@@ -4964,18 +3385,7 @@ subdirectory_test(
     args = ["-f", "sql_order_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_order_slow_testlist",
-    ],
+    testlist = ":sql_order_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -4995,18 +3405,7 @@ subdirectory_test(
     args = ["-f", "sql_ordinality_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_ordinality_fast_testlist",
-    ],
+    testlist = ":sql_ordinality_fast_testlist",
 )
 
 subdirectory_test(
@@ -5014,18 +3413,7 @@ subdirectory_test(
     args = ["-f", "sql_ordinality_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_ordinality_slow_testlist",
-    ],
+    testlist = ":sql_ordinality_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -5039,18 +3427,7 @@ subdirectory_test(
     args = ["-f", "sql_outofcore_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_outofcore_slow_testlist",
-    ],
+    testlist = ":sql_outofcore_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -5064,18 +3441,7 @@ subdirectory_test(
     args = ["-f", "sql_overflow_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_overflow_fast_testlist",
-    ],
+    testlist = ":sql_overflow_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -5095,18 +3461,7 @@ subdirectory_test(
     args = ["-f", "sql_parallelism_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_parallelism_fast_testlist",
-    ],
+    testlist = ":sql_parallelism_fast_testlist",
 )
 
 subdirectory_test(
@@ -5114,18 +3469,7 @@ subdirectory_test(
     args = ["-f", "sql_parallelism_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_parallelism_slow_testlist",
-    ],
+    testlist = ":sql_parallelism_slow_testlist",
 )
 
 duckdb_library(
@@ -5145,17 +3489,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_parallelism_interquery"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -5163,17 +3496,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_parallelism_interquery"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -5193,18 +3515,7 @@ subdirectory_test(
     args = ["-f", "sql_parser_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_parser_fast_testlist",
-    ],
+    testlist = ":sql_parser_fast_testlist",
 )
 
 subdirectory_test(
@@ -5212,18 +3523,7 @@ subdirectory_test(
     args = ["-f", "sql_parser_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_parser_slow_testlist",
-    ],
+    testlist = ":sql_parser_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -5237,18 +3537,7 @@ subdirectory_test(
     args = ["-f", "sql_peg_parser_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_peg_parser_fast_testlist",
-    ],
+    testlist = ":sql_peg_parser_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -5268,18 +3557,7 @@ subdirectory_test(
     args = ["-f", "sql_pg_catalog_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_pg_catalog_fast_testlist",
-    ],
+    testlist = ":sql_pg_catalog_fast_testlist",
 )
 
 subdirectory_test(
@@ -5287,18 +3565,7 @@ subdirectory_test(
     args = ["-f", "sql_pg_catalog_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_pg_catalog_slow_testlist",
-    ],
+    testlist = ":sql_pg_catalog_slow_testlist",
 )
 
 duckdb_library(
@@ -5330,18 +3597,7 @@ subdirectory_test(
     args = ["-f", "sql_pivot_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_sql_pivot"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_pivot_fast_testlist",
-    ],
+    testlist = ":sql_pivot_fast_testlist",
 )
 
 subdirectory_test(
@@ -5349,18 +3605,7 @@ subdirectory_test(
     args = ["-f", "sql_pivot_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_pivot"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_pivot_slow_testlist",
-    ],
+    testlist = ":sql_pivot_slow_testlist",
 )
 
 subdirectory_test(
@@ -5368,17 +3613,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_pivot"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -5386,17 +3620,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_pivot"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -5416,18 +3639,7 @@ subdirectory_test(
     args = ["-f", "sql_pragma_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_pragma_fast_testlist",
-    ],
+    testlist = ":sql_pragma_fast_testlist",
 )
 
 subdirectory_test(
@@ -5435,18 +3647,7 @@ subdirectory_test(
     args = ["-f", "sql_pragma_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_pragma_slow_testlist",
-    ],
+    testlist = ":sql_pragma_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -5466,18 +3667,7 @@ subdirectory_test(
     args = ["-f", "sql_prepared_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_prepared_fast_testlist",
-    ],
+    testlist = ":sql_prepared_fast_testlist",
 )
 
 subdirectory_test(
@@ -5485,18 +3675,7 @@ subdirectory_test(
     args = ["-f", "sql_prepared_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_prepared_slow_testlist",
-    ],
+    testlist = ":sql_prepared_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -5510,18 +3689,7 @@ subdirectory_test(
     args = ["-f", "sql_progress_bar_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_progress_bar_slow_testlist",
-    ],
+    testlist = ":sql_progress_bar_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -5541,18 +3709,7 @@ subdirectory_test(
     args = ["-f", "sql_projection_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_projection_fast_testlist",
-    ],
+    testlist = ":sql_projection_fast_testlist",
 )
 
 subdirectory_test(
@@ -5560,18 +3717,7 @@ subdirectory_test(
     args = ["-f", "sql_projection_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_projection_slow_testlist",
-    ],
+    testlist = ":sql_projection_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -5585,18 +3731,7 @@ subdirectory_test(
     args = ["-f", "sql_returning_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_returning_fast_testlist",
-    ],
+    testlist = ":sql_returning_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -5616,18 +3751,7 @@ subdirectory_test(
     args = ["-f", "sql_sample_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_sample_fast_testlist",
-    ],
+    testlist = ":sql_sample_fast_testlist",
 )
 
 subdirectory_test(
@@ -5635,18 +3759,7 @@ subdirectory_test(
     args = ["-f", "sql_sample_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_sample_slow_testlist",
-    ],
+    testlist = ":sql_sample_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -5660,18 +3773,7 @@ subdirectory_test(
     args = ["-f", "sql_secrets_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_secrets_fast_testlist",
-    ],
+    testlist = ":sql_secrets_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -5685,18 +3787,7 @@ subdirectory_test(
     args = ["-f", "sql_select_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_select_fast_testlist",
-    ],
+    testlist = ":sql_select_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -5716,18 +3807,7 @@ subdirectory_test(
     args = ["-f", "sql_setops_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_setops_fast_testlist",
-    ],
+    testlist = ":sql_setops_fast_testlist",
 )
 
 subdirectory_test(
@@ -5735,18 +3815,7 @@ subdirectory_test(
     args = ["-f", "sql_setops_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_setops_slow_testlist",
-    ],
+    testlist = ":sql_setops_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -5766,18 +3835,7 @@ subdirectory_test(
     args = ["-f", "sql_settings_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_settings_fast_testlist",
-    ],
+    testlist = ":sql_settings_fast_testlist",
 )
 
 subdirectory_test(
@@ -5785,18 +3843,7 @@ subdirectory_test(
     args = ["-f", "sql_settings_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_settings_slow_testlist",
-    ],
+    testlist = ":sql_settings_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -5810,18 +3857,7 @@ subdirectory_test(
     args = ["-f", "sql_show_select_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_show_select_fast_testlist",
-    ],
+    testlist = ":sql_show_select_fast_testlist",
 )
 
 duckdb_library(
@@ -5853,18 +3889,7 @@ subdirectory_test(
     args = ["-f", "sql_storage_fast_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_storage"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_storage_fast_testlist",
-    ],
+    testlist = ":sql_storage_fast_testlist",
 )
 
 subdirectory_test(
@@ -5872,18 +3897,7 @@ subdirectory_test(
     args = ["-f", "sql_storage_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_storage"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_storage_slow_testlist",
-    ],
+    testlist = ":sql_storage_slow_testlist",
 )
 
 subdirectory_test(
@@ -5891,17 +3905,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "medium",
     deps = [":unittest_harness", ":test_cpp_sql_storage"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -5909,17 +3912,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "large",
     deps = [":unittest_harness", ":test_cpp_sql_storage"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 duckdb_library(
@@ -5939,17 +3931,6 @@ subdirectory_test(
     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_storage_catalog"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 subdirectory_test(
@@ -5957,17 +3938,6 @@ subdirectory_test(
     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
     size = "small",
     deps = [":unittest_harness", ":test_cpp_sql_storage_catalog"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
 )
 
 sql_logic_test_list(
@@ -5987,18 +3957,7 @@ subdirectory_test(
     args = ["-f", "sql_storage_version_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_storage_version_fast_testlist",
-    ],
+    testlist = ":sql_storage_version_fast_testlist",
 )
 
 subdirectory_test(
@@ -6006,18 +3965,7 @@ subdirectory_test(
     args = ["-f", "sql_storage_version_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_storage_version_slow_testlist",
-    ],
+    testlist = ":sql_storage_version_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6037,18 +3985,7 @@ subdirectory_test(
     args = ["-f", "sql_subquery_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_subquery_fast_testlist",
-    ],
+    testlist = ":sql_subquery_fast_testlist",
 )
 
 subdirectory_test(
@@ -6056,18 +3993,7 @@ subdirectory_test(
     args = ["-f", "sql_subquery_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_subquery_slow_testlist",
-    ],
+    testlist = ":sql_subquery_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6087,18 +4013,7 @@ subdirectory_test(
     args = ["-f", "sql_table_function_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_table_function_fast_testlist",
-    ],
+    testlist = ":sql_table_function_fast_testlist",
 )
 
 subdirectory_test(
@@ -6106,18 +4021,7 @@ subdirectory_test(
     args = ["-f", "sql_table_function_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_table_function_slow_testlist",
-    ],
+    testlist = ":sql_table_function_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6137,18 +4041,7 @@ subdirectory_test(
     args = ["-f", "sql_timezone_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_timezone_fast_testlist",
-    ],
+    testlist = ":sql_timezone_fast_testlist",
 )
 
 subdirectory_test(
@@ -6156,18 +4049,7 @@ subdirectory_test(
     args = ["-f", "sql_timezone_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_timezone_slow_testlist",
-    ],
+    testlist = ":sql_timezone_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6187,18 +4069,7 @@ subdirectory_test(
     args = ["-f", "sql_topn_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_topn_fast_testlist",
-    ],
+    testlist = ":sql_topn_fast_testlist",
 )
 
 subdirectory_test(
@@ -6206,18 +4077,7 @@ subdirectory_test(
     args = ["-f", "sql_topn_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_topn_slow_testlist",
-    ],
+    testlist = ":sql_topn_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6237,18 +4097,7 @@ subdirectory_test(
     args = ["-f", "sql_tpcds_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_tpcds_fast_testlist",
-    ],
+    testlist = ":sql_tpcds_fast_testlist",
 )
 
 subdirectory_test(
@@ -6256,18 +4105,7 @@ subdirectory_test(
     args = ["-f", "sql_tpcds_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_tpcds_slow_testlist",
-    ],
+    testlist = ":sql_tpcds_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6287,18 +4125,7 @@ subdirectory_test(
     args = ["-f", "sql_tpch_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_tpch_fast_testlist",
-    ],
+    testlist = ":sql_tpch_fast_testlist",
 )
 
 subdirectory_test(
@@ -6306,18 +4133,7 @@ subdirectory_test(
     args = ["-f", "sql_tpch_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_tpch_slow_testlist",
-    ],
+    testlist = ":sql_tpch_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6337,18 +4153,7 @@ subdirectory_test(
     args = ["-f", "sql_transactions_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_transactions_fast_testlist",
-    ],
+    testlist = ":sql_transactions_fast_testlist",
 )
 
 subdirectory_test(
@@ -6356,18 +4161,7 @@ subdirectory_test(
     args = ["-f", "sql_transactions_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_transactions_slow_testlist",
-    ],
+    testlist = ":sql_transactions_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6381,18 +4175,7 @@ subdirectory_test(
     args = ["-f", "sql_trigger_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_trigger_fast_testlist",
-    ],
+    testlist = ":sql_trigger_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -6412,18 +4195,7 @@ subdirectory_test(
     args = ["-f", "sql_types_fast_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_types_fast_testlist",
-    ],
+    testlist = ":sql_types_fast_testlist",
 )
 
 subdirectory_test(
@@ -6431,18 +4203,7 @@ subdirectory_test(
     args = ["-f", "sql_types_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_types_slow_testlist",
-    ],
+    testlist = ":sql_types_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6462,18 +4223,7 @@ subdirectory_test(
     args = ["-f", "sql_update_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_update_fast_testlist",
-    ],
+    testlist = ":sql_update_fast_testlist",
 )
 
 subdirectory_test(
@@ -6481,18 +4231,7 @@ subdirectory_test(
     args = ["-f", "sql_update_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_update_slow_testlist",
-    ],
+    testlist = ":sql_update_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6512,18 +4251,7 @@ subdirectory_test(
     args = ["-f", "sql_upsert_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_upsert_fast_testlist",
-    ],
+    testlist = ":sql_upsert_fast_testlist",
 )
 
 subdirectory_test(
@@ -6531,18 +4259,7 @@ subdirectory_test(
     args = ["-f", "sql_upsert_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_upsert_slow_testlist",
-    ],
+    testlist = ":sql_upsert_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6556,18 +4273,7 @@ subdirectory_test(
     args = ["-f", "sql_vacuum_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_vacuum_fast_testlist",
-    ],
+    testlist = ":sql_vacuum_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -6581,18 +4287,7 @@ subdirectory_test(
     args = ["-f", "sql_variables_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_variables_fast_testlist",
-    ],
+    testlist = ":sql_variables_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -6606,18 +4301,7 @@ subdirectory_test(
     args = ["-f", "sql_variant_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_variant_fast_testlist",
-    ],
+    testlist = ":sql_variant_fast_testlist",
 )
 
 sql_logic_test_list(
@@ -6637,18 +4321,7 @@ subdirectory_test(
     args = ["-f", "sql_vector_types_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_vector_types_fast_testlist",
-    ],
+    testlist = ":sql_vector_types_fast_testlist",
 )
 
 subdirectory_test(
@@ -6656,18 +4329,7 @@ subdirectory_test(
     args = ["-f", "sql_vector_types_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_vector_types_slow_testlist",
-    ],
+    testlist = ":sql_vector_types_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6687,18 +4349,7 @@ subdirectory_test(
     args = ["-f", "sql_window_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_window_fast_testlist",
-    ],
+    testlist = ":sql_window_fast_testlist",
 )
 
 subdirectory_test(
@@ -6706,18 +4357,7 @@ subdirectory_test(
     args = ["-f", "sql_window_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sql_window_slow_testlist",
-    ],
+    testlist = ":sql_window_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6731,18 +4371,7 @@ subdirectory_test(
     args = ["-f", "sqlite_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sqlite_slow_testlist",
-    ],
+    testlist = ":sqlite_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6762,18 +4391,7 @@ subdirectory_test(
     args = ["-f", "sqlite_tags_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sqlite_tags_fast_testlist",
-    ],
+    testlist = ":sqlite_tags_fast_testlist",
 )
 
 subdirectory_test(
@@ -6781,18 +4399,7 @@ subdirectory_test(
     args = ["-f", "sqlite_tags_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sqlite_tags_slow_testlist",
-    ],
+    testlist = ":sqlite_tags_slow_testlist",
 )
 
 sql_logic_test_list(
@@ -6812,18 +4419,7 @@ subdirectory_test(
     args = ["-f", "sqlserver_fast_testlist.txt"],
     size = "medium",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sqlserver_fast_testlist",
-    ],
+    testlist = ":sqlserver_fast_testlist",
 )
 
 subdirectory_test(
@@ -6831,18 +4427,7 @@ subdirectory_test(
     args = ["-f", "sqlserver_slow_testlist.txt"],
     size = "large",
     deps = [":unittest_harness"],
-    data = [
-        ":test_data",
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-        ":sqlserver_slow_testlist",
-    ],
+    testlist = ":sqlserver_slow_testlist",
 )
 
 cc_test(

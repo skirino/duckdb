@@ -51,13 +51,25 @@ def sql_logic_test_list(name, globs, kind):
         cmd = 'for f in $(SRCS); do case "$$f" in %s) echo "$$f";; esac; done > $@' % SQL_LOGIC_SUFFIXES[kind],
     )
 
-def subdirectory_test(name, args, size, data, deps = ["//:unittest_harness"]):
-    """One test subdirectory's tests, and only that subdirectory's."""
+def subdirectory_test(name, args, size, testlist = None, deps = ["//:unittest_harness"],
+                      fixture_tree = None):
+    """One test subdirectory's tests, and only that subdirectory's.
+
+    Only the -f list, and for the crawls that need real files the fixture tree,
+    are per-target; the trees and the loadable test extensions are the same for
+    every test, so they are named here instead of 221 times over. A fixture tree
+    is a copy, so the built .duckdb_extension artifacts under test/ are not
+    reachable from it -- hence the two shapes rather than one plus a tree.
+    """
+    if fixture_tree:
+        trees = [":" + fixture_tree, ":test_data_without_fixtures"]
+    else:
+        trees = [":test_data", ":test_extension_artifacts"]
     cc_test(
         name = name,
         args = args,
         size = size,
         linkopts = TEST_LINKOPTS,
         deps = deps,
-        data = data,
+        data = trees + ([testlist] if testlist else []),
     )
