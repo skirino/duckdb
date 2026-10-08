@@ -9,29 +9,17 @@ DuckDB is a high-performance analytical database system designed to be fast, rel
 ## Build Commands
 
 ### Basic Build
+
 ```bash
-make debug                   # Builds debug version with sanitizers and assertions
-make reldebug                # Builds optimized release version with debug symbols
-FORCE_DEBUG=1 make relassert # Builds optimized version with sanitizers and assertions
+bazel build //...
 ```
 
 ## Testing
 
 ### Running Tests
 ```bash
-build/reldebug/test/unittest # Fast unit tests
+bazel test //...
 ```
-
-### Running Specific Tests
-```bash
-# Run specific test file
-build/reldebug/test/unittest test/sql/order/test_limit.test
-
-# Run all tests including slow tests
-build/reldebug/test/unittest "*"
-```
-
-It is recommended to use `make reldebug` and `build/reldebug/test/unittest` unless a good reason exists to use the debug build - the debug build is much slower than the reldebug build.
 
 ### Time-Limiting Queries
 
@@ -94,18 +82,6 @@ make generate-files    # Generate files + format all code
 ```
 
 Ensure you run formatting before committing.
-
-## Extensive Testing / Making CI Work
-
-Below is a set of tests that should be run in order to make sure a changeset passes extensive tests in CI. If the user is asking you to fix CI make sure that the below commands succeed.
-
-```bash
-make allunit
-FORCE_DEBUG=1 FORCE_ASSERT=1 make reldebug && build/reldebug/test/unittest
-make test_configs
-make test_vector
-```
-
 
 ## Architecture
 
