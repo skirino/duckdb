@@ -489,6 +489,54 @@ migration please keep the following in mind:
   not introduce one just to simplify something that is already simple.
 - Run `cargo fmt` in `ahirudb/` when done editing Rust code.
 
+### What Crubit cannot bridge
+
+Crubit does not bridge generics, `dyn` or any other dynamic dispatch, or
+exceptions. References are supported only as function parameters, and only in
+cases it can prove do not add aliasing undefined behaviour to the C++ caller.
+Enums bridge as opaque objects with explicit conversions, not as C++ enums.
+
+**The trap: a missing binding does not fail the build.** When Crubit cannot
+generate bindings for an item, it leaves the item out of the generated header and
+writes a comment in its place saying why. A port can therefore compile, link,
+and pass every test while a function silently does nothing. So after generating,
+read the header — `bazel-bin/ahirudb/crubit_include/crubit/ahirudb.h` — and look
+for `Error generating bindings for`. Check this on every task; it is the failure
+mode the smoke test cannot see.
+
+`#[crubit_annotate::must_bind]` turns it into a build failure instead, and is
+the right thing on anything crossing the bridge. It is not wired up yet: the
+dependency is commented out in `ahirudb/Cargo.toml` and points at a CMake build
+tree that does not exist under Bazel, and the crate is not copied into
+`@crubit_toolchain`. Wiring it is a small task of its own.
+
+When something cannot be bridged, wrap it rather than dropping it. A `Vec<T>`
+is not supported; `pub struct MyVec(Vec<T>)` is.
+
+### Quality bar
+
+**`unsafe`.** Every `unsafe` block and every `unsafe impl` carries a `// SAFETY:`
+comment saying what invariant makes it sound. New modules start with
+`#![deny(unsafe_code)]`, dropped only with a documented reason. Zero unsafe is the
+goal, not the rule — the FFI layer cannot avoid some. The crate is at 12 uses
+today, 4 of them bare `unsafe impl Send`/`Sync` with empty bodies in
+`ahirudb/src/logging/logger.rs` and `log_storage.rs`.
+
+**Panics.** A panic must not reach the boundary. Anything crossable returns a
+`Result` or an explicit error value. Unwinding into a C++ frame is undefined
+behaviour, and in practice a panic crossing the bridge aborts the process rather
+than failing the query.
+
+**Thread safety.** The migration exists for memory and thread safety, so a type
+reachable from more than one thread must be `Send + Sync` by construction — locks,
+atomics, owned data — and not by assertion. An `unsafe impl Send`/`Sync` is a
+last resort that has to say which invariant makes it hold. The existing two are
+the problem to fix, not the pattern to copy.
+
+**Lints.** `[lints]` in `Cargo.toml` is inert here: the `rust_library` is built by
+rules_rust, which does not read the manifest. Crate-wide lints go in `lib.rs` as
+crate attributes, which both build paths honour.
+
 ### How C++ reaches Rust
 
 C++/Rust interop goes through Crubit, which generates a C++ header and a staticlib
