@@ -511,5 +511,6 @@ Crubit's own CMake integration drives, `cargo cpp_api_from_rust`:
 C++ suite: `bazel test //...`.
 
 The generator compiles against rustc internals, which upstream renames between
-Rust releases, so the nightly it is built with is pinned (`nightly-2026-09-03` in
-both `mise.toml` and `MODULE.bazel`) rather than tracking `nightly`.
+Rust releases, so the nightly it is built with is pinned (`nightly-2026-09-29`,
+the version Crubit pins as its own `rust_version`) rather than tracking
+`nightly`.
