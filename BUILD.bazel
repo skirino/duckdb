@@ -119,7 +119,6 @@ duckdb_library(
             "src/common/**/*.cpp",
             "src/execution/**/*.cpp",
             "src/function/**/*.cpp",
-            "src/logging/**/*.cpp",
             "src/main/**/*.cpp",
             "src/optimizer/**/*.cpp",
             "src/parallel/**/*.cpp",
@@ -144,6 +143,17 @@ duckdb_library(
             "src/main/http/http_util.cpp",
         ],
     ),
+)
+
+# src/logging is a library of its own in CMake (src/logging/CMakeLists.txt), kept
+# separate here for the reason it is separate there: this is the target that will
+# call into ahirudb, and Crubit's generated headers need C++20 and two warnings
+# off, which nothing else in src/ wants. It has the same compile profile as
+# duckdb_core for now and gains `copts = crubit_copts()` plus a dep on
+# //ahirudb:ahirudb_static when log_rust_bridge.cpp arrives.
+duckdb_library(
+    name = "duckdb_logging",
+    srcs = glob(["src/logging/**/*.cpp"]),
 )
 
 duckdb_library(
@@ -336,6 +346,7 @@ cc_library(
         ":duckdb_common_http",
         ":duckdb_func_table_version",
         ":duckdb_core",
+        ":duckdb_logging",
         ":core_functions_extension_init",
         ":core_functions",
         ":parquet_extension_init",
