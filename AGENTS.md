@@ -467,3 +467,49 @@ This regenerates:
 - `extension/extension_config.cmake` - Extension configuration
 - `scripts/format.py` - Code formatter
 - `scripts/generate_*.py` - Code generation scripts
+
+## Migration from C++ to Rust
+
+The codebase is being migrated to Rust for memory- and thread-safety. For the
+migration please keep the following in mind:
+
+- The Rust code lives under `ahirudb`, which holds the one `ahirudb` crate. The
+  single-crate structure is intentional: Crubit's C++/Rust interop is
+  significantly simpler with one crate, so do not split it into several.
+- Keep the structure of the existing C++ code in the Rust code. Do not
+  drastically restructure it; stay faithful to the original.
+- Also port C++ unit tests to Rust. SQL-level tests do not need porting.
+- Do not write `extern "C"` glue. Crubit generates the bindings; call the
+  generated function instead. When porting a C++ function, change its C++ callers
+  to call the Rust one and remove the original C++ implementation.
+- Try to eliminate `unsafe` blocks, and do not introduce new compiler warnings.
+- Add a Rust library only when it solves a significantly difficult problem. Do
+  not introduce one just to simplify something that is already simple.
+- Run `cargo fmt` in `ahirudb/` when done editing Rust code.
+
+### How C++ reaches Rust
+
+C++/Rust interop goes through Crubit, which generates a C++ header and a staticlib
+from the crate. Crubit has Bazel rules of its own (`@rules_crubit`), but they are
+Linux-only and build LLVM from sources, so this build uses the same generator
+Crubit's own CMake integration drives, `cargo cpp_api_from_rust`:
+
+- `MODULE.bazel` pins the Crubit revision, and `rust/crubit_toolchain.bzl` builds
+  the generator once and exposes it as `@crubit_toolchain`.
+- `rust/crubit_bindings.bzl` has the `crubit_bindings` rule, which runs the
+  generator over a crate. `ahirudb/BUILD.bazel` uses it; the output is
+  `//ahirudb:ahirudb_cc_api` (headers) and `//ahirudb:ahirudb_static` (the
+  staticlib C++ links).
+- `crubit_copts()` in the same file is what a translation unit including the
+  generated headers needs: C++20, and two warnings off.
+- `//:duckdb_logging` is the only library that does this today. Its private
+  `log_rust_bridge.hpp` is deliberately not under `src/include`, because only
+  `src/logging` should see the generated bindings.
+
+`//ahirudb:crubit_smoke_test` checks that C++ can call into the crate at all, and
+`//ahirudb:integration_test` runs the crate's own tests. Run both alongside the
+C++ suite: `bazel test //...`.
+
+The generator compiles against rustc internals, which upstream renames between
+Rust releases, so the nightly it is built with is pinned (`nightly-2026-09-03` in
+both `mise.toml` and `MODULE.bazel`) rather than tracking `nightly`.

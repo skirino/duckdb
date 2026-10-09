@@ -1,280 +1,329 @@
 #include "duckdb/logging/log_type.hpp"
 #include "duckdb/logging/log_manager.hpp"
 #include "duckdb/logging/log_storage.hpp"
-#include "duckdb/logging/file_system_logger.hpp"
 #include "duckdb/main/database.hpp"
 #include "duckdb/main/client_context.hpp"
-#include "duckdb/main/client_data.hpp"
-#include "duckdb/main/settings.hpp"
 #include "duckdb/common/local_file_system.hpp"
+
+#include "log_rust_bridge.hpp"
 
 namespace duckdb {
 
-unique_ptr<Logger> LogManager::CreateLogger(LoggingContext context, bool thread_safe, bool mutable_settings) {
-	unique_lock<mutex> lck(lock);
-
-	auto registered_logging_context = RegisterLoggingContextInternal(context);
-
-	if (mutable_settings) {
-		return make_uniq<MutableLogger>(config, registered_logging_context, *this);
+//! Translates a Rust storage switch error into the matching DuckDB exception
+static void ThrowStorageSwitchError(const ahirudb::logging::StorageSwitchError &error) {
+	auto message = ToStdString(error.message);
+	if (error.kind == ahirudb::logging::StorageSwitchErrorKind::MakeNotRegistered()) {
+		throw InvalidInputException("%s", message);
 	}
-	if (!config.enabled) {
+	throw InvalidConfigurationException(message);
+}
+
+unique_ptr<Logger> LogManager::CreateLogger(LoggingContext context) {
+	return CreateLoggerInternal(std::move(context), /*mutable_settings=*/false);
+}
+
+unique_ptr<Logger> LogManager::CreateLogger(LoggingContext context, MutableLogSettings) {
+	return CreateLoggerInternal(std::move(context), /*mutable_settings=*/true);
+}
+
+unique_ptr<Logger> LogManager::CreateLoggerInternal(LoggingContext context, bool mutable_settings) {
+	auto created =
+	    CallIntoRust([&]() { return rust_manager->Get().create_logger(ToRustContext(context), mutable_settings); });
+	if (!created.has_value()) {
+		throw InternalException(ToStdString(created.error()));
+	}
+
+	auto kind = created.value().kind;
+	if (kind == ahirudb::logging::LoggerKind::MakeNop()) {
+		// The Rust LogManager skipped the filter for this kind: a `NopLogger` never filters anything, and logging is
+		// disabled by default, so building one per query and per task would be pure waste
 		return make_uniq<NopLogger>(*this);
 	}
-	if (!thread_safe) {
-		// TODO: implement ThreadLocalLogger and return it here
+	// The filter the kind was decided on, so that a concurrent `enable_logging` cannot leave the logger filtering with
+	// a config that does not match what it was created for. It is passed by reference: crubit gives a struct it models
+	// with a destructor no move constructor, so taking it by value would copy every log type name in it again
+	D_ASSERT(created.value().filter.has_value());
+	auto &filter = *created.value().filter;
+	auto registered_context = GetRegisteredLoggingContext(created.value().context);
+	if (kind == ahirudb::logging::LoggerKind::MakeMutable()) {
+		return make_uniq<MutableLogger>(make_uniq<RustMutableLogger>(rust_manager->Get(), registered_context, filter),
+		                                *this);
 	}
-	return make_uniq<ThreadSafeLogger>(config, registered_logging_context, *this);
+	if (kind == ahirudb::logging::LoggerKind::MakeThreadSafe()) {
+		return make_uniq<ThreadSafeLogger>(
+		    make_uniq<RustThreadSafeLogger>(rust_manager->Get(), registered_context, filter), *this);
+	}
+	throw InternalException("Unknown logger kind requested from the Rust LogManager");
 }
 
-RegisteredLoggingContext LogManager::RegisterLoggingContext(LoggingContext &context) {
-	unique_lock<mutex> lck(lock);
-
-	return RegisterLoggingContextInternal(context);
-}
-
-bool LogManager::RegisterLogStorage(const string &name, shared_ptr<LogStorage> &storage) {
-	if (registered_log_storages.find(name) != registered_log_storages.end()) {
+bool duckdb::LogManager::RegisterLogStorage(const string &name, shared_ptr<LogStorage> &storage) {
+	if (!rust_manager->Get().register_log_storage(RustStr(name))) {
 		return false;
 	}
+	lock_guard<mutex> lck(lock);
 	registered_log_storages.insert({name, std::move(storage)});
 	return true;
 }
 
-Logger &LogManager::GlobalLogger() {
+Logger &duckdb::LogManager::GlobalLogger() {
 	return *global_logger;
 }
 
-shared_ptr<Logger> LogManager::GlobalLoggerReference() {
+shared_ptr<Logger> duckdb::LogManager::GlobalLoggerReference() {
 	return global_logger;
 }
 
-void LogManager::Flush() {
-	unique_lock<mutex> lck(lock);
-	log_storage->FlushAll();
+void duckdb::LogManager::Flush() {
+	CallIntoRust([&]() { rust_manager->Get().flush(); });
 }
 
-shared_ptr<LogStorage> LogManager::GetLogStorage() {
-	unique_lock<mutex> lck(lock);
+shared_ptr<LogStorage> duckdb::LogManager::GetLogStorage() {
+	lock_guard<mutex> lck(lock);
 	return log_storage;
 }
 
-bool LogManager::CanScan(LoggingTargetTable table) {
-	unique_lock<mutex> lck(lock);
-	return log_storage->CanScan(table);
+bool duckdb::LogManager::CanScan(LoggingTargetTable table) {
+	return CallIntoRust([&]() { return rust_manager->Get().can_scan(ToRustTargetTable(table)); });
 }
 
-LogManager::LogManager(DatabaseInstance &db, LogConfig config_p) : config(std::move(config_p)), db_instance(db) {
-	log_storage = make_uniq<InMemoryLogStorage>(db);
+duckdb::LogManager::LogManager(DatabaseInstance &db, LogConfig config_p)
+    : rust_manager(make_uniq<RustLogManager>(this)), db_instance(db) {
+	// The storage is created before the config is handed to Rust, so that the active storage and the name the config
+	// records for it can never disagree. `CreateLogStorage` throws for a storage that does not exist, leaving the
+	// LogManager unconstructed rather than half-installed
+	log_storage = CreateLogStorage(db, config_p.storage);
+	{
+		lock_guard<mutex> lck(lock);
+		log_storage_name = StringUtil::Lower(config_p.storage);
+	}
+	// Nothing can race this yet, but `SetConfigInternal` publishes a config the same way every other change does
+	lock_guard<mutex> config_lck(config_lock);
+	SetConfigInternal(config_p);
 }
 
-LogManager::~LogManager() {
-}
+//! `RustLogManager` is only forward declared in the header, so the destructor has to be defined here
+duckdb::LogManager::~LogManager() = default;
 
-void LogManager::Initialize() {
+void duckdb::LogManager::Initialize() {
 	LoggingContext context(LogContextScope::DATABASE);
-	global_logger = CreateLogger(context, true, true);
+	global_logger = CreateLogger(context, MutableLogSettings());
 
 	RegisterDefaultLogTypes();
 }
 
-LogManager &LogManager::Get(ClientContext &context) {
+LogManager &duckdb::LogManager::Get(ClientContext &context) {
 	return context.db->GetLogManager();
 }
 
-RegisteredLoggingContext LogManager::RegisterLoggingContextInternal(LoggingContext &context) {
-	RegisteredLoggingContext result = {next_registered_logging_context_index, context};
+void duckdb::LogManager::WriteLogEntry(timestamp_t timestamp, LogLevel log_level, const string &log_type,
+                                       const string &log_message, const RegisteredLoggingContext &context) {
+	// `warnings_as_errors` is applied by `Logger::WriteLog` before it hands the message to the Rust LogManager:
+	// throwing from here would unwind through Rust frames.
+	// The lock is held for the whole write, so that a storage switch cannot flush and replace the storage in between
+	// picking it and writing to it, which would drop the entry after it was flushed
+	lock_guard<mutex> lck(lock);
+	log_storage->WriteLogEntry(timestamp, log_level, log_type, log_message, context);
+}
 
-	next_registered_logging_context_index += 1;
-
-	if (next_registered_logging_context_index == NumericLimits<idx_t>::Maximum()) {
-		throw InternalException("Ran out of available log context ids.");
+void duckdb::LogManager::SetConfig(DatabaseInstance &db, const LogConfig &config_p) {
+	// The whole config change is one step, from applying it in Rust to publishing it to the global logger
+	lock_guard<mutex> config_lck(config_lock);
+	// We need extra handling for switching storage: the Rust LogManager validates the storage name and reports the
+	// storage that has to be created. The storage that is being replaced is flushed and swapped out in one critical
+	// section, so that a log entry can never be buffered into it after it was flushed
+	auto active_storage_name = GetActiveLogStorageName();
+	auto result = CallIntoRust([&]() {
+		return rust_manager->Get().resolve_log_storage(RustStr(active_storage_name), RustStr(config_p.storage),
+		                                               CanLogToFile(db));
+	});
+	if (!result.has_value()) {
+		ThrowStorageSwitchError(result.error());
 	}
-
-	return result;
-}
-
-void LogManager::WriteLogEntry(timestamp_t timestamp, const char *log_type, LogLevel log_level, const char *log_message,
-                               const RegisteredLoggingContext &context) {
-	if (log_level == LogLevel::LOG_WARNING && Settings::Get<WarningsAsErrorsSetting>(db_instance)) {
-		throw InvalidInputException(log_message);
-	} else {
-		unique_lock<mutex> lck(lock);
-		log_storage->WriteLogEntry(timestamp, log_level, log_type, log_message, context);
+	// Creating the storage can throw, which leaves both the config and the active storage untouched
+	auto &target = result.value();
+	if (target.has_value()) {
+		auto target_name = ToStdString(*target);
+		FlushAndSetActiveLogStorage(CreateLogStorage(db, target_name), target_name);
 	}
-}
-
-void LogManager::FlushCachedLogEntries(DataChunk &chunk, const RegisteredLoggingContext &context) {
-	throw NotImplementedException("FlushCachedLogEntries");
-}
-
-void LogManager::SetConfig(DatabaseInstance &db, const LogConfig &config_p) {
-	unique_lock<mutex> lck(lock);
-
-	// We need extra handling for switching storage
-	SetLogStorageInternal(db, config_p.storage);
-
 	SetConfigInternal(config_p);
 }
 
-void LogManager::SetEnableLogging(bool enable) {
-	unique_lock<mutex> lck(lock);
-	config.enabled = enable;
-	global_logger->UpdateConfig(config);
+void duckdb::LogManager::SetEnableLogging(bool enable) {
+	lock_guard<mutex> lck(config_lock);
+	auto snapshot = CallIntoRust([&]() { return rust_manager->Get().set_enable_logging(enable); });
+	UpdateGlobalLogger(FromRustConfig(snapshot));
 }
 
-void LogManager::SetLogMode(LogMode mode) {
-	unique_lock<mutex> lck(lock);
-	config.mode = mode;
-	global_logger->UpdateConfig(config);
+void duckdb::LogManager::SetLogMode(LogMode mode) {
+	lock_guard<mutex> lck(config_lock);
+	auto snapshot = CallIntoRust([&]() { return rust_manager->Get().set_log_mode(static_cast<uint8_t>(mode)); });
+	UpdateGlobalLogger(FromRustConfig(snapshot));
 }
 
-void LogManager::SetLogLevel(LogLevel level) {
-	unique_lock<mutex> lck(lock);
-	config.level = level;
-	global_logger->UpdateConfig(config);
+void duckdb::LogManager::SetLogLevel(LogLevel level) {
+	lock_guard<mutex> lck(config_lock);
+	auto snapshot = CallIntoRust([&]() { return rust_manager->Get().set_log_level(static_cast<uint8_t>(level)); });
+	UpdateGlobalLogger(FromRustConfig(snapshot));
 }
 
-void LogManager::SetEnabledLogTypes(optional_ptr<unordered_set<string>> enabled_log_types) {
-	unique_lock<mutex> lck(lock);
-	if (enabled_log_types) {
-		config.enabled_log_types = *enabled_log_types;
-	} else {
-		config.enabled_log_types = {};
+void duckdb::LogManager::SetEnabledLogTypes(optional_ptr<unordered_set<string>> enabled_log_types) {
+	lock_guard<mutex> lck(config_lock);
+	auto snapshot = CallIntoRust(
+	    [&]() { return rust_manager->Get().set_enabled_log_types(RustStrSlice(enabled_log_types).Get()); });
+	UpdateGlobalLogger(FromRustConfig(snapshot));
+}
+
+void duckdb::LogManager::SetDisabledLogTypes(optional_ptr<unordered_set<string>> disabled_log_types) {
+	lock_guard<mutex> lck(config_lock);
+	auto snapshot = CallIntoRust(
+	    [&]() { return rust_manager->Get().set_disabled_log_types(RustStrSlice(disabled_log_types).Get()); });
+	UpdateGlobalLogger(FromRustConfig(snapshot));
+}
+
+void duckdb::LogManager::SetLogStorage(DatabaseInstance &db, const string &storage_name) {
+	// Held across the whole switch, for the same reason `SetConfig` holds it: the name the Rust LogManager records
+	// after installing the storage is part of the config change
+	lock_guard<mutex> lck(config_lock);
+	// The Rust LogManager resolves the storage name: it rejects the storages that cannot be selected without extra
+	// configuration. It deliberately does not flush - the flush has to be atomic with installing the new storage, which
+	// is what `FlushAndSetActiveLogStorage` does under the lock that also guards `WriteLogEntry`
+	auto active_storage_name = GetActiveLogStorageName();
+	auto result = CallIntoRust([&]() {
+		return rust_manager->Get().set_log_storage_name(RustStr(active_storage_name), RustStr(storage_name),
+		                                                CanLogToFile(db));
+	});
+	if (!result.has_value()) {
+		ThrowStorageSwitchError(result.error());
 	}
-	global_logger->UpdateConfig(config);
-}
-
-void LogManager::SetDisabledLogTypes(optional_ptr<unordered_set<string>> disabled_log_types) {
-	unique_lock<mutex> lck(lock);
-	if (disabled_log_types) {
-		config.disabled_log_types = *disabled_log_types;
-	} else {
-		config.disabled_log_types = {};
-	}
-	global_logger->UpdateConfig(config);
-}
-
-void LogManager::SetLogStorage(DatabaseInstance &db, const string &storage_name) {
-	unique_lock<mutex> lck(lock);
-	// 'SET logging_storage' cannot supply the path that file storage requires, so reject the switch
-	// here (active storage preserved) and point users at enable_logging instead of installing a
-	// path-less storage that throws on every later flush.
-	auto storage_name_to_lower = StringUtil::Lower(storage_name);
-	if (storage_name_to_lower == LogConfig::FILE_STORAGE_NAME && config.storage != storage_name_to_lower) {
-		throw InvalidConfigurationException(
-		    "Cannot select 'file' log storage via 'SET logging_storage' because it requires a path. "
-		    "Use CALL enable_logging(storage='file', storage_path='...') instead.");
-	}
-	SetLogStorageInternal(db, storage_name);
-}
-
-void LogManager::SetLogStorageInternal(DatabaseInstance &db, const string &storage_name) {
-	auto storage_name_to_lower = StringUtil::Lower(storage_name);
-
-	if (config.storage == storage_name_to_lower) {
+	auto &target = result.value();
+	if (!target.has_value()) {
 		return;
 	}
-
-	if (storage_name_to_lower == LogConfig::FILE_STORAGE_NAME) {
-		auto &fs = FileSystem::GetFileSystem(db);
-		if (fs.SubSystemIsDisabled(LocalFileSystem().GetName())) {
-			throw InvalidConfigurationException("Can not enable file logging with the LocalFileSystem disabled");
-		}
-	}
-
-	// Flush the old storage, we are going to replace it.
-	log_storage->FlushAll();
-
-	if (storage_name_to_lower == LogConfig::IN_MEMORY_STORAGE_NAME) {
-		log_storage = make_shared_ptr<InMemoryLogStorage>(db);
-	} else if (storage_name_to_lower == LogConfig::STDOUT_STORAGE_NAME) {
-		log_storage = make_shared_ptr<StdOutLogStorage>(db);
-	} else if (storage_name_to_lower == LogConfig::FILE_STORAGE_NAME) {
-		log_storage = make_shared_ptr<FileLogStorage>(db);
-	} else if (registered_log_storages.find(storage_name_to_lower) != registered_log_storages.end()) {
-		log_storage = registered_log_storages[storage_name_to_lower];
-	} else {
-		throw InvalidInputException("Log storage '%s' is not yet registered", storage_name);
-	}
-	config.storage = storage_name_to_lower;
+	auto target_name = ToStdString(*target);
+	FlushAndSetActiveLogStorage(CreateLogStorage(db, target_name), target_name);
+	// Installing the storage also records its name in the config the Rust LogManager holds, which is what `GetConfig`
+	// reports
+	CallIntoRust([&]() { rust_manager->Get().record_log_storage_name(RustStr(target_name)); });
 }
 
-void LogManager::UpdateLogStorageConfig(DatabaseInstance &db, case_insensitive_map_t<Value> &config_value) {
-	unique_lock<mutex> lck(lock);
+shared_ptr<LogStorage> LogManager::CreateLogStorage(DatabaseInstance &db, const string &storage_name) {
+	auto storage_name_to_lower = StringUtil::Lower(storage_name);
+	if (storage_name_to_lower == LogConfig::IN_MEMORY_STORAGE_NAME) {
+		return make_shared_ptr<InMemoryLogStorage>(db);
+	}
+	if (storage_name_to_lower == LogConfig::STDOUT_STORAGE_NAME) {
+		return make_shared_ptr<StdOutLogStorage>(db);
+	}
+	if (storage_name_to_lower == LogConfig::FILE_STORAGE_NAME) {
+		return make_shared_ptr<FileLogStorage>(db);
+	}
+	lock_guard<mutex> lck(lock);
+	auto lookup = registered_log_storages.find(storage_name_to_lower);
+	if (lookup == registered_log_storages.end()) {
+		throw InvalidInputException("Log storage '%s' is not yet registered", storage_name);
+	}
+	return lookup->second;
+}
+
+bool duckdb::LogManager::CanLogToFile(DatabaseInstance &db) {
+	auto &fs = FileSystem::GetFileSystem(db);
+	return !fs.SubSystemIsDisabled(LocalFileSystem().GetName());
+}
+
+string duckdb::LogManager::GetActiveLogStorageName() {
+	lock_guard<mutex> lck(lock);
+	return log_storage_name;
+}
+
+void duckdb::LogManager::FlushAndSetActiveLogStorage(const shared_ptr<LogStorage> &storage,
+                                                     const string &storage_name) {
+	// Flushing and replacing happen under the same lock as `WriteLogEntry`, so no entry can be buffered into the
+	// storage that is being replaced after it was flushed. A flush that throws leaves both the storage and the config
+	// alone
+	lock_guard<mutex> lck(lock);
+	if (log_storage_name == storage_name) {
+		// Another switch to the same storage won the race to install it. That storage is already the active one, so
+		// there is nothing to flush and nothing to replace: flushing it would drop whatever a concurrent write has
+		// buffered into it since, and replacing it would drop that buffer with the object
+		return;
+	}
+	log_storage->FlushAll();
+	log_storage = storage;
+	log_storage_name = storage_name;
+}
+
+void duckdb::LogManager::SetConfigInternal(const LogConfig &config_p) {
+	// The caller holds `config_lock`, so that applying the config and publishing it to the global logger is one step
+	// The whole config is handed to Rust in one step, so that a concurrent `GetConfig` can never observe a half-applied
+	// change. The log storage needs nothing here: the Rust LogManager was built with this manager as its sink, and the
+	// storage itself was installed above, under the lock that also guards `WriteLogEntry`.
+	auto rust_config = ToRustConfig(config_p);
+	CallIntoRust([&]() {
+		rust_manager->Get().set_config(rust_config.enabled, rust_config.mode, rust_config.level,
+		                               RustStr(rust_config.storage), rust_config.enabled_log_types.Get(),
+		                               rust_config.disabled_log_types.Get());
+	});
+	UpdateGlobalLogger(config_p);
+}
+
+void duckdb::LogManager::UpdateLogStorageConfig(DatabaseInstance &db, case_insensitive_map_t<Value> &config_value) {
+	// The lock is held for the whole call, so that a concurrent storage switch cannot reconfigure the storage that is
+	// being replaced
+	lock_guard<mutex> lck(lock);
 	log_storage->UpdateConfig(db, config_value);
 }
 
-void LogManager::SetEnableStructuredLoggers(vector<string> &enabled_logger_types) {
-	unique_lock<mutex> lck(lock);
-
-	LogConfig new_config = config;
-	new_config.enabled_log_types.clear();
-
-	LogLevel min_log_level = LogLevel::LOG_FATAL;
-
-	for (const auto &enabled_logger_type : enabled_logger_types) {
-		auto lookup = LookupLogTypeInternal(enabled_logger_type);
-		if (!lookup) {
-			throw InvalidInputException("Unknown log type: '%s'", enabled_logger_type);
-		}
-
-		new_config.enabled_log_types.insert(lookup->name);
-
-		min_log_level = MinValue(min_log_level, lookup->level);
+void duckdb::LogManager::SetEnableStructuredLoggers(vector<string> &enabled_logger_types) {
+	lock_guard<mutex> lck(config_lock);
+	RustStrSlice log_types(enabled_logger_types);
+	auto result = CallIntoRust([&]() { return rust_manager->Get().set_enable_structured_loggers(log_types.Get()); });
+	if (!result.has_value()) {
+		throw InvalidInputException("%s", ToStdString(result.error()));
 	}
-
-	new_config.level = min_log_level;
-	new_config.mode = LogMode::ENABLE_SELECTED;
-	new_config.enabled = true;
-
-	SetConfigInternal(new_config);
+	UpdateGlobalLogger(FromRustConfig(result.value()));
 }
 
-void LogManager::TruncateLogStorage() {
-	unique_lock<mutex> lck(lock);
-	log_storage->Truncate();
+void duckdb::LogManager::TruncateLogStorage() {
+	CallIntoRust([&]() { rust_manager->Get().truncate_log_storage(); });
 }
 
-LogConfig LogManager::GetConfig() {
-	unique_lock<mutex> lck(lock);
-	return config;
+duckdb::LogConfig duckdb::LogManager::GetConfig() {
+	// Held across the read as well, so that a reader cannot observe the config in the window between a `Set*` method
+	// applying it and publishing it to the global logger. HEAD took the lock that spans both halves here too
+	lock_guard<mutex> lck(config_lock);
+	return FromRustConfig(rust_manager->Get().get_config());
 }
 
-optional_ptr<const LogType> LogManager::LookupLogType(const string &type) {
-	unique_lock<mutex> lck(lock);
-	return LookupLogTypeInternal(type);
-}
-
-DUCKDB_API void RegisterDefaultLogTypes() {
-}
-
-optional_ptr<const LogType> LogManager::LookupLogTypeInternal(const string &type) {
-	auto lookup = registered_log_types.find(type);
-	if (lookup != registered_log_types.end()) {
-		return *lookup->second;
+void duckdb::LogManager::UpdateGlobalLogger(const LogConfig &config) {
+	if (!global_logger) {
+		return;
 	}
-	return nullptr;
-}
-
-void LogManager::SetConfigInternal(LogConfig config_p) {
-	// Apply the remainder of the config
-	config = std::move(config_p);
 	global_logger->UpdateConfig(config);
 }
 
-void LogManager::RegisterLogType(unique_ptr<LogType> type) {
-	unique_lock<mutex> lck(lock);
-
-	auto lookup = registered_log_types.find(type->name);
-	if (lookup != registered_log_types.end()) {
-		throw InvalidInputException("Registered log writer '%s' already exists", type->name);
+duckdb::optional_ptr<const duckdb::LogType> duckdb::LogManager::LookupLogType(const string &type) {
+	auto canonical_name = rust_manager->Get().lookup_log_type(RustStr(type));
+	if (!canonical_name.has_value()) {
+		return nullptr;
 	}
+	lock_guard<mutex> lck(lock);
+	auto lookup = registered_log_types.find(ToStdString(*canonical_name));
+	if (lookup == registered_log_types.end()) {
+		return nullptr;
+	}
+	return lookup->second.get();
+}
 
+void duckdb::LogManager::RegisterLogType(unique_ptr<LogType> type) {
+	auto result = rust_manager->Get().register_log_type(RustStr(type->name), static_cast<uint8_t>(type->level));
+	if (!result.has_value()) {
+		throw InvalidInputException("%s", ToStdString(result.error()));
+	}
+	lock_guard<mutex> lck(lock);
 	registered_log_types[type->name] = std::move(type);
 }
 
-void LogManager::RegisterDefaultLogTypes() {
+void duckdb::LogManager::RegisterDefaultLogTypes() {
 	RegisterLogType(make_uniq<DefaultLogType>());
 	RegisterLogType(make_uniq<FileSystemLogType>());
 	RegisterLogType(make_uniq<HTTPLogType>());

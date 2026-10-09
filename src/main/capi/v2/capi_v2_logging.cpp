@@ -1,6 +1,5 @@
 #include "duckdb/main/capi_v2/capi_v2_internal.hpp"
 
-#include "duckdb/logging/log_type.hpp"
 #include "duckdb/logging/logger.hpp"
 
 namespace duckdb {
@@ -41,7 +40,9 @@ DUCKDB_V2_ERROR duckdb_v2_context_log(duckdb_v2_context_handle ctx, DUCKDB_V2_LO
 		const auto log_level = ConvertLogLevel(level);
 		// ShouldLog/WriteLog take a C string, so the borrowed view has to be materialized.
 		const duckdb::string type(Convert(log_type));
-		const auto *type_name = type.empty() ? duckdb::DefaultLogType::NAME : type.c_str();
+		// An empty log type is `DefaultLogType::NAME`, so such a call now reaches the storage instead of only the Rust
+		// stub that used to print it to stderr
+		const auto *type_name = type.c_str();
 
 		auto &logger = duckdb::Logger::Get(*Convert(ctx));
 		if (logger.ShouldLog(type_name, log_level)) {

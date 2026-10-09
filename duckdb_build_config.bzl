@@ -67,6 +67,7 @@ DUCKDB_LIB_DEPS = [":duckdb_headers", ":generated_extension_loader"]
 def duckdb_library(
         name,
         srcs,
+        hdrs = None,
         local_defines = DUCKDB_DEFINES,
         includes = DUCKDB_INCLUDES,
         copts = DUCKDB_COPTS,
@@ -76,10 +77,14 @@ def duckdb_library(
     """One library of the DuckDB build.
 
     Every attribute has the value nearly every library wants, so a target states
-    only where it differs."""
+    only where it differs.
+
+    `deps` and `includes` replace their defaults rather than extending them, so a
+    target that adds a dependency spells `DUCKDB_LIB_DEPS + [...]`."""
     cc_library(
         name = name,
         srcs = srcs,
+        hdrs = hdrs or [],
         local_defines = local_defines,
         copts = copts,
         includes = includes,

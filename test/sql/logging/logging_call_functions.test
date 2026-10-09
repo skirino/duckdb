@@ -279,3 +279,37 @@ CALL enable_logging(storage_config:={aaaargh:'blaargh'})
 ----
 Unrecognized log storage config option
 
+#### 
+# The storage name is resolved case-insensitively and stored lowercased, whichever way the caller spells it
+###
+
+statement ok
+CALL enable_logging(storage='MeMoRy')
+
+query I
+SELECT value FROM duckdb_settings() WHERE name = 'logging_storage';
+----
+memory
+
+statement ok
+SET logging_storage='MEMORY'
+
+query I
+SELECT value FROM duckdb_settings() WHERE name = 'logging_storage';
+----
+memory
+
+statement ok
+CALL disable_logging()
+
+statement ok
+CALL enable_logging(storage='FILE', storage_path='{TEST_DIR}/mixed_case_storage.csv')
+
+query I
+SELECT value FROM duckdb_settings() WHERE name = 'logging_storage';
+----
+file
+
+statement ok
+CALL disable_logging()
+

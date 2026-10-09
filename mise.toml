@@ -1,2 +1,7 @@
 [tools]
 bazel = "9.2.0"
+# The nightly Crubit's bindings generator is built with. It compiles against rustc
+# internals, which upstream renames between releases, so it is pinned rather than
+# tracking "nightly"; see the crubit_toolchain call in MODULE.bazel, which pins
+# the same version so the Bazel and CMake builds agree.
+rust = { version = "nightly-2026-09-03", components = "rust-src,rustc-dev,llvm-tools-preview" }

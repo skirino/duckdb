@@ -16,9 +16,7 @@
 namespace duckdb {
 class TableDescription;
 class DatabaseInstance;
-class DataChunk;
 class LogManager;
-class ColumnDataCollection;
 class ThreadContext;
 class FileOpener;
 class LogStorage;
@@ -92,101 +90,19 @@ public:
 		Get(log_context_source).Flush();
 	}
 
-	DUCKDB_API virtual bool IsThreadSafe() = 0;
-	DUCKDB_API virtual bool IsMutable() {
-		return false;
-	};
-	DUCKDB_API virtual void UpdateConfig(LogConfig &new_config) {
+	DUCKDB_API virtual void UpdateConfig(const LogConfig &new_config) {
 		throw InternalException("Cannot update the config of this logger!");
 	}
-	DUCKDB_API virtual const LogConfig &GetConfig() const = 0;
 
 protected:
 	virtual void WriteLogInternal(const char *log_type, LogLevel log_level, const char *message) = 0;
 
+	//! Throws if `warnings_as_errors` turns this log message into a query error. Called by `WriteLog` before handing
+	//! the message to the log storage.
+	DUCKDB_API void ThrowOnWarningsAsErrors(LogLevel log_level, const char *message);
+
 protected:
 	LogManager &manager;
-};
-
-// Thread-safe logger
-class ThreadSafeLogger : public Logger {
-public:
-	explicit ThreadSafeLogger(LogConfig &config_p, LoggingContext &context_p, LogManager &manager);
-	explicit ThreadSafeLogger(LogConfig &config_p, RegisteredLoggingContext context_p, LogManager &manager);
-
-	// Main Logger API
-	bool ShouldLog(const char *log_type, LogLevel log_level) override;
-	void WriteLogInternal(const char *log_type, LogLevel log_level, const char *message) override;
-
-	void Flush() override;
-	bool IsThreadSafe() override {
-		return true;
-	}
-	const LogConfig &GetConfig() const override {
-		return config;
-	}
-
-protected:
-	const LogConfig config;
-	mutex lock;
-	const RegisteredLoggingContext context;
-};
-
-// Non Thread-safe logger
-// - will cache log entries locally
-class ThreadLocalLogger : public Logger {
-public:
-	explicit ThreadLocalLogger(LogConfig &config_p, LoggingContext &context_p, LogManager &manager);
-	explicit ThreadLocalLogger(LogConfig &config_p, RegisteredLoggingContext context_p, LogManager &manager);
-
-	// Main Logger API
-	bool ShouldLog(const char *log_type, LogLevel log_level) override;
-	void WriteLogInternal(const char *log_type, LogLevel log_level, const char *message) override;
-	void Flush() override;
-
-	bool IsThreadSafe() override {
-		return false;
-	}
-	const LogConfig &GetConfig() const override {
-		return config;
-	}
-
-protected:
-	const LogConfig config;
-	const RegisteredLoggingContext context;
-};
-
-// Thread-safe Logger with mutable log settings
-class MutableLogger : public Logger {
-public:
-	explicit MutableLogger(LogConfig &config_p, LoggingContext &context_p, LogManager &manager);
-	explicit MutableLogger(LogConfig &config_p, RegisteredLoggingContext context_p, LogManager &manager);
-
-	// Main Logger API
-	bool ShouldLog(const char *log_type, LogLevel log_level) override;
-	void WriteLogInternal(const char *log_type, LogLevel log_level, const char *message) override;
-
-	void Flush() override;
-	bool IsThreadSafe() override {
-		return true;
-	}
-	bool IsMutable() override {
-		return true;
-	}
-	const LogConfig &GetConfig() const override {
-		return config;
-	}
-	void UpdateConfig(LogConfig &new_config) override;
-
-protected:
-	// Atomics for lock-free log setting checks
-	atomic<bool> enabled;
-	atomic<LogMode> mode;
-	atomic<LogLevel> level;
-
-	mutex lock;
-	LogConfig config;
-	const RegisteredLoggingContext context;
 };
 
 // For when logging is disabled: NOPs everything
@@ -200,12 +116,10 @@ public:
 	void WriteLogInternal(const char *log_type, LogLevel log_level, const char *message) override {};
 	void Flush() override {
 	}
-	bool IsThreadSafe() override {
-		return true;
-	}
-	const LogConfig &GetConfig() const override {
-		throw InternalException("Called GetConfig on NopLogger");
-	}
 };
+
+//! The other two loggers are declared in `src/logging/log_rust_bridge.hpp`: they hold an opaque Rust logger, so they
+//! cannot be declared without a type that only that header can define. `LogManager::CreateLogger` is the only way to
+//! get one.
 
 } // namespace duckdb

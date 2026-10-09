@@ -1,0 +1,57 @@
+# name: test/sql/logging/logging_unscannable_storage.test
+# description: A log storage that cannot be scanned reads back empty instead of erroring
+# group: [logging]
+
+require noforcestorage
+
+# `StdOutLogStorage` does not override LogStorage::CanScan, so it answers false and the log table functions have to
+# return an empty result rather than reaching CreateScanState, which is not implemented for it
+
+statement ok
+set logging_storage='stdout';
+
+statement ok
+set enable_logging=true;
+
+statement ok
+select write_log('NOT SCANNABLE');
+
+statement ok
+set enable_logging=false;
+
+query I
+SELECT count(*) FROM duckdb_logs
+----
+0
+
+# `duckdb_log_contexts` is only a table function, so it needs its parentheses (`duckdb_logs` is also a view)
+query I
+SELECT count(*) FROM duckdb_log_contexts()
+----
+0
+
+query I
+SELECT count(*) FROM duckdb_logs_parsed('QueryLog')
+----
+0
+
+# DESCRIBE must keep working: it reads the static schema, not the storage
+
+statement ok
+DESCRIBE FROM duckdb_logs
+
+# The zero above comes from `CanScan`, not from a scan that finds nothing: a storage that does scan sees its entries
+
+statement ok
+set logging_storage='memory';
+
+statement ok
+set enable_logging=true;
+
+statement ok
+select write_log('SCANNABLE');
+
+query I
+SELECT count(*) > 0 FROM duckdb_logs
+----
+true

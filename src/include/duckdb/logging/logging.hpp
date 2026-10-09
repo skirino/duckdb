@@ -50,10 +50,6 @@ struct LogConfig {
 
 	unordered_set<string> enabled_log_types;
 	unordered_set<string> disabled_log_types;
-
-protected:
-	LogConfig(bool enabled, LogLevel level, LogMode mode, optional_ptr<unordered_set<string>> enabled_log_types,
-	          optional_ptr<unordered_set<string>> disable_loggers);
 };
 
 struct LoggingContext {

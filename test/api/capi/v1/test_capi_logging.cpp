@@ -121,6 +121,34 @@ TEST_CASE("Test logging silent exceptions using a custom log storage in the CAPI
 	duckdb_destroy_log_storage(&log_storage);
 }
 
+//! A C API log storage does not implement `Truncate`, so truncating it throws. The call travels through the Rust
+//! LogManager, where letting the exception unwind would be undefined behaviour, so it has to come back out as an
+//! ordinary SQL error - and the log manager has to stay usable afterwards.
+TEST_CASE("Test truncating a custom log storage in the CAPI reports an error", "[capi]") {
+	CAPITester tester;
+
+	my_log_store.Reset();
+	REQUIRE(tester.OpenDatabase(nullptr));
+
+	auto log_storage = duckdb_create_log_storage();
+	duckdb_log_storage_set_write_log_entry(log_storage, WriteLogEntry);
+	duckdb_log_storage_set_name(log_storage, "MyCustomStorage");
+	REQUIRE(duckdb_register_log_storage(tester.database, log_storage) == DuckDBSuccess);
+
+	REQUIRE_NO_FAIL(tester.Query("SET enable_logging = true;"));
+	REQUIRE_NO_FAIL(tester.Query("SET logging_storage = 'MyCustomStorage';"));
+
+	auto truncate_result = tester.Query("CALL truncate_duckdb_logs();");
+	REQUIRE_FAIL(truncate_result);
+	REQUIRE(string(truncate_result->ErrorMessage()).find("Not implemented for this LogStorage") != string::npos);
+
+	// Logging still works, so the failed truncate did not leave the log manager locked
+	REQUIRE_NO_FAIL(tester.Query("SELECT write_log('AFTER TRUNCATE');"));
+	REQUIRE(my_log_store.Contains("AFTER TRUNCATE"));
+
+	duckdb_destroy_log_storage(&log_storage);
+}
+
 void workUnit(duckdb_database db, idx_t worker_id) {
 	duckdb_connection conn;
 	if (duckdb_connect(db, &conn) != DuckDBSuccess) {

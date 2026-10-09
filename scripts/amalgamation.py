@@ -3,6 +3,7 @@
 
 import package_build
 import os
+import re
 from python_helpers import open_utf8, normalize_path
 import shutil
 
@@ -72,6 +73,31 @@ def list_includes_files(include_dirs):
     file_list = []
     for include_dir in include_dirs:
         list_include_files_recursive(include_dir, file_list)
+    return file_list
+
+
+quoted_include_pattern = re.compile(r'^[ \t]*#[ \t]*include[ \t]*"([^"]+)"', re.MULTILINE)
+
+
+def list_headers_beside_sources(source_list):
+    """Headers a source includes with a quoted path, relative to its own directory.
+
+    `list_includes_files` only looks in the include directories, so a header that lives next to the source that
+    includes it would be missing from the package and the packaged build would not compile. Resolving the quoted
+    includes is exact, where scanning the whole source directory would copy headers nobody includes.
+    """
+    file_list = []
+    visited = set()
+    for source in source_list:
+        with open_utf8(source, 'r') as f:
+            text = f.read()
+        source_dir = os.path.dirname(source)
+        for include in quoted_include_pattern.findall(text):
+            path = normalize_path(os.path.join(source_dir, include))
+            if path in visited or not os.path.isfile(path):
+                continue
+            visited.add(path)
+            file_list.append(path)
     return file_list
 
 

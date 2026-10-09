@@ -13,7 +13,8 @@ load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library", "cc_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load(":duckdb_build_config.bzl", "DUCKDB_DEFINES", "DUCKDB_INCLUDES",
-      "DUCKDB_TEST_INCLUDES", "duckdb_library")
+      "DUCKDB_LIB_DEPS", "DUCKDB_TEST_INCLUDES", "duckdb_library")
+load("//rust:crubit_bindings.bzl", "crubit_copts")
 load(":duckdb_codegen.bzl", "extension_codegen_files", "fixture_tree",
       "version_info_header")
 load(":duckdb_test.bzl", "FIXTURE_TREES", "TEST_DATA_GLOBS",
@@ -145,15 +146,30 @@ duckdb_library(
     ),
 )
 
-# src/logging is a library of its own in CMake (src/logging/CMakeLists.txt), kept
-# separate here for the reason it is separate there: this is the target that will
-# call into ahirudb, and Crubit's generated headers need C++20 and two warnings
-# off, which nothing else in src/ wants. It has the same compile profile as
-# duckdb_core for now and gains `copts = crubit_copts()` plus a dep on
-# //ahirudb:ahirudb_static when log_rust_bridge.cpp arrives.
+# src/logging is a library of its own in CMake (src/logging/CMakeLists.txt) because
+# it is the one that calls into the ahirudb crate: log_rust_bridge.cpp includes
+# crubit/ahirudb.h and calls the Rust logging implementation through it. Crubit's
+# generated headers need C++20 and two warnings off, which nothing else in src/
+# wants, so both belong to this target alone.
 duckdb_library(
     name = "duckdb_logging",
     srcs = glob(["src/logging/**/*.cpp"]),
+    # Private to this library, and deliberately not under src/include: it pulls in
+    # crubit/ahirudb.h, which nothing outside src/logging should see. Bazel only
+    # puts declared files in the sandbox and does not search a source file's own
+    # directory the way CMake's quoted include does, so src/logging is an include
+    # root here.
+    hdrs = ["src/logging/log_rust_bridge.hpp"],
+    includes = sorted(DUCKDB_INCLUDES + ["src/logging"]),
+    copts = crubit_copts(),
+    # duckdb_library's `deps` replaces the default rather than extending it, so
+    # the Rust half is added to DUCKDB_LIB_DEPS instead of standing in for it.
+    deps = DUCKDB_LIB_DEPS + [
+        # Crubit's generated C++ API, and the staticlib the generator builds
+        # together with the generated C++ shims.
+        "//ahirudb:ahirudb_cc_api",
+        "//ahirudb:ahirudb_static",
+    ],
 )
 
 duckdb_library(

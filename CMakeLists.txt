@@ -20,6 +20,36 @@ if(POLICY CMP0063)
   cmake_policy(SET CMP0063 NEW)
 endif()
 
+# macOS default clang is too old and does not work (address sanitizer build
+# hangs at startup), so a newer local clang is preferred - as a temporary
+# workaround for the old clang in macOS. The directory holding it is not part of
+# the repository: DUCKDB_LOCAL_CLANG_DIR overrides it, and without a directory
+# that has both compilers in it the build falls back to the platform default
+# (which is what every other checkout and CI job wants).
+if(DEFINED ENV{DUCKDB_LOCAL_CLANG_DIR})
+  set(_duckdb_clang_dir "$ENV{DUCKDB_LOCAL_CLANG_DIR}")
+else()
+  set(_duckdb_clang_dir
+      "$ENV{HOME}/.local/share/mise/installs/clang/23.1.2/.mise-bins")
+endif()
+set(_duckdb_clang_cxx "")
+if(EXISTS "${_duckdb_clang_dir}/clang++")
+  set(_duckdb_clang_cxx "${_duckdb_clang_dir}/clang++")
+else()
+  # A versioned mise install names the C++ driver after the compiler it is
+  file(GLOB _duckdb_clang_cxx_candidates "${_duckdb_clang_dir}/clang++-*")
+  if(_duckdb_clang_cxx_candidates)
+    list(GET _duckdb_clang_cxx_candidates 0 _duckdb_clang_cxx)
+  endif()
+endif()
+if(NOT DEFINED CMAKE_C_COMPILER
+   AND NOT DEFINED CMAKE_CXX_COMPILER
+   AND EXISTS "${_duckdb_clang_dir}/clang"
+   AND EXISTS "${_duckdb_clang_cxx}")
+  set(CMAKE_C_COMPILER "${_duckdb_clang_dir}/clang")
+  set(CMAKE_CXX_COMPILER "${_duckdb_clang_cxx}")
+  message(STATUS "Building with clang from ${_duckdb_clang_dir}")
+endif()
 project(DuckDB)
 
 find_package(Threads REQUIRED)
@@ -923,6 +953,7 @@ if (NOT EXTENSION_CONFIG_BUILD)
   include_directories(third_party/vergesort)
   include_directories(third_party/yyjson/include)
   include_directories(third_party/zstd/include)
+  include_directories("${PROJECT_BINARY_DIR}/_deps/crubit-src")
 endif()
 
 # todo only regenerate ub file if one of the input files changed hack alert
@@ -1024,6 +1055,90 @@ function(disable_target_warnings NAME)
     target_compile_options(${NAME} PRIVATE "-w")
   endif()
 endfunction()
+
+include(FetchContent)
+FetchContent_Declare(
+  Corrosion
+  GIT_REPOSITORY https://github.com/thunderseethe/corrosion
+  GIT_TAG main
+)
+FetchContent_MakeAvailable(Corrosion)
+corrosion_experimental_crubit(ahirudb)
+corrosion_import_crate(MANIFEST_PATH ahirudb/Cargo.toml)
+
+# Crubit's C++ bindings are produced by `cargo cpp_api_from_rust`, which
+# corrosion does run as part of building the crate - but that build is only
+# ordered before our link step, not before our own translation units are
+# compiled, so `crubit/ahirudb.h` is not there yet when `src/logging` needs it.
+# Run the same generator here first, and copy the headers to where corrosion
+# looks for them. Everything comes from what corrosion resolved above, so none
+# of this depends on the machine that configured the build.
+set(_ahirudb_cargo "${_CORROSION_CARGO}")
+if(NOT _ahirudb_cargo)
+  find_program(_ahirudb_cargo NAMES cargo)
+  if(NOT _ahirudb_cargo)
+    message(
+      FATAL_ERROR "cargo is needed to generate the crubit bindings for ahirudb")
+  endif()
+endif()
+# `--target` is what makes cargo put its output under a directory named after
+# the triple. Without a known triple (a bare `cargo` on a toolchain that is not
+# cross-compiling) there is no such directory.
+set(_ahirudb_target_arg "")
+set(_ahirudb_artifact_dir "release")
+foreach(_ahirudb_triple
+        "${_CORROSION_RUST_CARGO_TARGET}" "${Rust_CARGO_TARGET}"
+        "${_CORROSION_RUST_CARGO_HOST_TARGET}" "${Rust_CARGO_HOST_TARGET}")
+  if(_ahirudb_triple)
+    set(_ahirudb_target_arg "--target=${_ahirudb_triple}")
+    set(_ahirudb_artifact_dir "${_ahirudb_triple}/release")
+    break()
+  endif()
+endforeach()
+# The generator links against the toolchain's own shared libraries, which live
+# next to `rustc` on Windows and in the `lib` directory beside it everywhere
+# else - the same loader path corrosion sets up for its own invocation.
+if(CMAKE_HOST_WIN32)
+  set(_ahirudb_lib_path_var "PATH")
+  get_filename_component(_ahirudb_rustc_dir "${_CORROSION_RUSTC}" DIRECTORY)
+else()
+  if(APPLE)
+    set(_ahirudb_lib_path_var "DYLD_LIBRARY_PATH")
+  else()
+    set(_ahirudb_lib_path_var "LD_LIBRARY_PATH")
+  endif()
+  get_filename_component(_ahirudb_rustc_dir "${_CORROSION_RUSTC}" DIRECTORY)
+  get_filename_component(_ahirudb_rustc_dir "${_ahirudb_rustc_dir}" DIRECTORY)
+  set(_ahirudb_rustc_dir "${_ahirudb_rustc_dir}/lib")
+endif()
+add_custom_target(
+  generate_ahirudb_headers
+  COMMAND
+    ${CMAKE_COMMAND} -E env
+    "${_ahirudb_lib_path_var}=$ENV{${_ahirudb_lib_path_var}}:${_ahirudb_rustc_dir}"
+    PATH=${CMAKE_BINARY_DIR}/corrosion/cargo-cpp_api_from_rust/bin:$ENV{PATH}
+    ${_ahirudb_cargo} cpp_api_from_rust --manifest-path
+    ${CMAKE_SOURCE_DIR}/ahirudb/Cargo.toml --target-dir
+    ${CMAKE_BINARY_DIR}/cargo/ahirudb_crubit -- --lib ${_ahirudb_target_arg}
+    --package ahirudb --release -- -Cdefault-linker-libraries=yes
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/ahirudb
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include
+  COMMAND
+    ${CMAKE_COMMAND} -E copy_directory_if_different
+    ${CMAKE_BINARY_DIR}/cargo/ahirudb_crubit/${_ahirudb_artifact_dir}/include
+    ${CMAKE_BINARY_DIR}/include
+  COMMENT "Generating crubit headers for ahirudb"
+  VERBATIM)
+# `cargo cpp_api_from_rust` is a cargo subcommand, so cargo has to find
+# `cargo-cpp_api_from_rust` on PATH. When corrosion found one already installed
+# it is on `$ENV{PATH}` and this target exists nowhere; when it built the
+# generator from Crubit it is in this build's own directory *and* behind the
+# target that builds it, so wait for that target first - otherwise a build that
+# has never generated the headers here before fails with "no such command:
+# cpp_api_from_rust".
+if(TARGET _corrosion_cargo_crubit)
+  add_dependencies(generate_ahirudb_headers _corrosion_cargo_crubit)
+endif()
 
 # Capture the current dir so the below function also works when included in a different project
 set(_DUCKDB_PROJECT_SRC_DIR ${PROJECT_SOURCE_DIR})

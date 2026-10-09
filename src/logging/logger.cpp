@@ -1,12 +1,13 @@
-#include "duckdb/logging/log_storage.hpp"
 #include "duckdb/logging/log_manager.hpp"
+#include "duckdb/logging/logger.hpp"
 
 #include "duckdb/main/client_context.hpp"
-#include "duckdb/main/connection.hpp"
 #include "duckdb/main/database.hpp"
+#include "duckdb/main/settings.hpp"
 #include "duckdb/common/file_opener.hpp"
-#include "duckdb/common/file_system.hpp"
 #include "duckdb/parallel/thread_context.hpp"
+
+#include "log_rust_bridge.hpp"
 
 namespace duckdb {
 
@@ -19,7 +20,16 @@ void Logger::WriteLog(const char *log_type, LogLevel log_level, const string_t &
 }
 
 void Logger::WriteLog(const char *log_type, LogLevel log_level, const char *message) {
+	ThrowOnWarningsAsErrors(log_level, message);
 	WriteLogInternal(log_type, log_level, message);
+}
+
+void Logger::ThrowOnWarningsAsErrors(LogLevel log_level, const char *message) {
+	// `warnings_as_errors` turns log warnings into query errors. This has to happen before the message reaches the log
+	// storage, and it cannot live in Rust because it needs the C++ settings.
+	if (log_level == LogLevel::LOG_WARNING && Settings::Get<WarningsAsErrorsSetting>(manager.db_instance)) {
+		throw InvalidInputException(message);
+	}
 }
 
 Logger &Logger::Get(const DatabaseInstance &db) {
@@ -46,117 +56,46 @@ Logger &Logger::Get(const shared_ptr<Logger> &logger) {
 	return *logger;
 }
 
-ThreadSafeLogger::ThreadSafeLogger(LogConfig &config_p, LoggingContext &context_p, LogManager &manager)
-    : ThreadSafeLogger(config_p, manager.RegisterLoggingContext(context_p), manager) {
-}
-
-ThreadSafeLogger::ThreadSafeLogger(LogConfig &config_p, RegisteredLoggingContext context_p, LogManager &manager)
-    : Logger(manager), config(config_p), context(context_p) {
-	// NopLogger should be used instead
-	D_ASSERT(config_p.enabled);
+//===--------------------------------------------------------------------===//
+// ThreadSafeLogger
+//===--------------------------------------------------------------------===//
+ThreadSafeLogger::ThreadSafeLogger(unique_ptr<RustThreadSafeLogger> rust_logger_p, LogManager &manager)
+    : Logger(manager), rust_logger(std::move(rust_logger_p)) {
 }
 
 bool ThreadSafeLogger::ShouldLog(const char *log_type, LogLevel log_level) {
-	if (config.level > log_level) {
-		return false;
-	}
-
-	// TODO: improve these: they are currently fairly expensive due to requiring allocations when looking up const char*
-	//       also, we would ideally do prefix matching, not string matching here
-	if (config.mode == LogMode::ENABLE_SELECTED) {
-		return config.enabled_log_types.find(log_type) != config.enabled_log_types.end();
-	}
-	if (config.mode == LogMode::DISABLE_SELECTED) {
-		return config.disabled_log_types.find(log_type) == config.disabled_log_types.end();
-	}
-	return true;
+	return rust_logger->ShouldLog(log_type, log_level);
 }
 
 void ThreadSafeLogger::WriteLogInternal(const char *log_type, LogLevel log_level, const char *log_message) {
-	manager.WriteLogEntry(Timestamp::GetCurrentTimestamp(), log_type, log_level, log_message, context);
+	rust_logger->WriteLog(log_type, log_level, log_message);
 }
 
 void ThreadSafeLogger::Flush() {
-	manager.Flush();
-	// NOP
+	rust_logger->Flush();
 }
 
-ThreadLocalLogger::ThreadLocalLogger(LogConfig &config_p, LoggingContext &context_p, LogManager &manager)
-    : ThreadLocalLogger(config_p, manager.RegisterLoggingContext(context_p), manager) {
-}
-
-ThreadLocalLogger::ThreadLocalLogger(LogConfig &config_p, RegisteredLoggingContext context_p, LogManager &manager)
-    : Logger(manager), config(config_p), context(context_p) {
-	// NopLogger should be used instead
-	D_ASSERT(config_p.enabled);
-}
-
-bool ThreadLocalLogger::ShouldLog(const char *log_type, LogLevel log_level) {
-	throw NotImplementedException("ThreadLocalLogger::ShouldLog");
-}
-
-void ThreadLocalLogger::WriteLogInternal(const char *log_type, LogLevel log_level, const char *log_message) {
-	throw NotImplementedException("ThreadLocalLogger::WriteLogInternal");
-}
-
-void ThreadLocalLogger::Flush() {
-	manager.Flush();
-}
-
-MutableLogger::MutableLogger(LogConfig &config_p, LoggingContext &context_p, LogManager &manager)
-    : MutableLogger(config_p, manager.RegisterLoggingContext(context_p), manager) {
-}
-
-MutableLogger::MutableLogger(LogConfig &config_p, RegisteredLoggingContext context_p, LogManager &manager)
-    : Logger(manager), config(config_p), context(context_p) {
-	enabled = config.enabled;
-	level = config.level;
-	mode = config.mode;
-}
-
-void MutableLogger::UpdateConfig(LogConfig &new_config) {
-	unique_lock<mutex> lck(lock);
-	config = new_config;
-
-	// Update atomics for lock-free access
-	enabled = config.enabled;
-	level = config.level;
-	mode = config.mode;
-}
-
-void MutableLogger::WriteLogInternal(const char *log_type, LogLevel log_level, const char *log_message) {
-	manager.WriteLogEntry(Timestamp::GetCurrentTimestamp(), log_type, log_level, log_message, context);
+//===--------------------------------------------------------------------===//
+// MutableLogger
+//===--------------------------------------------------------------------===//
+MutableLogger::MutableLogger(unique_ptr<RustMutableLogger> rust_logger_p, LogManager &manager)
+    : Logger(manager), rust_logger(std::move(rust_logger_p)) {
 }
 
 bool MutableLogger::ShouldLog(const char *log_type, LogLevel log_level) {
-	if (!enabled) {
-		return false;
-	}
+	return rust_logger->ShouldLog(log_type, log_level);
+}
 
-	// check atomic level to early out if level too low
-	if (level > log_level) {
-		return false;
-	}
-
-	if (mode == LogMode::LEVEL_ONLY) {
-		return true;
-	}
-
-	// FIXME: ENABLE_SELECTED and DISABLE_SELECTED are expensive and need full global lock
-	{
-		unique_lock<mutex> lck(lock);
-		if (config.mode == LogMode::ENABLE_SELECTED) {
-			return config.enabled_log_types.find(log_type) != config.enabled_log_types.end();
-		}
-		if (config.mode == LogMode::DISABLE_SELECTED) {
-			return config.disabled_log_types.find(log_type) == config.disabled_log_types.end();
-		}
-	}
-	throw InternalException("Should be unreachable (MutableLogger::ShouldLog)");
+void MutableLogger::WriteLogInternal(const char *log_type, LogLevel log_level, const char *log_message) {
+	rust_logger->WriteLog(log_type, log_level, log_message);
 }
 
 void MutableLogger::Flush() {
-	manager.Flush();
+	rust_logger->Flush();
+}
+
+void MutableLogger::UpdateConfig(const LogConfig &new_config) {
+	rust_logger->UpdateConfig(ToRustConfigSnapshot(new_config));
 }
 
 } // namespace duckdb

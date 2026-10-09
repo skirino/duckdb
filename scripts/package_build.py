@@ -341,6 +341,10 @@ def build_package(
 
     source_list += [loader_name]
 
+    # a source may include a header that sits next to it, which `list_includes` does not look at. This runs after the
+    # extensions have added their own sources, so an extension-local header is covered as well
+    include_files += [inc for inc in amalgamation.list_headers_beside_sources(source_list) if inc not in include_files]
+
     for src in source_list:
         copy_file(src, target_dir)
 
