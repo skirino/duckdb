@@ -4,5 +4,38 @@ module(
 )
 
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.26")
+bazel_dep(name = "rules_rust", version = "0.71.3")
 bazel_dep(name = "rules_shell", version = "0.8.0")
+
+# The Rust compiler and stdlib that build the `ahirudb` crate, which is the Rust
+# half of the port of DuckDB's C++ to Rust. Pinned so the crate and the C++
+# bindings generated from it are built by the same compiler.
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    versions = ["1.98.0"],
+)
+use_repo(rust, "rust_toolchains")
+
+# Crubit's C++ bindings generator. Crubit has Bazel rules of its own
+# (`@rules_crubit`, `cc_bindings_from_rust`), but they are not published to the
+# Bazel Central Registry, are registered for Linux only, and build LLVM 23 from
+# sources to run -- see rust/crubit_toolchain.bzl. This builds the same
+# generator Crubit's CMake integration drives, which runs anywhere Rust does.
+#
+# To bump Crubit: change `commit`, re-derive `url` and `sha256` from the GitHub
+# archive of that commit, and check `nightly` against the `rust_version` in
+# Crubit's own MODULE.bazel -- the generator compiles against rustc internals,
+# so a newer rustc breaks it.
+crubit_toolchain = use_repo_rule("//rust:crubit_toolchain.bzl", "crubit_toolchain_repository")
+crubit_toolchain(
+    name = "crubit_toolchain",
+    commit = "6d8a753d2797781f1466227df7c014f6868b92a8",
+    nightly = "nightly-2026-09-29",
+    sha256 = "56b2349bd2f56783b4dbbde33a6dae31c151af167f5cb2ab883945c7d1f446df",
+    url = "https://github.com/google/crubit/archive/6d8a753d2797781f1466227df7c014f6868b92a8.tar.gz",
+)
+
+register_toolchains("@rust_toolchains//:all")

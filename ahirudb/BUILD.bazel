@@ -1,0 +1,75 @@
+load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library", "cc_test")
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//rust:crubit_bindings.bzl", "CRUBIT_TARGET_TRIPLE", "crubit_bindings", "crubit_copts")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_library(
+    name = "ahirudb",
+    srcs = glob(["src/**/*.rs"]),
+    edition = "2024",
+)
+
+rust_test(
+    name = "ahirudb_test",
+    crate = ":ahirudb",
+    edition = "2024",
+)
+
+# The crate's integration tests, which `rust_test(crate = ...)` does not pick up:
+# those live beside the crate rather than in it.
+rust_test(
+    name = "integration_test",
+    srcs = ["tests/integration_test.rs"],
+    edition = "2024",
+    deps = [":ahirudb"],
+)
+
+# The C++ side of the crate: Crubit's generated API, and the staticlib behind
+# it. `crubit_bindings` runs the generator, which compiles this crate itself as
+# part of producing the C++ shims -- so the rust_library above is for Rust
+# consumers and tests, and this archive is what C++ links.
+crubit_bindings(
+    name = "ahirudb_bindings",
+    archive = "libahirudb_cc_api.a",
+    crate_name = "ahirudb",
+    include_dir = "crubit_include",
+    manifest = "Cargo.toml",
+    srcs = glob(["src/**/*.rs"]),
+    target_triple = CRUBIT_TARGET_TRIPLE,
+)
+
+# Crubit's generated headers include their own with a quoted path
+# (`#include "crubit/alloc.h"`) and Crubit's support headers with an angled one
+# (`#include <support/bridge.h>`), so both kinds are written into one directory
+# and that directory is the include root.
+cc_library(
+    name = "ahirudb_cc_api",
+    hdrs = [":ahirudb_bindings"],
+    includes = ["crubit_include"],
+)
+
+# cc_import takes the archive through a filegroup so that it depends on the rule
+# that generates it; naming the file directly leaves it out of the link inputs.
+filegroup(
+    name = "ahirudb_cc_api_archive",
+    srcs = [":ahirudb_bindings"],
+    output_group = "archive",
+)
+
+cc_import(
+    name = "ahirudb_static",
+    static_library = ":ahirudb_cc_api_archive",
+)
+
+# Checks that the generated API compiles, that a call into the Rust code returns
+# what the Rust code says it should, and that the staticlib links.
+cc_test(
+    name = "crubit_smoke_test",
+    srcs = ["crubit_smoke_test.cpp"],
+    copts = crubit_copts(),
+    deps = [
+        ":ahirudb_cc_api",
+        ":ahirudb_static",
+    ],
+)

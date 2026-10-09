@@ -1,0 +1,41 @@
+"""Crubit bindings support: the generator toolchain and the platforms it covers."""
+
+package(default_visibility = ["//visibility:public"])
+
+# Crubit's generator names its output by Rust target triple, and the triple is
+# what the C++ toolchain is for. rules_rust keeps its own triple on the Rust
+# toolchain, but Starlark cannot read it from a BUILD file, so the mapping is
+# stated here. Each entry is the triple for that pair of platform constraints;
+# a target built for anything else fails on the missing config_setting rather
+# than silently generating bindings for the wrong architecture.
+config_setting(
+    name = "darwin_arm64",
+    constraint_values = [
+        "@platforms//cpu:aarch64",
+        "@platforms//os:osx",
+    ],
+)
+
+config_setting(
+    name = "darwin_x86_64",
+    constraint_values = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:osx",
+    ],
+)
+
+config_setting(
+    name = "linux_arm64",
+    constraint_values = [
+        "@platforms//cpu:aarch64",
+        "@platforms//os:linux",
+    ],
+)
+
+config_setting(
+    name = "linux_x86_64",
+    constraint_values = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)

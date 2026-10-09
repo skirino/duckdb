@@ -1,0 +1,10 @@
+[package]
+name = "ahirudb"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[dependencies]
+# crubit_annotate = { path = "/Users/skirino/code/dbdev/duckdb/build/reldebug/_deps/crubit-src/support/crubit_annotate" }
