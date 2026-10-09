@@ -477,7 +477,9 @@ migration please keep the following in mind:
   single-crate structure is intentional: Crubit's C++/Rust interop is
   significantly simpler with one crate, so do not split it into several.
 - Keep the structure of the existing C++ code in the Rust code. Do not
-  drastically restructure it; stay faithful to the original.
+  drastically restructure it; stay faithful to the original. The rust code
+  should behave basically the same way as the C++ code: should do the same thing
+  with the same time and space complexity.
 - Also port C++ unit tests to Rust. SQL-level tests do not need porting.
 - Do not write `extern "C"` glue. Crubit generates the bindings; call the
   generated function instead. When porting a C++ function, change its C++ callers
