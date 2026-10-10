@@ -70,7 +70,7 @@ unsafe fn to_str<'a>(bytes: *const i8, len: usize) -> &'a str {
 
 /// Reports `false` when the storage call fails, which is how the C++ bridge
 /// signals that it caught an exception.
-extern fn c_write_log_entry(
+extern "C" fn c_write_log_entry(
     ctx: *mut c_void,
     timestamp: i64,
     level: u8,
@@ -91,12 +91,12 @@ extern fn c_write_log_entry(
     true
 }
 
-extern fn c_flush_all(ctx: *mut c_void) -> bool {
+extern "C" fn c_flush_all(ctx: *mut c_void) -> bool {
     unsafe { &*(ctx as *const InMemoryStorage) }.flush_all();
     true
 }
 
-extern fn c_truncate(ctx: *mut c_void) -> bool {
+extern "C" fn c_truncate(ctx: *mut c_void) -> bool {
     unsafe { &*(ctx as *const InMemoryStorage) }.truncate();
     true
 }
@@ -114,7 +114,7 @@ fn target_table(value: u8) -> LoggingTargetTable {
     }
 }
 
-extern fn c_can_scan(_ctx: *mut c_void, table: u8) -> bool {
+extern "C" fn c_can_scan(_ctx: *mut c_void, table: u8) -> bool {
     matches!(target_table(table), LoggingTargetTable::LOG_ENTRIES)
 }
 
@@ -565,7 +565,7 @@ fn set_config_replaces_the_config_in_one_step() {
 /// cannot be used again.
 #[test]
 fn a_failing_storage_does_not_wedge_the_manager() {
-    extern fn failing_write(
+    extern "C" fn failing_write(
         _ctx: *mut c_void,
         _timestamp: i64,
         _level: u8,
@@ -577,7 +577,7 @@ fn a_failing_storage_does_not_wedge_the_manager() {
     ) -> bool {
         false
     }
-    extern fn failing_noop(_ctx: *mut c_void) -> bool { false }
+    extern "C" fn failing_noop(_ctx: *mut c_void) -> bool { false }
 
     let storage = CLogStorage::new(
         std::ptr::null_mut(),

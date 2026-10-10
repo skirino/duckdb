@@ -56,7 +56,7 @@ pub enum LoggingTargetTable {
     LOG_CONTEXTS = 2,
 }
 
-type WriteLogEntryFn = extern fn(
+type WriteLogEntryFn = extern "C" fn(
     ctx: *mut c_void,
     timestamp: i64,
     level: u8,
@@ -66,9 +66,9 @@ type WriteLogEntryFn = extern fn(
     log_message_len: usize,
     context: *const RegisteredLoggingContextLayout,
 ) -> bool;
-type FlushAllFn = extern fn(ctx: *mut c_void) -> bool;
-type TruncateFn = extern fn(ctx: *mut c_void) -> bool;
-type CanScanFn = extern fn(ctx: *mut c_void, table: u8) -> bool;
+type FlushAllFn = extern "C" fn(ctx: *mut c_void) -> bool;
+type TruncateFn = extern "C" fn(ctx: *mut c_void) -> bool;
+type CanScanFn = extern "C" fn(ctx: *mut c_void, table: u8) -> bool;
 
 /// A `duckdb::LogStorage` reached through C++-supplied function pointers.
 ///

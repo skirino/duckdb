@@ -16,7 +16,7 @@ use crate::logging::{
     logging::RegisteredLoggingContextLayout,
 };
 
-extern fn no_write(
+extern "C" fn no_write(
     _ctx: *mut c_void,
     _timestamp: i64,
     _level: u8,
@@ -29,9 +29,9 @@ extern fn no_write(
     panic!("these tests never reach the storage")
 }
 
-extern fn no_op(_ctx: *mut c_void) -> bool { panic!("these tests never reach the storage") }
+extern "C" fn no_op(_ctx: *mut c_void) -> bool { panic!("these tests never reach the storage") }
 
-extern fn no_scan(_ctx: *mut c_void, _table: u8) -> bool { false }
+extern "C" fn no_scan(_ctx: *mut c_void, _table: u8) -> bool { false }
 
 /// A [`LogManager`] whose storage is the sink above. The manager has to outlive
 /// every logger built from it, which holds a raw pointer to it just like the
