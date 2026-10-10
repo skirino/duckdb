@@ -3,6 +3,7 @@
 # configs below: `make release` is this one, and `make relassert`, `make reldebug`
 # and `make debug` add `--config=`.
 common --check_direct_dependencies=error
+common --worker_max_instances=auto
 
 # Once per build: the checkout's commit and version, handed to rules through
 # ctx.info_file. The engine reads them from a generated header rather than the
