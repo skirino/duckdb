@@ -19,11 +19,8 @@ jobs:
   python:
     name: Python
     runs-on: ubuntu-latest
-    env:
-      GEN: ninja
-
     steps:
-      - name: Install Ninja
+      - name: Install toolchain
         run: |
           python3 scripts/ci/retry.py -- make toolsci
 

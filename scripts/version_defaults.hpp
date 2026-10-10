@@ -9,9 +9,8 @@
 // Only the shapes matter here, because nothing in the build may depend on the
 // checkout: a 'v'-prefixed dev version, and an all-digits commit. The suite
 // checks those shapes, never a real hash, and the extension version the engine
-// reports is this same string. CMake takes its values at configure time and
-// falls back to the same kind of placeholder (CMakeLists.txt:458); pass
-// --//:stamp_version to bake this checkout's own commit and version in instead.
+// reports is this same string. Pass --//:stamp_version to bake this checkout's
+// own commit and version in instead.
 #ifndef DUCKDB_VERSION_DEFAULTS_HPP
 #define DUCKDB_VERSION_DEFAULTS_HPP
 #define DUCKDB_SOURCE_ID "0000000000"

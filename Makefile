@@ -1,28 +1,50 @@
-.PHONY: all opt unit clean debug release test unittest allunit benchmark docs doxygen format sqlite smoke runnertests sync_out_of_tree_extensions
+# The build is Bazel's. This Makefile is the driver the CI workflows and the
+# contributor docs call; every target below either runs `bazel` or runs one of
+# the repository's own Python tasks. Nothing here configures a compiler.
+#
+#   make release / relassert / reldebug / debug   build
+#   make unittest_release / allunit / smoke       test
+#   make format-fix / generate-files              the repository's own tooling
+#
+# The four build types are `.bazelrc` configs, and Bazel gives each its own
+# output directory, so switching between them is free rather than a rebuild.
+
+.PHONY: all opt release relassert reldebug debug threadsan clean \
+	unit unittest unittest_release unittest_relassert unittest_reldebug allunit \
+	smoke unittestarrow unittest_threadsan unittest_threadsan_extra \
+	test_release_tag alltest_release_tag test_ci \
+	symbol-checks symbol-leakage-check banned-symbol-check \
+	benchmark toolsci format_tools parser_tools spell_tools format_venv capigen_venv \
+	enum-integrity-check extension-patch-check check-extension-entries \
+	format-check format-check-silent format-fix format-head format-changes \
+	format-main format-feature format-configs format-parser-grammar \
+	parser-grammar-tools parser-grammar generate-files-deps generate-files \
+	relassert-artifact release-artifact cli-release-artifact shared-libs-release-artifact \
+	static-libs-release-artifact docs doxygen test_benchmark_sql \
+	test_compile test_storage test_vector test_table_scan test_configs \
+	test_configs_query_verification test_configs_execution test_configs_persistence \
+	test_configs_storage_engine sync_out_of_tree_extensions
 
 all: release
 opt: release
-unit: unittest
 
-EXTENSION_CONFIG_STEP ?=
-ifdef USE_MERGED_VCPKG_MANIFEST
-	EXTENSION_CONFIG_STEP = build/extension_configuration/vcpkg.json
-endif
+BAZEL ?= bazel
+PYTHON ?= python3
 
-GENERATOR ?=
-FORCE_COLOR ?=
-WARNINGS_AS_ERRORS ?=
-FORCE_WARN_UNUSED_FLAG ?=
-DISABLE_UNITY_FLAG ?=
-DISABLE_SANITIZER_FLAG ?=
-FORCE_32_BIT_FLAG ?=
-CONFIGS_DIR = ./test/configs
-
+# A build type is a `.bazelrc` config. The default (no config) is the release
+# build, which is also the one `bazel build //...` and `bazel test //...` use.
+RELEASE_CONFIG ?=
+RELOWITHDEBINFO_CONFIG ?= --config=reldebug
+DEBUG_CONFIG ?= --config=debug
+THREADSAN_CONFIG ?= --config=threadsan
 
 MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 PROJ_DIR := $(dir $(MKFILE_PATH))
 
-PYTHON ?= python3
+CI_CPU_COUNT := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || printf '%s\n' "$${NUMBER_OF_PROCESSORS:-1}")
+CI_TIDY_JOBS := $(shell jobs=$$(( $(CI_CPU_COUNT) * 50 / 100 )); [ $$jobs -lt 1 ] && jobs=1; echo $$jobs)
+export CI_TIDY_JOBS
+
 FORMAT_VENV ?= .cache/format-venv
 FORMAT_PYTHON := $(FORMAT_VENV)/bin/python
 FORMAT_SETUP_DEPS := format_venv
@@ -35,503 +57,163 @@ ifeq ($(OS),Windows_NT)
 EXE_SUFFIX := .exe
 endif
 UNITTEST_BINARY ?= test/unittest$(EXE_SUFFIX)
-SMOKE_UNITTEST ?= build/relassert/$(UNITTEST_BINARY)
-SMOKE_RUNNER ?= build/relassert/test/run
-UNITTEST_SLOW_FLAGS ?= --track-runtime=100
-UNITTEST_HUGE_FLAGS ?= --workers=50% $(UNITTEST_SLOW_FLAGS)
 
-# Allow setting extra unit test parameters using `make smoke T=...`.
+# The suite runs through `bazel test`, so a `T=...` argument has to be one the
+# unittest binary itself understands -- it goes to the binary as a test
+# argument, not to `scripts/ci/run_tests.py`, which is not on this path.
 T ?=
+BAZEL_TEST_ARGS := $(foreach arg,$(T),--test_arg=$(arg))
 
-CI_CPU_COUNT := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || printf '%s\n' "$${NUMBER_OF_PROCESSORS:-1}")
-CI_BUILD_JOBS := $(shell jobs=$$(( $(CI_CPU_COUNT) * 80 / 100 )); [ $$jobs -lt 1 ] && jobs=1; echo $$jobs)
-ifndef CMAKE_BUILD_PARALLEL_LEVEL
-CMAKE_BUILD_PARALLEL_LEVEL := $(CI_BUILD_JOBS)
-endif
-export CMAKE_BUILD_PARALLEL_LEVEL
-export CI_TIDY_JOBS := $(shell jobs=$$(( $(CI_CPU_COUNT) * 50 / 100 )); [ $$jobs -lt 1 ] && jobs=1; echo $$jobs)
-
-# Assume Ninja is the default generator (if missing), but verify ninja exists.
-# Cache Ninja detection so we only probe `ninja --version` once.
-ifeq ($(GEN),)
-NINJA_VERSION_FILE := build/ninja_version.txt
-ifeq ($(wildcard $(NINJA_VERSION_FILE)),)
-NINJA_DETECTED := $(strip $(shell mkdir -p build >/dev/null 2>&1; \
-	v=$$(ninja --version 2>/dev/null | head -n 1); \
-	if [ -n "$$v" ]; then \
-		printf '%s\n' "$$v" > "$(NINJA_VERSION_FILE)"; \
-		echo 1; \
-	fi))
-ifneq ($(NINJA_DETECTED),)
-GEN := ninja
-endif
+# Whether a test target builds the tree it runs against. Most CI jobs that only
+# test did not build anything: the job that needed a build published
+# `build/<type>/` as an artifact and this one downloaded it, so building again
+# throws that artifact away and costs a whole second compile. `SKIP_BUILD=1`
+# asks for the same thing locally, on a tree that has already been built.
+ifeq ($(SKIP_BUILD)$(CI),)
+NEEDS_RELEASE = release
+NEEDS_RELASSERT = relassert
+NEEDS_REDEBUG = reldebug
+NEEDS_DEBUG = debug
+NEEDS_THREADSAN = threadsan
 else
-GEN := ninja
-endif
-endif
-
-ifeq ($(GEN),ninja)
-	GENERATOR=-G "Ninja"
-	FORCE_COLOR=-DFORCE_COLORED_OUTPUT=1
-endif
-DUCKDB_NINJA_FILTER ?= $(if $(CI),1,0)
-NINJA_BUILD_WRAPPER :=
-ifeq ($(GEN),ninja)
-ifneq ($(DUCKDB_NINJA_FILTER),0)
-	NINJA_BUILD_WRAPPER=$(PYTHON) ${PROJ_DIR}scripts/ci/filter_ninja_output.py --
-endif
-endif
-ifeq (${TREAT_WARNINGS_AS_ERRORS}, 1)
-	WARNINGS_AS_ERRORS=-DTREAT_WARNINGS_AS_ERRORS=1
-endif
-ifeq (${FORCE_32_BIT}, 1)
-	FORCE_32_BIT_FLAG=-DFORCE_32_BIT=1
-endif
-ifeq (${FORCE_WARN_UNUSED}, 1)
-	FORCE_WARN_UNUSED_FLAG=-DFORCE_WARN_UNUSED=1
-endif
-ifeq (${DISABLE_UNITY}, 1)
-	DISABLE_UNITY_FLAG=-DDISABLE_UNITY=1
-endif
-ifeq (${DISABLE_SANITIZER}, 1)
-	DISABLE_SANITIZER_FLAG=-DENABLE_SANITIZER=FALSE -DENABLE_UBSAN=0
-endif
-ifeq (${DISABLE_UBSAN}, 1)
-	DISABLE_SANITIZER_FLAG:=${DISABLE_SANITIZER_FLAG} -DENABLE_UBSAN=0
-endif
-ifeq (${DISABLE_VPTR_SANITIZER}, 1)
-	DISABLE_SANITIZER_FLAG:=${DISABLE_SANITIZER_FLAG} -DDISABLE_VPTR_SANITIZER=1
-endif
-ifeq (${RELEASE_SANITIZER}, 1)
-	DISABLE_SANITIZER_FLAG:=${DISABLE_SANITIZER_FLAG} -DRELEASE_SANITIZER=1
-endif
-ifeq (${THREADSAN}, 1)
-	DISABLE_SANITIZER_FLAG:=${DISABLE_SANITIZER_FLAG} -DENABLE_THREAD_SANITIZER=1
-endif
-ifeq (${STATIC_LIBCPP}, 1)
-	STATIC_LIBCPP=-DSTATIC_LIBCPP=TRUE
-endif
-GIT_BASE_BRANCH:=main
-ifneq (${DUCKDB_GIT_BASE_BRANCH}, )
-	GIT_BASE_BRANCH:=${DUCKDB_GIT_BASE_BRANCH}
+NEEDS_RELEASE =
+NEEDS_RELASSERT =
+NEEDS_REDEBUG =
+NEEDS_DEBUG =
+NEEDS_THREADSAN =
 endif
 
-COMMON_CMAKE_VARS ?=
-CMAKE_VARS_BUILD ?=
-CMAKE_LLVM_VARS ?=
-SKIP_EXTENSIONS ?=
-BUILD_EXTENSIONS ?=
-CORE_EXTENSIONS ?=
-UNSAFE_NUMERIC_CAST ?=
-ifdef DUCKDB_VERSION
-        COMMON_CMAKE_VARS:=${COMMON_CMAKE_VARS} -DDUCKDB_EXPLICIT_VERSION="${DUCKDB_VERSION}"
-else ifdef OVERRIDE_GIT_DESCRIBE
-        COMMON_CMAKE_VARS:=${COMMON_CMAKE_VARS} -DDUCKDB_EXPLICIT_VERSION="${OVERRIDE_GIT_DESCRIBE}"
-else ifdef DUCKDB_EXPLICIT_VERSION
-        COMMON_CMAKE_VARS:=${COMMON_CMAKE_VARS} -DDUCKDB_EXPLICIT_VERSION="${DUCKDB_EXPLICIT_VERSION}"
+# Non-CI: build prerequisites apply (they did before, via ifndef CI).
+# CI: no build prerequisites; the artifact is downloaded.
+ifndef CI
+CI_NEEDS_RELEASE = release
+CI_NEEDS_RELASSERT = relassert
+CI_NEEDS_REDEBUG = reldebug
+CI_NEEDS_DEBUG = debug
+CI_NEEDS_THREADSAN = threadsan
 else
-        COMMON_CMAKE_VARS:=${COMMON_CMAKE_VARS} -DDUCKDB_EXPLICIT_VERSION=""
+CI_NEEDS_RELEASE =
+CI_NEEDS_RELASSERT =
+CI_NEEDS_REDEBUG =
+CI_NEEDS_DEBUG =
+CI_NEEDS_THREADSAN =
 endif
 
-ifdef DUCKDB_COMMIT
-        COMMON_CMAKE_VARS:=${COMMON_CMAKE_VARS} -DGIT_COMMIT_HASH="${DUCKDB_COMMIT}"
-endif
+# The wrapper that `make smoke` and `make unittest_threadsan` run. Both go
+# through it rather than through `bazel test`, because the flags they take
+# (`--changed-tests`, `--workers`, `--test-config`) belong to
+# `scripts/ci/run_tests.py`, which is not on the `bazel test` path. The CI jobs
+# that call them build first and point the runner at what they built; relassert
+# is the default for a contributor running `make smoke` after `make relassert`,
+# threadsan the default for `make unittest_threadsan`.
+SMOKE_RUNNER ?= build/relassert/test/run
+THREADSAN_RUNNER ?= build/threadsan/test/run
 
-ifneq (${CXX_STANDARD}, )
-        CMAKE_VARS:=${CMAKE_VARS} -DCMAKE_CXX_STANDARD="${CXX_STANDARD}"
-endif
-ifneq (${DUCKDB_EXTENSIONS}, )
-	BUILD_EXTENSIONS:=${DUCKDB_EXTENSIONS}
-endif
-ifneq (${CORE_EXTENSIONS}, )
-	CORE_EXTENSIONS:=${CORE_EXTENSIONS}
-endif
-ifeq (${DISABLE_PARQUET}, 1)
-	SKIP_EXTENSIONS:=${SKIP_EXTENSIONS};parquet
-endif
-ifeq (${DISABLE_MAIN_DUCKDB_LIBRARY}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DBUILD_MAIN_DUCKDB_LIBRARY=0
-endif
-ifneq (${EXTENSION_STATIC_BUILD}, )
-	CMAKE_VARS:=${CMAKE_VARS} -DEXTENSION_STATIC_BUILD=${EXTENSION_STATIC_BUILD}
-endif
-ifeq (${DISABLE_GCC_FUNCTION_SECTIONS}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDISABLE_GCC_FUNCTION_SECTIONS=1
-endif
-ifeq (${DISABLE_BUILTIN_EXTENSIONS}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDISABLE_BUILTIN_EXTENSIONS=1
-endif
-ifeq (${GENERATE_EXTENSION_ENTRIES}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DGENERATE_EXTENSION_ENTRIES=1
-endif
-ifneq ("${ENABLE_EXTENSION_AUTOLOADING}", "")
-	CMAKE_VARS:=${CMAKE_VARS} -DENABLE_EXTENSION_AUTOLOADING=${ENABLE_EXTENSION_AUTOLOADING}
-endif
-ifneq ("${ENABLE_EXTENSION_AUTOINSTALL}", "")
-	CMAKE_VARS:=${CMAKE_VARS} -DENABLE_EXTENSION_AUTOINSTALL=${ENABLE_EXTENSION_AUTOINSTALL}
-endif
-ifneq (${UNSAFE_NUMERIC_CAST}, )
-	CMAKE_VARS:=${CMAKE_VARS} -DUNSAFE_NUMERIC_CAST=1
-endif
-ifeq (${BUILD_EXTENSIONS_ONLY}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DBUILD_EXTENSIONS_ONLY=1
-endif
-
-ifeq (${BUILD_BENCHMARK}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DBUILD_BENCHMARKS=1
-endif
-ifeq (${BUILD_AUTOCOMPLETE}, 1)
-	BUILD_EXTENSIONS:=${BUILD_EXTENSIONS};autocomplete
-endif
-ifeq (${BUILD_ICU}, 1)
-	BUILD_EXTENSIONS:=${BUILD_EXTENSIONS};icu
-endif
-ifeq (${BUILD_TPCH}, 1)
-	BUILD_EXTENSIONS:=${BUILD_EXTENSIONS};tpch
-endif
-ifeq (${BUILD_TPCDS}, 1)
-	BUILD_EXTENSIONS:=${BUILD_EXTENSIONS};tpcds
-endif
-ifeq (${BUILD_FTS}, 1)
-	BUILD_EXTENSIONS:=${BUILD_EXTENSIONS};fts
-endif
-ifeq (${BUILD_HTTPFS}, 1)
-	BUILD_EXTENSIONS:=${BUILD_EXTENSIONS};httpfs
-endif
-ifeq (${BUILD_JSON}, 1)
-	BUILD_EXTENSIONS:=${BUILD_EXTENSIONS};json
-endif
-ifdef BUILD_JEMALLOC
-	CMAKE_VARS:=${CMAKE_VARS} -DENABLE_JEMALLOC=${BUILD_JEMALLOC}
-endif
-ifdef CORE_EXTENSIONS
-	BUILD_EXTENSIONS:=${BUILD_EXTENSIONS};${CORE_EXTENSIONS}
-endif
-ifeq (${BUILD_ALL_EXT}, 1)
-	EXTENSION_CONFIGS:=.github/config/in_tree_extensions.cmake;.github/config/out_of_tree_extensions.cmake;.github/config/rust_based_extensions.cmake
-else ifeq (${BUILD_ALL_IT_EXT}, 1)
-	EXTENSION_CONFIGS:=.github/config/in_tree_extensions.cmake
-else ifeq (${BUILD_ALL_OOT_EXT}, 1)
-	EXTENSION_CONFIGS:=.github/config/out_of_tree_extensions.cmake
-endif
-ifeq (${STATIC_OPENSSL}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DOPENSSL_USE_STATIC_LIBS=1
-endif
-ifeq (${BUILD_TPCE}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DBUILD_TPCE=1
-endif
-ifeq (${CONFIGURE_R}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DCONFIGURE_R=1
-endif
-ifneq ($(TIDY_BINARY),)
-	TIDY_BINARY_PARAMETER := -clang-tidy-binary ${TIDY_BINARY}
-endif
-CLANGD_TIDY_VERSION := 1.1.1
-CLANGD_TIDY_VENV ?= $(abspath build/clangd-tidy-venv)
-ifeq ($(CLANGD_TIDY_BINARY),)
-ifneq ($(wildcard $(CLANGD_TIDY_VENV)/bin/clangd-tidy),)
-CLANGD_TIDY_BINARY := $(CLANGD_TIDY_VENV)/bin/clangd-tidy
-endif
-endif
-ifeq ($(CLANGD_BINARY),)
-ifneq ("${CMAKE_LLVM_PATH}", "")
-CLANGD_BINARY := ${CMAKE_LLVM_PATH}/bin/clangd
-endif
-endif
-ifneq ($(CLANGD_TIDY_BINARY),)
-	CLANGD_TIDY_BINARY_PARAMETER := --clangd-tidy-binary ${CLANGD_TIDY_BINARY}
-endif
-ifneq ($(CLANGD_BINARY),)
-	CLANGD_BINARY_PARAMETER := --clangd-binary ${CLANGD_BINARY}
-endif
-ifneq ($(CLANGD_TIDY_QUERY_DRIVER),)
-	CLANGD_TIDY_QUERY_DRIVER_PARAMETER := --query-driver ${CLANGD_TIDY_QUERY_DRIVER}
-endif
-ifneq ($(TIDY_CHECKS),)
-        TIDY_PERFORM_CHECKS := '-checks=${TIDY_CHECKS}'
-endif
-ifneq ("${FORCE_QUERY_LOG}a", "a")
-	CMAKE_VARS:=${CMAKE_VARS} -DFORCE_QUERY_LOG=${FORCE_QUERY_LOG}
-endif
-ifneq ($(BUILD_EXTENSIONS),)
-	CMAKE_VARS:=${CMAKE_VARS} -DBUILD_EXTENSIONS="$(BUILD_EXTENSIONS)"
-endif
-ifeq ($(SHADOW_FORBIDDEN_FUNCTIONS),1)
-	CMAKE_VARS:=${CMAKE_VARS} -DSHADOW_FORBIDDEN_FUNCTIONS=1
-endif
-ifneq ($(SKIP_EXTENSIONS),)
-	CMAKE_VARS:=${CMAKE_VARS} -DSKIP_EXTENSIONS="$(SKIP_EXTENSIONS)"
-endif
-ifneq ($(EXTENSION_CONFIGS),)
-	CMAKE_VARS:=${CMAKE_VARS} -DDUCKDB_EXTENSION_CONFIGS="$(EXTENSION_CONFIGS)"
-endif
-ifeq ($(EXTENSION_TESTS_ONLY), 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DEXTENSION_TESTS_ONLY=1
-endif
-ifneq ($(EXTRA_CMAKE_VARIABLES),)
-	CMAKE_VARS:=${CMAKE_VARS} ${EXTRA_CMAKE_VARIABLES}
-endif
-ifeq (${CRASH_ON_ASSERT}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DCRASH_ON_ASSERT=1
-endif
-ifeq (${FORCE_ASSERT}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DFORCE_ASSERT=1
-endif
-ifeq (${FORCE_DEBUG}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DFORCE_DEBUG=1
-endif
-ifneq (${SMALLER_BINARY},)
-	CMAKE_VARS:=${CMAKE_VARS} -DSMALLER_BINARY='${SMALLER_BINARY}'
-endif
-ifneq (${SMALLER_BINARY_EXCEPT},)
-	CMAKE_VARS:=${CMAKE_VARS} -DSMALLER_BINARY_EXCEPT='${SMALLER_BINARY_EXCEPT}'
-endif
-ifeq (${DISABLE_STRING_INLINE}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDISABLE_STR_INLINE=1
-endif
-ifeq (${DISABLE_MEMORY_SAFETY}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDISABLE_MEMORY_SAFETY=1
-endif
-ifeq (${DISABLE_RTTI}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDISABLE_RTTI=1
-endif
-ifeq (${DISABLE_ASSERTIONS}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDISABLE_ASSERTIONS=1
-endif
-ifeq (${DESTROY_UNPINNED_BLOCKS}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDESTROY_UNPINNED_BLOCKS=1
-endif
-ifeq (${FORCE_ASYNC_SINK_SOURCE}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DFORCE_ASYNC_SINK_SOURCE=1
-endif
-ifeq (${RUN_SLOW_VERIFIERS}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DRUN_SLOW_VERIFIERS=1
-endif
-ifeq (${ALTERNATIVE_VERIFY}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DALTERNATIVE_VERIFY=1
-endif
-ifeq (${DISABLE_POINTER_SALT}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDISABLE_POINTER_SALT=1
-endif
-ifeq (${HASH_ZERO}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DHASH_ZERO=1
-endif
-ifeq (${LATEST_STORAGE}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DLATEST_STORAGE=1
-endif
-ifeq (${BLOCK_VERIFICATION}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DBLOCK_VERIFICATION=1
-endif
-ifneq (${DISABLE_CPP_UNITTESTS}, )
-	CMAKE_VARS:=${CMAKE_VARS} -DENABLE_UNITTEST_CPP_TESTS=0
-endif
-ifeq (${DEBUG_MOVE}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDEBUG_MOVE=1
-endif
-ifeq (${DEBUG_ALLOCATION}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDEBUG_ALLOCATION=1
-endif
-ifeq (${DEBUG_STACKTRACE}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDEBUG_STACKTRACE=1
-endif
-ifeq (${DISABLE_CORE_FUNCTIONS}, 1)
-	SKIP_EXTENSIONS:=${SKIP_EXTENSIONS};core_functions
-endif
-ifeq (${DISABLE_EXTENSION_LOAD}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDISABLE_EXTENSION_LOAD=1
-endif
-ifeq (${DISABLE_BUILTIN_HTTPLIB}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DDISABLE_BUILTIN_HTTPLIB=1
-endif
-ifeq (${DISABLE_SHELL}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DBUILD_SHELL=0
-endif
-CMAKE_VARS:=${CMAKE_VARS} -DLOCAL_EXTENSION_REPO="${LOCAL_EXTENSION_REPO}"
-ifneq (${OSX_BUILD_ARCH}, )
-	CMAKE_VARS:=${CMAKE_VARS} -DOSX_BUILD_ARCH=${OSX_BUILD_ARCH}
-endif
-ifeq (${OSX_BUILD_UNIVERSAL}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DOSX_BUILD_UNIVERSAL=1
-endif
-ifneq ("${DUCKDB_LINKER}", "")
-	CMAKE_VARS:=${CMAKE_VARS} -DDUCKDB_LINKER=${DUCKDB_LINKER}
-endif
-ifdef SKIP_PLATFORM_UTIL
-	CMAKE_VARS:=${CMAKE_VARS} -DSKIP_PLATFORM_UTIL=1
-endif
-ifdef DEBUG_STACKTRACE
-	CMAKE_VARS:=${CMAKE_VARS} -DDEBUG_STACKTRACE=1
-endif
-ifeq (${NATIVE_ARCH}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DNATIVE_ARCH=1
-endif
-ifneq (${DUCKDB_OPTIMIZATION_PROFILE}, )
-	CMAKE_VARS:=${CMAKE_VARS} -DDUCKDB_OPTIMIZATION_PROFILE=${DUCKDB_OPTIMIZATION_PROFILE}
-endif
-ifeq (${OVERRIDE_NEW_DELETE}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DOVERRIDE_NEW_DELETE=1
-endif
-ifeq (${STANDALONE_DEBUG}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DSTANDALONE_DEBUG=1
-endif
-ifneq (${DUCKDB_PREBUILT_LIBRARY}, )
-	CMAKE_VARS:=${CMAKE_VARS} -DPREBUILT_BINARY=${DUCKDB_PREBUILT_LIBRARY}
-endif
-ifdef REDUCE_SYMBOLS
-	CMAKE_VARS:=${CMAKE_VARS} -DREDUCE_SYMBOLS=1
-endif
-
-
-# Optional overrides
-ifneq (${STANDARD_VECTOR_SIZE}, )
-	CMAKE_VARS:=${CMAKE_VARS} -DSTANDARD_VECTOR_SIZE=${STANDARD_VECTOR_SIZE}
-endif
-
-# Enable VCPKG for this build
-ifneq ("${VCPKG_TOOLCHAIN_PATH}", "")
-	CMAKE_VARS_BUILD:=${CMAKE_VARS_BUILD} -DCMAKE_TOOLCHAIN_FILE='${VCPKG_TOOLCHAIN_PATH}' -DVCPKG_BUILD=1
-endif
-ifneq ("${VCPKG_TARGET_TRIPLET}", "")
-	CMAKE_VARS_BUILD:=${CMAKE_VARS_BUILD} -DVCPKG_TARGET_TRIPLET='${VCPKG_TARGET_TRIPLET}'
-endif
-ifeq (${USE_MERGED_VCPKG_MANIFEST}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DVCPKG_MANIFEST_DIR='${PROJ_DIR}build/extension_configuration'
-endif
-sync_extensions_into =
-vcpkg_cmake_flag =
-ifdef DUCKDB_NEW_EXTENSION_BUILD
-sync_extensions_into = $(PYTHON) scripts/sync_out_of_tree_extensions.py $(if $(BUILD_EXTENSIONS),--build-extensions "$(BUILD_EXTENSIONS)") $(if $(EXTENSION_CONFIGS),--extension-configs "$(EXTENSION_CONFIGS)") --output-dir '$(1)' &&
-ifneq ("${VCPKG_TOOLCHAIN_PATH}", "")
-vcpkg_cmake_flag = -DVCPKG_MANIFEST_DIR='$(1)'
-endif
-endif
-
-ifneq ("${LTO}", "")
-	CMAKE_VARS:=${CMAKE_VARS} -DCMAKE_LTO='${LTO}'
-endif
-ifneq ("${LTO_JOBS}", "")
-	CMAKE_VARS:=${CMAKE_VARS} -DCMAKE_LTO_JOBS='${LTO_JOBS}'
-endif
-ifeq (${EXPORT_DYNAMIC_SYMBOLS}, 1)
-	CMAKE_VARS:=${CMAKE_VARS} -DEXPORT_DYNAMIC_SYMBOLS=1
-endif
-ifneq ("${CMAKE_LLVM_PATH}", "")
-	CMAKE_VARS:=${CMAKE_VARS} -DCMAKE_RANLIB='${CMAKE_LLVM_PATH}/bin/llvm-ranlib' -DCMAKE_AR='${CMAKE_LLVM_PATH}/bin/llvm-ar' -DCMAKE_CXX_COMPILER='${CMAKE_LLVM_PATH}/bin/clang++' -DCMAKE_C_COMPILER='${CMAKE_LLVM_PATH}/bin/clang' -DCMAKE_EXE_LINKER_FLAGS_INIT='-L${CMAKE_LLVM_PATH}/lib -L${CMAKE_LLVM_PATH}/lib/c++' -DCMAKE_SHARED_LINKER_FLAGS_INIT='-L${CMAKE_LLVM_PATH}/lib -L${CMAKE_LLVM_PATH}/lib/c++'  -DCMAKE_MODULE_LINKER_FLAGS_INIT='-L${CMAKE_LLVM_PATH}/lib -L${CMAKE_LLVM_PATH}/lib/c++'
-endif
-
-CMAKE_VARS:=${CMAKE_VARS} ${COMMON_CMAKE_VARS}
-
-ifdef DUCKDB_PLATFORM
-	ifneq ("${DUCKDB_PLATFORM}", "")
-		CMAKE_VARS:=${CMAKE_VARS} -DDUCKDB_EXPLICIT_PLATFORM='${DUCKDB_PLATFORM}'
-	endif
-endif
-
-clean:
-	rm -rf build
-
-EXTENSION_REPOSITORY_PATH ?= build/release/repository
-EXTENSION_BUCKET ?= duckdb-core-extensions
-SIGNED_EXTENSIONS_DIR ?= $(EXTENSION_REPOSITORY_PATH)
-EXTENSION_SIGNING_PUBLIC_KEY_FILE ?=
-
-.PHONY: upload-extensions
-upload-extensions:
-	CI_CPU_COUNT="$(CI_CPU_COUNT)" ./scripts/extension-upload-repository.sh "$(EXTENSION_REPOSITORY_PATH)" "$(EXTENSION_BUCKET)"
-
-.PHONY: verify-extension-signing
-verify-extension-signing:
-	CI_CPU_COUNT="$(CI_CPU_COUNT)" ./scripts/verify-extension-signing.sh "$(SIGNED_EXTENSIONS_DIR)" "$(EXTENSION_SIGNING_PUBLIC_KEY_FILE)"
-
-define cmake_build
-	mkdir -p ./$(1) && \
-	$(call sync_extensions_into,${PROJ_DIR}$(1)) \
-	cd $(1) && \
-	cmake $(GENERATOR) $(FORCE_COLOR) ${WARNINGS_AS_ERRORS} ${FORCE_32_BIT_FLAG} ${DISABLE_UNITY_FLAG} ${DISABLE_SANITIZER_FLAG} ${STATIC_LIBCPP} ${CMAKE_VARS} ${CMAKE_VARS_BUILD} $(call vcpkg_cmake_flag,${PROJ_DIR}$(1)) $(3) -DCMAKE_BUILD_TYPE=$(2) ../.. && \
-	$(NINJA_BUILD_WRAPPER) cmake --build . --config $(2)
+# Bazel owns the binaries; build/<type> is where the rest of the repository --
+# the artifact scripts, the workflow `run:` steps, the docs -- looks for them.
+# This links those paths to Bazel's output, so nothing has to copy a binary it
+# does not own.
+define publish_build
+	$(PYTHON) scripts/publish_build.py --output-dir build/$(1) --config=$(2) --unittest-name unittest$(EXE_SUFFIX)
 endef
 
-debug: ${EXTENSION_CONFIG_STEP}
-	$(call cmake_build,build/debug,Debug,-DDEBUG_MOVE=1)
+# --- build types --------------------------------------------------------------
 
-release: ${EXTENSION_CONFIG_STEP}
-	$(call cmake_build,build/release,Release,${FORCE_WARN_UNUSED_FLAG})
+release:
+	$(BAZEL) build $(RELEASE_CONFIG) //...
+	$(call publish_build,release,$(RELEASE_CONFIG))
 
-WINDOWS_GENERATOR_PLATFORM ?= x64
-BUNDLED_EXTENSIONS_CONFIGS ?= $(PWD)/.github/config/bundled_extensions.cmake
-windows_release: ${EXTENSION_CONFIG_STEP}
-	$(call sync_extensions_into,${PROJ_DIR}) \
-	cmake $(GENERATOR) $(FORCE_COLOR) $(if $(filter ninja,$(GEN)),,-DCMAKE_GENERATOR_PLATFORM=$(WINDOWS_GENERATOR_PLATFORM)) ${WARNINGS_AS_ERRORS} ${FORCE_WARN_UNUSED_FLAG} ${FORCE_32_BIT_FLAG} ${DISABLE_SANITIZER_FLAG} ${STATIC_LIBCPP} ${CMAKE_VARS} ${CMAKE_VARS_BUILD} $(call vcpkg_cmake_flag,${PROJ_DIR}) -DCMAKE_BUILD_TYPE=Release -DENABLE_EXTENSION_AUTOLOADING=1 -DENABLE_EXTENSION_AUTOINSTALL=1 -DDUCKDB_EXTENSION_CONFIGS="$(BUNDLED_EXTENSIONS_CONFIGS)" . && \
-	$(NINJA_BUILD_WRAPPER) cmake --build . --config Release
+relassert:
+	$(BAZEL) build --config=relassert //...
+	$(call publish_build,relassert,--config=relassert)
 
-windows_release_32: ${EXTENSION_CONFIG_STEP}
-	$(call sync_extensions_into,${PROJ_DIR}) \
-	cmake $(GENERATOR) $(FORCE_COLOR) $(if $(filter ninja,$(GEN)),,-DCMAKE_GENERATOR_PLATFORM=Win32) ${WARNINGS_AS_ERRORS} ${FORCE_WARN_UNUSED_FLAG} ${FORCE_32_BIT_FLAG} ${DISABLE_SANITIZER_FLAG} ${STATIC_LIBCPP} ${CMAKE_VARS} ${CMAKE_VARS_BUILD} $(call vcpkg_cmake_flag,${PROJ_DIR}) -DCMAKE_BUILD_TYPE=Release -DDUCKDB_EXTENSION_CONFIGS="$(BUNDLED_EXTENSIONS_CONFIGS)" . && \
-	$(NINJA_BUILD_WRAPPER) cmake --build . --config Release
+reldebug:
+	$(BAZEL) build $(RELOWITHDEBINFO_CONFIG) //...
+	$(call publish_build,reldebug,$(RELOWITHDEBINFO_CONFIG))
 
-# The wasm targets do not go through CMAKE_VARS, so DISABLE_RTTI is forwarded explicitly.
-# Off by default, like every other target: a wasm build pulls in out-of-tree extensions that
-# carry their own vcpkg dependencies, and whether those are built without RTTI is a decision
-# for the extension, not for duckdb's Makefile.
-ifeq (${DISABLE_RTTI}, 1)
-WASM_RTTI_FLAG:=-DDISABLE_RTTI=1
-endif
+debug:
+	$(BAZEL) build $(DEBUG_CONFIG) //...
+	$(call publish_build,debug,$(DEBUG_CONFIG))
 
-wasm_mvp: ${EXTENSION_CONFIG_STEP}
-	mkdir -p ./build/wasm_mvp && \
-	emcmake cmake $(GENERATOR) -DWASM_LOADABLE_EXTENSIONS=1 -DBUILD_EXTENSIONS_ONLY=1 -Bbuild/wasm_mvp ${WASM_RTTI_FLAG} -DCMAKE_CXX_FLAGS="-DDUCKDB_CUSTOM_PLATFORM=wasm_mvp" -DDUCKDB_EXPLICIT_PLATFORM="wasm_mvp" ${COMMON_CMAKE_VARS} ${TOOLCHAIN_FLAGS} && \
-	emmake make -j${CI_BUILD_JOBS} -Cbuild/wasm_mvp
+# The release configuration built with the thread sanitizer. It is a build type
+# of its own because the sanitizer only reaches a binary through its
+# compilation flags: building `reldebug` and running it under TSAN_OPTIONS tests
+# an uninstrumented build.
+threadsan:
+	$(BAZEL) build $(THREADSAN_CONFIG) //...
+	$(call publish_build,threadsan,$(THREADSAN_CONFIG))
 
-wasm_eh: WASM_EH_CMAKE_VARS=-DBUILD_EXTENSIONS_ONLY=1
-wasm_ci: WASM_EH_CMAKE_VARS=
-wasm_eh wasm_ci: ${EXTENSION_CONFIG_STEP}
-	mkdir -p ./build/wasm_eh && \
-	emcmake cmake $(GENERATOR) -DWASM_LOADABLE_EXTENSIONS=1 $(WASM_EH_CMAKE_VARS) -Bbuild/wasm_eh ${WASM_RTTI_FLAG} -DCMAKE_CXX_FLAGS="-fwasm-exceptions -DDUCKDB_NO_THREADS=1 -DWEBDB_FAST_EXCEPTIONS=1 -DDUCKDB_CUSTOM_PLATFORM=wasm_eh" -DDUCKDB_EXPLICIT_PLATFORM="wasm_eh" ${COMMON_CMAKE_VARS} ${TOOLCHAIN_FLAGS} && \
-	emmake make -j${CI_BUILD_JOBS} -Cbuild/wasm_eh
+benchmark:
+	$(BAZEL) build $(RELEASE_CONFIG) //:benchmark_runner
+	$(call publish_build,benchmark,$(RELEASE_CONFIG))
 
-wasm_threads: ${EXTENSION_CONFIG_STEP}
-	mkdir -p ./build/wasm_threads && \
-	emcmake cmake $(GENERATOR) -DWASM_LOADABLE_EXTENSIONS=1 -DBUILD_EXTENSIONS_ONLY=1 -Bbuild/wasm_threads ${WASM_RTTI_FLAG} -DCMAKE_CXX_FLAGS="-fwasm-exceptions -DWEBDB_FAST_EXCEPTIONS=1 -DWITH_WASM_THREADS=1 -DWITH_WASM_SIMD=1 -DWITH_WASM_BULK_MEMORY=1 -DDUCKDB_CUSTOM_PLATFORM=wasm_threads -pthread" -DDUCKDB_EXPLICIT_PLATFORM="wasm_threads" ${COMMON_CMAKE_VARS} -DUSE_WASM_THREADS=1 -DCMAKE_C_FLAGS="-pthread" ${TOOLCHAIN_FLAGS} && \
-	emmake make -j${CI_BUILD_JOBS} -Cbuild/wasm_threads
+clean:
+	$(BAZEL) clean
+	rm -rf build
 
-cldebug: ${EXTENSION_CONFIG_STEP}
-	$(call cmake_build,build/cldebug,Debug,-DENABLE_SANITIZER=0 -DENABLE_UBSAN=0)
+# --- tests --------------------------------------------------------------------
 
-codecov: ${EXTENSION_CONFIG_STEP}
-	$(call cmake_build,build/codecov,Release,-DENABLE_SANITIZER=0 -DENABLE_UBSAN=0 -DCOVERAGE=1)
+# `bazel test //...` is the suite: the targets split it by directory so they run
+# in parallel and a failure names the directory it came from.
+unittest: $(NEEDS_DEBUG)
+	$(BAZEL) test $(DEBUG_CONFIG) //...
 
-clreldebug:
-	mkdir -p ./build/clreldebug && \
-	cd build/clreldebug && \
-	cmake $(GENERATOR) $(FORCE_COLOR) ${WARNINGS_AS_ERRORS} ${FORCE_32_BIT_FLAG} ${DISABLE_UNITY_FLAG} ${STATIC_LIBCPP} ${CMAKE_VARS} -DBUILD_FTS_EXTENSION=1 -DENABLE_SANITIZER=0 -DENABLE_UBSAN=0 -DCMAKE_BUILD_TYPE=RelWithDebInfo ../.. && \
-	$(NINJA_BUILD_WRAPPER) cmake --build . --config RelWithDebInfo
+unit: unittest
 
-SYNC_OUTPUT_DIR ?= build
-sync_out_of_tree_extensions:
-	$(PYTHON) scripts/sync_out_of_tree_extensions.py $(if $(BUILD_EXTENSIONS),--build-extensions "$(BUILD_EXTENSIONS)") $(if $(EXTENSION_CONFIGS),--extension-configs "$(EXTENSION_CONFIGS)") --output-dir '${PROJ_DIR}$(SYNC_OUTPUT_DIR)'
+unittest_release: $(NEEDS_RELEASE)
+	$(BAZEL) test $(RELEASE_CONFIG) //...
 
-extension_configuration: build/extension_configuration/vcpkg.json
+unittest_relassert: $(CI_NEEDS_RELASSERT)
+	$(BAZEL) test --config=relassert //...
 
-extension/extension_config_local.cmake:
-	touch extension/extension_config_local.cmake
+unittest_reldebug: $(NEEDS_REDEBUG)
+	$(BAZEL) test $(RELOWITHDEBINFO_CONFIG) //...
 
-build/extension_configuration/vcpkg.json: extension/extension_config_local.cmake extension/extension_config.cmake
-	mkdir -p ./build/extension_configuration && \
-	cd build/extension_configuration && \
-	cmake $(GENERATOR) $(FORCE_COLOR) ${CMAKE_VARS} -DEXTENSION_CONFIG_BUILD=TRUE -DVCPKG_BUILD=1 -DCMAKE_BUILD_TYPE=Release ../.. && \
-	$(NINJA_BUILD_WRAPPER) cmake --build . --config Release
+allunit: $(CI_NEEDS_RELEASE)
+	$(BAZEL) test $(RELEASE_CONFIG) //... --jobs='HOST_CPUS*.5'
 
-unittest: debug
-	build/debug/test/run $(T)
+# The smoke list through the published wrapper: `--changed-tests` intersects it
+# with the files a PR touched, and only run_tests.py knows how to do that.
+smoke: $(CI_NEEDS_RELASSERT)
+	$(SMOKE_RUNNER) --batch-timeout 120 --test-list test/smoke_tests.list $(T)
 
-unittest_reldebug:
-	build/reldebug/test/run $(UNITTEST_SLOW_FLAGS) $(T)
+unittestarrow: $(NEEDS_DEBUG)
+	$(BAZEL) test $(DEBUG_CONFIG) //:arrow_cpp_test //:arrow_cpp_slow_test
 
-ifneq ($(SKIP_BUILD),1)
-unittest_release: release
-endif
-unittest_release:
-	build/release/test/run $(T)
+# The sanitizer runs go through the wrapper, because the selection is Catch2 tag
+# patterns and a single named .test file: `[intraquery]`, `[interquery]` and
+# `[detailed_profiler]` are tags, not Bazel target names, and `--test_filter`
+# selects test names rather than tags. The wrapper takes a pattern list and
+# resolves both forms, as it did before Bazel. `--workers` and `--track-runtime`
+# are its flags too; Bazel owns the parallelism of `bazel test`, but not of a
+# wrapper run.
+#
+# There is no `bazel test` here at all: the binary under test is the published
+# threadsan build, which is the one compiled with -fsanitize=thread, so
+# `$(THREADSAN_RUNNER)` -- and not a per-directory `bazel test` target -- is
+# what runs it.
+UNITTEST_HUGE_FLAGS ?= --workers=50% --track-runtime=100
+THREADSAN_TESTS = "[intraquery],[interquery],[detailed_profiler],test/sql/tpch/tpch_sf01.test_slow"
+
+unittest_threadsan: export TSAN_OPTIONS ?= suppressions=./.sanitizer-thread-suppressions.txt
+unittest_threadsan:
+	$(THREADSAN_RUNNER) $(UNITTEST_HUGE_FLAGS) --test-config test/configs/threadsan.json $(THREADSAN_TESTS) $(T)
+	$(THREADSAN_RUNNER) $(UNITTEST_HUGE_FLAGS) --test-config test/configs/threadsan.json \
+		--test-flags="--force-storage --force-reload" "[interquery]" $(T)
+
+unittest_threadsan_extra: export TSAN_OPTIONS ?= suppressions=./.sanitizer-thread-suppressions.txt
+unittest_threadsan_extra:
+	$(THREADSAN_RUNNER) $(UNITTEST_HUGE_FLAGS) --test-config test/configs/threadsan.json \
+		--test-flags="--force-storage" "[interquery]" $(T)
+
+# `alltest_release_tag` adds the `*` Catch2 spec, which is the whole difference
+# from `test_release_tag`: it asks for the hidden cases as well as the default
+# set. Quoted so the shell hands Bazel the asterisk instead of globbing it.
+test_release_tag: $(NEEDS_RELEASE)
+	$(BAZEL) test $(RELEASE_CONFIG) //... --test_arg=--select-tag --test_arg=release
+
+alltest_release_tag: $(NEEDS_RELEASE)
+	$(BAZEL) test $(RELEASE_CONFIG) //... --test_arg=--select-tag --test_arg=release --test_arg='*'
 
 TEST_CONFIGS_QUERY_VERIFICATION := \
 	test/configs/verify_statement_copy.json \
@@ -582,117 +264,92 @@ TEST_CONFIGS_STORAGE_ENGINE := \
 TEST_CONFIGS := $(TEST_CONFIGS_QUERY_VERIFICATION) $(TEST_CONFIGS_EXECUTION) $(TEST_CONFIGS_PERSISTENCE) \
 	$(TEST_CONFIGS_STORAGE_ENGINE)
 
-.PHONY: test_configs test_configs_query_verification test_configs_execution test_configs_persistence \
-	test_configs_storage_engine
+# `--test-config` is matched as a bare flag by
+# TestConfiguration::ParseArgument, which then consumes the next argument, so
+# each configuration is two test arguments rather than one joined with `=`.
+# Recursive (`=`, not `:=`) so that `$(1)` is the $(call)'s argument and not
+# whatever happened to be set when the Makefile was parsed.
+TEST_CONFIG_ARGS = $(foreach cfg,$(1),--test_arg=--test-config --test_arg=$(cfg))
 
-test_configs:
-	./build/release/test/run $(foreach cfg,$(TEST_CONFIGS),--test-config=$(cfg))
+test_configs: $(CI_NEEDS_RELEASE)
+	$(BAZEL) test $(RELEASE_CONFIG) //... $(call TEST_CONFIG_ARGS,$(TEST_CONFIGS))
 
-test_configs_query_verification:
-	./build/release/test/run $(foreach cfg,$(TEST_CONFIGS_QUERY_VERIFICATION),--test-config=$(cfg))
+test_configs_query_verification: $(CI_NEEDS_RELEASE)
+	$(BAZEL) test $(RELEASE_CONFIG) //... $(call TEST_CONFIG_ARGS,$(TEST_CONFIGS_QUERY_VERIFICATION))
 
-test_configs_execution:
-	./build/release/test/run $(foreach cfg,$(TEST_CONFIGS_EXECUTION),--test-config=$(cfg))
+test_configs_execution: $(CI_NEEDS_RELEASE)
+	$(BAZEL) test $(RELEASE_CONFIG) //... $(call TEST_CONFIG_ARGS,$(TEST_CONFIGS_EXECUTION))
 
-test_configs_persistence:
-	./build/release/test/run $(foreach cfg,$(TEST_CONFIGS_PERSISTENCE),--test-config=$(cfg))
+test_configs_persistence: $(CI_NEEDS_RELEASE)
+	$(BAZEL) test $(RELEASE_CONFIG) //... $(call TEST_CONFIG_ARGS,$(TEST_CONFIGS_PERSISTENCE))
 
-test_configs_storage_engine:
-	./build/release/test/run $(foreach cfg,$(TEST_CONFIGS_STORAGE_ENGINE),--test-config=$(cfg))
+test_configs_storage_engine: $(CI_NEEDS_RELEASE)
+	$(BAZEL) test $(RELEASE_CONFIG) //... $(call TEST_CONFIG_ARGS,$(TEST_CONFIGS_STORAGE_ENGINE))
 
-test_vector:
-	./build/release/test/run --test-flags="--verify-vector dictionary_expression --skip-compiled"
-	./build/release/test/run --test-flags="--verify-vector dictionary_operator --skip-compiled"
-	./build/release/test/run --test-flags="--verify-vector constant_operator --skip-compiled"
-	./build/release/test/run --test-flags="--verify-vector sequence_operator --skip-compiled"
-	./build/release/test/run --test-flags="--verify-vector nested_shuffle --skip-compiled"
+# One run per vector type, as before: `--verify-vector` takes a single value and
+# repeated runs are the only way to cover each of them.
+test_vector: $(CI_NEEDS_RELEASE)
+	$(foreach v,dictionary_expression dictionary_operator constant_operator sequence_operator nested_shuffle, \
+		$(BAZEL) test $(RELEASE_CONFIG) //... --test_arg=--verify-vector --test_arg=$(v) --test_arg=--skip-compiled; )
 
-test_table_scan:
-	./build/release/test/run --test-flags='--on-init "SET debug_physical_table_scan_execution_strategy=SYNCHRONOUS;"'
+test_table_scan: $(CI_NEEDS_RELEASE)
+	$(BAZEL) test $(RELEASE_CONFIG) //... \
+		--test_arg=--on-init --test_arg="SET debug_physical_table_scan_execution_strategy=SYNCHRONOUS;"
 
-test_storage:
+# Regression against released binaries: the released duckdb downloads each version
+# and asks the current one to read and write its files.
+test_storage: $(CI_NEEDS_RELEASE)
 	$(PYTHON) scripts/test_storage_compatibility.py --versions "1.2.1|1.3.2|1.4.3" --new-unittest build/release/$(UNITTEST_BINARY)
 
-.PHONY: alltest_release_tag test_release_tag
-alltest_release_tag:
-	./build/release/test/run --test-flags="--select-tag release" '*' $(T)
+test_benchmark_sql: $(CI_NEEDS_RELASSERT)
+	$(PYTHON) -u scripts/test_benchmark_sql_runner.py --shell build/relassert/duckdb
 
-test_release_tag:
-	./build/release/test/run --test-flags="--select-tag release" $(T)
+test_compile: # test compilation of individual cpp files
+	$(PYTHON) scripts/test_compile.py
 
-unittest_relassert:
-	build/relassert/test/run $(UNITTEST_SLOW_FLAGS) $(T)
+# The unit tests of the CI scripts themselves.
+test_ci:
+	$(PYTHON) -m unittest discover --buffer --start-directory scripts/ci $(T)
 
-smoke:
-	$(SMOKE_RUNNER) --batch-timeout 120 --test-list test/smoke_tests.list $(T)
-
-unittestarrow:
-	build/debug/test/run "[arrow]"
-
-allunit:
-	./build/release/test/run --workers=50% '*' $(T)
-ifndef CI
-allunit: release
-endif
-
-unittest_threadsan: export TSAN_OPTIONS ?= "suppressions=./.sanitizer-thread-suppressions.txt"
-unittest_threadsan: unittest_reldebug
-	build/reldebug/test/run $(UNITTEST_HUGE_FLAGS) --test-config test/configs/threadsan.json "[intraquery],[interquery],[detailed_profiler],test/sql/tpch/tpch_sf01.test_slow" $(T)
-	build/reldebug/test/run $(UNITTEST_HUGE_FLAGS) --test-config test/configs/threadsan.json --test-flags="--force-storage --force-reload" "[interquery]" $(T)
-
-.PHONY: unittest_threadsan_extra
-unittest_threadsan_extra: export TSAN_OPTIONS ?= "suppressions=./.sanitizer-thread-suppressions.txt"
-unittest_threadsan_extra: unittest_reldebug
-	build/reldebug/test/run $(UNITTEST_HUGE_FLAGS) --test-config test/configs/threadsan.json --test-flags="--force-storage" "[interquery]" $(T)
-
-docs:
-	mkdir -p ./build/docs && \
-	doxygen Doxyfile
-
-doxygen: docs
-	open build/docs/html/index.html
-
-reldebug: ${EXTENSION_CONFIG_STEP}
-	$(call cmake_build,build/reldebug,RelWithDebInfo,)
-
-relassert: ${EXTENSION_CONFIG_STEP}
-	$(call cmake_build,build/relassert,RelWithDebInfo,-DFORCE_ASSERT=1)
-
-.PHONY: relassert-artifact
-
-relassert-artifact:
-	bash scripts/prepare_build_artifact.sh relassert
-
-.PHONY: release-artifact
-
-release-artifact:
-	bash scripts/prepare_build_artifact.sh release
-
-.PHONY: cli-release-artifact
-
-cli-release-artifact:
-	bash scripts/package_release_artifact.sh cli "$(ARTIFACT_SUFFIX)" "$(CLI_BINARY)"
-
-.PHONY: shared-libs-release-artifact
-
-shared-libs-release-artifact:
-	bash scripts/package_release_artifact.sh shared-libs "$(ARTIFACT_SUFFIX)" $(SHARED_LIBRARIES)
-
-.PHONY: static-libs-release-artifact
-
-static-libs-release-artifact:
-	bash scripts/package_release_artifact.sh static-libs "$(ARTIFACT_SUFFIX)" $(STATIC_LIBRARIES)
-
-.PHONY: symbol-checks symbol-leakage-check banned-symbol-check
+# --- symbol checks ------------------------------------------------------------
 
 symbol-checks: symbol-leakage-check banned-symbol-check
 
 symbol-leakage-check:
-	$(PYTHON) scripts/exported_symbols_check.py build/release/src/libduckdb*.so
+	$(PYTHON) scripts/exported_symbols_check.py build/release/src/libduckdb*.so*
 
 banned-symbol-check:
 	$(PYTHON) scripts/banned_symbols_check.py --directory build/release/src
 
+# --- artifacts ----------------------------------------------------------------
+
+relassert-artifact:
+	bash scripts/prepare_build_artifact.sh relassert
+
+release-artifact:
+	bash scripts/prepare_build_artifact.sh release
+
+cli-release-artifact:
+	bash scripts/package_release_artifact.sh cli "$(ARTIFACT_SUFFIX)" "$(CLI_BINARY)"
+
+shared-libs-release-artifact:
+	bash scripts/package_release_artifact.sh shared-libs "$(ARTIFACT_SUFFIX)" $(SHARED_LIBRARIES)
+
+static-libs-release-artifact:
+	bash scripts/package_release_artifact.sh static-libs "$(ARTIFACT_SUFFIX)" $(STATIC_LIBRARIES)
+
+# --- docs ---------------------------------------------------------------------
+
+docs:
+	doxygen Doxyfile
+
+doxygen: docs
+
+# --- formatting and generated files -------------------------------------------
+
+# The host toolchain the CI images are expected to have, plus the compiler
+# versions it reports. Bazel fetches its own C++ toolchain; this is the tools
+# around it (the linker, the package manager's cache, the spell checker).
 define ensure_apt_commands
 	missing=0; \
 	for cmd in $(1); do \
@@ -717,24 +374,17 @@ endef
 
 APT_TIMEOUT_OPTS=-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o DPkg::Lock::Timeout=30
 
-.PHONY: toolsci
-
 toolsci:
-	$(call ensure_apt_commands,ninja mold ccache pkg-config pigz clang++-20 clangd-20,ninja-build mold ccache pkg-config pigz clang++-20 clangd-20)
+	$(call ensure_apt_commands,mold ccache pkg-config pigz clang++-20 clangd-20,mold ccache pkg-config pigz clang++-20 clangd-20)
 	$(call ensure_apt_packages,python3-requests libcurl4-openssl-dev llvm-20-dev libclang-rt-20-dev)
 	ls -lh /usr/bin/gcc* /usr/bin/g++* /usr/bin/clang++*
 	gcc --version
 	g++ --version
 	clang++ --version
 
-test_ci:
-	python3 -m unittest discover --buffer --start-directory scripts/ci $(T)
-
-.PHONY: format_tools parser_tools spell_tools
 format_tools: parser_tools spell_tools
 
 parser_tools:
-	$(call ensure_apt_commands,ninja,ninja-build)
 	sudo pip3 install --break-system-packages cxxheaderparser pcpp
 	@echo "::group::Installed Python packages"
 	pip3 freeze
@@ -766,26 +416,21 @@ spell_tools:
 	fi; \
 	typos --version
 
-.PHONY: enum-integrity-check
 enum-integrity-check:
 	$(PYTHON) scripts/verify_enum_integrity.py src/include/duckdb.h
 
-.PHONY: extension-patch-check
 extension-patch-check:
-	cmake -DCONFIG_DIR=.github/config -DPATCH_DIR=.github/patches/extensions -P scripts/check_extension_patches.cmake
+	$(PYTHON) scripts/check_extension_patches.py --config-dir .github/config --patch-dir .github/patches/extensions
 
-.PHONY: format_venv
 format_venv:
 	@if [ ! -x "$(FORMAT_PYTHON)" ]; then \
 		mkdir -p "$(dir $(FORMAT_VENV))" && \
 		$(PYTHON) -m venv "$(FORMAT_VENV)"; \
 	fi
 	@$(FORMAT_PYTHON) -m pip show black >/dev/null 2>&1 || $(FORMAT_PYTHON) -m pip install black==24.*
-	@$(FORMAT_PYTHON) -m pip show cmake-format >/dev/null 2>&1 || $(FORMAT_PYTHON) -m pip install cmake-format
 	@$(FORMAT_PYTHON) -m pip show clang_format >/dev/null 2>&1 || $(FORMAT_PYTHON) -m pip install clang_format==11.0.1
 
 # Venv holding capigen (the C API generator) and the formatters it needs, pinned by api_spec/pyproject.toml
-.PHONY: capigen_venv
 capigen_venv:
 	@if [ ! -x "$(CAPIGEN_PYTHON)" ]; then \
 		mkdir -p "$(dir $(CAPIGEN_VENV))" && \
@@ -793,51 +438,6 @@ capigen_venv:
 		$(CAPIGEN_PYTHON) -m pip install -U pip; \
 	fi
 	@$(CAPIGEN_PYTHON) -m pip show capigen >/dev/null 2>&1 || $(CAPIGEN_PYTHON) -m pip install --group api_spec/pyproject.toml:generate
-
-benchmark:
-	mkdir -p ./build/release && \
-	cd build/release && \
-	cmake $(GENERATOR) $(FORCE_COLOR) ${WARNINGS_AS_ERRORS} ${FORCE_WARN_UNUSED_FLAG} ${FORCE_32_BIT_FLAG} ${DISABLE_UNITY_FLAG} ${DISABLE_SANITIZER_FLAG} ${STATIC_LIBCPP} ${CMAKE_VARS} -DBUILD_BENCHMARKS=1 -DCMAKE_BUILD_TYPE=Release ../.. && \
-	$(NINJA_BUILD_WRAPPER) cmake --build . --config Release
-
-.PHONY: test_benchmark_sql
-test_benchmark_sql:
-	$(PYTHON) -u scripts/test_benchmark_sql_runner.py --shell build/relassert/duckdb
-
-
-tidy-check:
-	mkdir -p ./build/tidy && \
-	cd build/tidy && \
-	cmake -DCLANG_TIDY=1 -DDISABLE_UNITY=1 -DBUILD_EXTENSIONS=parquet -DBUILD_SHELL=0 ../.. && \
-	$(PYTHON) ../../scripts/run-clang-tidy.py -quiet -j $(CI_CPU_COUNT) ${TIDY_BINARY_PARAMETER} ${TIDY_PERFORM_CHECKS}
-
-install-clangd-tidy:
-	mkdir -p $(dir $(CLANGD_TIDY_VENV)) && \
-	$(PYTHON) -m venv $(CLANGD_TIDY_VENV) && \
-	$(CLANGD_TIDY_VENV)/bin/pip install --upgrade 'clangd-tidy==$(CLANGD_TIDY_VERSION)'
-
-tidy-check-clangd:
-	mkdir -p ./build/tidy && \
-	cd build/tidy && \
-	cmake $(GENERATOR) $(FORCE_COLOR) ${STATIC_LIBCPP} ${CMAKE_VARS} -DCLANG_TIDY=1 -DDISABLE_UNITY=1 -DBUILD_EXTENSIONS=parquet -DBUILD_SHELL=0 ../.. && \
-	trap 'rm -rf ./pchs' EXIT && \
-	$(PYTHON) -u ../../scripts/run-clangd-tidy.py -j $(CI_TIDY_JOBS) ${CLANGD_TIDY_BINARY_PARAMETER} ${CLANGD_BINARY_PARAMETER} ${CLANGD_TIDY_QUERY_DRIVER_PARAMETER}
-
-tidy-check-diff:
-	mkdir -p ./build/tidy && \
-	cd build/tidy && \
-	cmake -DCLANG_TIDY=1 -DDISABLE_UNITY=1 -DBUILD_EXTENSIONS=parquet -DBUILD_SHELL=0 ../.. && \
-	cd ../../ && \
-	git diff origin/${GIT_BASE_BRANCH} . ':(exclude)tools' ':(exclude)extension' ':(exclude)test' ':(exclude)benchmark' ':(exclude)third_party' ':(exclude)src/common/adbc' ':(exclude)src/main/capi' ':(exclude)examples/embedded-c' | $(PYTHON) scripts/clang-tidy-diff.py -path build/tidy -quiet -j $(CI_CPU_COUNT) ${TIDY_BINARY_PARAMETER} ${TIDY_PERFORM_CHECKS} -p1
-
-tidy-fix:
-	mkdir -p ./build/tidy && \
-	cd build/tidy && \
-	cmake -DCLANG_TIDY=1 -DDISABLE_UNITY=1 -DBUILD_EXTENSIONS=parquet -DBUILD_SHELL=0 ../.. && \
-	$(PYTHON) ../../scripts/run-clang-tidy.py -fix
-
-test_compile: # test compilation of individual cpp files
-	$(PYTHON) scripts/test_compile.py
 
 format-check: $(FORMAT_SETUP_DEPS)
 	$(FORMAT_PYTHON) scripts/format.py --all --check $(T)
@@ -855,15 +455,13 @@ format-parser-grammar: $(FORMAT_SETUP_DEPS)
 	$(FORMAT_PYTHON) scripts/format.py src/parser/peg/matcher_factory.cpp --fix --noconfirm
 	$(FORMAT_PYTHON) scripts/format.py src/parser/peg/matcher.cpp --fix --noconfirm
 
-.PHONY: parser-grammar-tools parser-grammar
 parser-grammar-tools: $(FORMAT_SETUP_DEPS)
 	@$(FORMAT_PYTHON) -m pip show pyyaml >/dev/null 2>&1 || $(FORMAT_PYTHON) -m pip install PyYAML
 
 parser-grammar: parser-grammar-tools
 	PYTHON="$(FORMAT_PYTHON)" ./scripts/parser/build_grammar.sh
 
-.PHONY: check-extension-entries
-check-extension-entries: extension_configuration $(FORMAT_SETUP_DEPS)
+check-extension-entries: $(FORMAT_SETUP_DEPS)
 	$(PYTHON) scripts/generate_extensions_function.py
 	$(FORMAT_PYTHON) scripts/format.py src/include/duckdb/main/extension_entries.hpp --fix --noconfirm
 	@git diff -- src/include/duckdb/main/extension_entries.hpp > extension_entries.hpp.diff
@@ -891,37 +489,6 @@ format-feature: $(FORMAT_SETUP_DEPS)
 format-configs:
 	$(foreach file, $(wildcard $(CONFIGS_DIR)/*), jq . < "$(file)" > "$(file).tmp" && mv "$(file).tmp" "$(file)" ;)
 
-
-third_party/sqllogictest:
-	git clone --depth=1 --branch ccfelius/sqlite_overflow https://github.com/duckdb/sqllogictest.git third_party/sqllogictest
-
-sqlite: release | third_party/sqllogictest
-	git --git-dir third_party/sqllogictest/.git pull
-	./build/release/test/run "[sqlitelogic]"
-
-sqlsmith: debug
-	./build/debug/third_party/sqlsmith/sqlsmith --duckdb=:memory:
-
-# Bloaty: a size profiler for binaries, is a project backed by Google engineers, https://github.com/google/bloaty for more info
-# works both on executable, libraries (-> .duckdb_extension) and on WebAssembly
-bloaty/bloaty:
-	git clone https://github.com/google/bloaty.git
-	cd bloaty && git submodule update --init --recursive && cmake -Bm build -G Ninja -S . && cmake --build build
-	mv bloaty/build/bloaty bloaty/bloaty
-
-bloaty: reldebug bloaty/bloaty
-	cd build/reldebug && dsymutil duckdb
-	./bloaty/bloaty  build/reldebug/duckdb -d symbols -n 20 --debug-file=build/reldebug/duckdb.dSYM/Contents/Resources/DWARF/duckdb
-	# ./bloaty/bloaty  build/reldebug/extension/parquet/parquet.duckdb_extension -d symbols -n 20 # to execute on extension
-
-# Generate compile commands without actually building
-clangd:
-	cmake -DCMAKE_BUILD_TYPE=Debug ${CMAKE_VARS} -B .cache/clangd/debug .
-	cp .cache/clangd/debug/compile_commands.json .cache/clangd/compile_commands.json
-
-coverage-check:
-	./scripts/coverage_check.sh
-
 generate-files-deps:
 	$(PYTHON) -m pip install -U pip
 	$(PYTHON) -m pip install --group api_spec/pyproject.toml:generate
@@ -941,62 +508,10 @@ generate-files: $(CAPIGEN_SETUP_DEPS)
 # Run the formatter again after (re)generating the files
 	$(MAKE) format-main
 
-bundle-setup:
-	cd build/release && \
-	rm -rf bundle && \
-	mkdir -p bundle && \
-	cp src/libduckdb_static.a bundle/. && \
-	cp third_party/*/libduckdb_*.a bundle/. && \
-	cp extension/libduckdb_generated_extension_loader.a bundle/. && \
-	cp extension/*/lib*_extension.a bundle/. && \
-	mkdir -p vcpkg_installed && \
-	find vcpkg_installed -name '*.a' -exec cp {} bundle/. \; && \
-	mkdir -p _deps && \
-	if [ -f linked_libs.txt ]; then \
-		while IFS= read -r libline || [ -n "$$libline" ]; do \
-			find _deps -path "*/$$libline" -exec cp {} bundle/. \; 2>/dev/null || true; \
-		done < linked_libs.txt; \
-	fi && \
-	cd bundle && \
-	find . -name '*.a' -exec mkdir -p {}.objects \; -exec mv {} {}.objects \; && \
-	find . -name '*.a' -execdir ${AR} -x {} \;
+# --- extension sources --------------------------------------------------------
 
-bundle-library-o: bundle-setup
-	cd build/release/bundle && \
-	echo ./*/*.o | xargs ${AR} cr ../libduckdb_bundle.a
-
-bundle-library-obj: bundle-setup
-	cd build/release/bundle && \
-	echo ./*/*.obj | xargs ${AR} cr ../libduckdb_bundle.a
-
-bundle-library: release
-	make bundle-library-o
-
-.PHONY: gather-libs
-
-GATHER_LIBS_BUILD_DIR ?= build/release
-GATHER_LIBS_PREFIX ?= lib
-GATHER_LIBS_EXTENSION ?= a
-
-gather-libs:
-	cd $(GATHER_LIBS_BUILD_DIR) && \
-	rm -rf libs && \
-	mkdir -p libs && \
-	cp src/$(GATHER_LIBS_PREFIX)duckdb_static.$(GATHER_LIBS_EXTENSION) libs/. && \
-	cp third_party/*/$(GATHER_LIBS_PREFIX)duckdb_*.$(GATHER_LIBS_EXTENSION) libs/. && \
-	cp extension/$(GATHER_LIBS_PREFIX)duckdb_generated_extension_loader.$(GATHER_LIBS_EXTENSION) libs/. && \
-	cp extension/*/$(GATHER_LIBS_PREFIX)*_extension.$(GATHER_LIBS_EXTENSION) libs/.
-
-#### Setup VCPKG to correct version 2025.12.12 tag is 84bab45d415d22042bd0b9081aea57f362da3f35
-vcpkg/scripts/buildsystems/vcpkg.cmake:
-	git -C vcpkg fetch || git clone --branch 2025.12.12 https://github.com/microsoft/vcpkg
-	cd vcpkg && ./bootstrap-vcpkg.sh
-
-setup-vcpkg: vcpkg/scripts/buildsystems/vcpkg.cmake
-	@echo 'Consider exporting VCPKG_TOOLCHAIN_PATH=$(PWD)/vcpkg/scripts/buildsystems/vcpkg.cmake'
-
-cleanup-vcpkg:
-	rm -rf vcpkg
-
-test-utils:
-	make release EXTENSION_CONFIGS='.github/config/extensions/httpfs.cmake;.github/config/extensions/test-utils.cmake;.github/config/extensions/inet.cmake' DUCKDB_EXTENSIONS='tpcds;icu;autocomplete;tpch;json'
+# Clones the pinned out-of-tree extensions into extension/external/<name> and
+# applies their patches. Building them needs a Bazel target that does not exist
+# yet, so this stops at the checkouts.
+sync_out_of_tree_extensions:
+	$(PYTHON) scripts/sync_out_of_tree_extensions.py $(if $(BUILD_EXTENSIONS),--build-extensions "$(BUILD_EXTENSIONS)")

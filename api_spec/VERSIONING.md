@@ -118,12 +118,22 @@ The rule explained in the "[Unstable is a version of its own](#unstable-is-a-ver
 What differs is that an extension does not set the macros itself and the choice is not only about which symbols it can
 see: it also decides which DuckDB versions can load the result.
 
-So the cmake build helper you call makes it for you:
+So the build target you write makes it for you:
 
 **Versioned**: forward-loadable
 
-```cmake
-build_loadable_extension_capi(my_ext 1 5 6 ${SOURCES})
+```python
+duckdb_library(
+    name = "my_ext",
+    srcs = ["my_ext/**/*.cpp"],
+    local_defines = DUCKDB_DEFINES + [
+        "DUCKDB_BUILD_LOADABLE_EXTENSION",
+        "DUCKDB_EXTENSION_API_VERSION_MAJOR=1",
+        "DUCKDB_EXTENSION_API_VERSION_MINOR=5",
+        "DUCKDB_EXTENSION_API_VERSION_PATCH=6",
+        "DUCKDB_EXTENSION_NAME=my_ext",
+    ],
+)
 ```
 
 ABI type `C_STRUCT`. You state the minimum API version you need (which implicitly sets the
@@ -138,8 +148,17 @@ it hides symbols without disturbing the v-table layout.
 
 **Pinned**: locked to a specific DuckDB version
 
-```cmake
-build_loadable_extension_capi_unstable(my_ext ${SOURCES})
+```python
+duckdb_library(
+    name = "my_ext",
+    srcs = ["my_ext/**/*.cpp"],
+    local_defines = DUCKDB_DEFINES + [
+        "DUCKDB_BUILD_LOADABLE_EXTENSION",
+        "DUCKDB_CPP_API_LOADABLE",
+        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=<the version or commit you target>",
+        "DUCKDB_EXTENSION_NAME=my_ext",
+    ],
+)
 ```
 
 ABI type `C_STRUCT_UNSTABLE`. You can __not__ set any version macros.

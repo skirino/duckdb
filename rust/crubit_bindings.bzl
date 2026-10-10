@@ -1,7 +1,7 @@
 """A rule that runs Crubit's bindings generator over a Cargo crate.
 
 The generator is `cargo cpp_api_from_rust`; this wraps it so a Cargo crate gets
-the same two artifacts Crubit's own CMake integration produces:
+the same two artifacts Crubit's own build integration produces upstream:
 
     crubit_include/crubit/<crate>.h  the generated C++ API, plus the bindings for
                                      whichever Rust std crates it exposes
@@ -244,10 +244,9 @@ crubit_bindings = rule(
 # Every translation unit that includes Crubit's generated bindings needs these.
 # The bindings are not annotated for nullability and are not standard-layout, so
 # both diagnostics fire inside the generated headers alone -- hundreds of them.
-# The CMake build silences them by including the generated directory as SYSTEM
-# (src/logging/CMakeLists.txt), which Bazel's `includes` does not do: it passes a
-# plain -I. The generated headers also need C++20, where the rest of this build is
-# C++17, so -std=c++20 belongs here too.
+# `includes` passes a plain -I rather than the -isystem that would silence them,
+# so the copts below do. The generated headers also need C++20, where the rest of
+# this build is C++17, so -std=c++20 belongs here too.
 def crubit_copts():
     return [
         "-std=c++20",

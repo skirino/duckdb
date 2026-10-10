@@ -1,11 +1,15 @@
 import argparse
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import extension_config
 import duckdb_sqllogictest
 from duckdb_sqllogictest import SQLParserException, SQLLogicParser, SQLLogicTest
 import subprocess
 import multiprocessing
 import tempfile
-import re
 
 parser = argparse.ArgumentParser(description="Test serialization")
 parser.add_argument("--shell", type=str, help="Shell binary to run", default=os.path.join('build', 'debug', 'duckdb'))
@@ -25,9 +29,11 @@ group.add_argument("--all-tests", action='store_true', help="Run all tests", def
 args = parser.parse_args()
 
 
-def extract_git_urls(script: str):
-    pattern = r'GIT_URL\s+(https?://\S+)'
-    return re.findall(pattern, script)
+def extract_git_urls(group: str):
+    """The upstream repositories the extensions of one registry group come from."""
+    config_dir = extension_config.DEFAULT_CONFIG_DIR
+    pins = extension_config.resolve_path(config_dir, f"{group}.json")
+    return [pin.git_url for pin in pins]
 
 
 import os
@@ -82,12 +88,7 @@ def download_test_sql_folder(repo_url, base_folder="extension-test-files"):
 
 
 def batch_download_all_test_sql():
-    filename = ".github/config/out_of_tree_extensions.cmake"
-    if not os.path.isfile(filename):
-        raise Exception(f"File {filename} not found")
-    with open(filename, "r") as f:
-        content = f.read()
-    urls = extract_git_urls(content)
+    urls = extract_git_urls("out_of_tree_extensions")
     if urls == []:
         print("No URLs found.")
     for url in urls:

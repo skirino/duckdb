@@ -1,7 +1,7 @@
-# Mirrors of the flags the CMake configure puts on the command line. These are the
-# default, so a plain `bazel build //...` is the configuration the parity diff
-# compares against and `bazel test //...` is the suite that passes; a debug build is
-# --config=debug below.
+# The flags a plain `bazel build //...` gets, which is the configuration
+# `bazel test //...` runs the suite in. The build types the Makefile exposes are
+# configs below: `make release` is this one, and `make relassert`, `make reldebug`
+# and `make debug` add `--config=`.
 common --check_direct_dependencies=error
 
 # Once per build: the checkout's commit and version, handed to rules through
@@ -18,17 +18,33 @@ common --workspace_status_command=scripts/workspace_status.sh
 build --//:stamp_version=false
 
 # The tests reach outside their runfiles (a temp dir under the checkout, a fixed
-# socket) in ways the sandbox does not model, so they run unsandboxed like the
-# CMake build does.
+# socket) in ways the sandbox does not model, so they run unsandboxed.
 test --spawn_strategy=local
 
-# CMake Release: -O3 -DNDEBUG; CMAKE_CXX_STANDARD=17; the project adds
-# -Wthread-safety; -mcpu comes from CMake's native-arch detection on Apple Silicon.
 # opt is the default rather than a config because a -O0 build does not fit the stack
 # on test/ossfuzz case 49 (SIGILL), so the suite only passes in the release
-# configuration -- and the parity diff has to compare that same configuration.
+# configuration. Bazel's own opt flags carry -O2 -DNDEBUG; the rest is what the
+# project's sources expect on top of them.
 common --compilation_mode=opt
-build --copt=-DNDEBUG
 build --cxxopt=-std=c++17
 build --cxxopt=-Wthread-safety
 build --cxxopt=-mcpu=apple-m1
+
+# `make relassert`: the release configuration with assertions live, which is what
+# src/include/duckdb/common/assert.hpp switches on.
+build:relassert --//:force_assert=true
+
+# `make reldebug`: optimized, but the symbols stay in the binary.
+build:reldebug --strip=never
+build:reldebug -c opt
+build:reldebug --copt=-g
+
+# `make debug`: Bazel's dbg is -O0 -g -DDEBUG, which is the same shape as the
+# debug build the suite has always been developed against.
+build:debug -c dbg
+
+# `make unittest_threadsan`: the release configuration built with the thread
+# sanitizer. The suppression file it passes is referenced from the workflow.
+build:threadsan -c opt
+build:threadsan --copt=-fsanitize=thread
+build:threadsan --linkopt=-fsanitize=thread

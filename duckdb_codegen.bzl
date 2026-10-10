@@ -1,9 +1,8 @@
-"""configure_file() equivalents for the CMake-generated extension loader.
+"""Rules for the generated extension loader and the fixture trees.
 
-CMake produces two files from the templates in extension/ (see
-extension/CMakeLists.txt): an include header and a loader translation unit, both
-driven by the list of statically linked extensions. The Bazel port keeps them as
-actions rather than checking in the output.
+Two files come out of the templates in extension/: an include header and a loader
+translation unit, both driven by the list of statically linked extensions. They
+are build actions rather than checked-in output, so the list is one place.
 """
 
 def _string_list(value):
@@ -20,11 +19,10 @@ def _extension_codegen_impl(ctx):
     loader_stamped = ctx.actions.declare_file(ctx.attr.loader_out)
     extensions = _string_list(ctx.attr.extensions)
 
-    # Mirrors the two-pass configure_file() in extension/CMakeLists.txt: emit the
-    # template, then append one #include per statically linked extension.
-    # configure_file() guarantees a trailing newline and the checked-in template
-    # has none, so the newline is added here -- without it the first #include is
-    # swallowed by the template's trailing // comment.
+    # Two passes: emit the template, then append one #include per statically
+    # linked extension. The template has no trailing newline, so one is added --
+    # without it the first #include is swallowed by the template's trailing
+    # comment.
     ctx.actions.run_shell(
         inputs = [ctx.file.header_template],
         outputs = [header],
@@ -45,9 +43,8 @@ def _extension_codegen_impl(ctx):
         register_body += "    }});\n"
     name_list = "\n\t" + ",\n\t".join(["\"%s\"" % n for n in extensions])
 
-    # expand_template() substitutes the substitution KEY as a literal string
-    # wherever it appears in the template, not the ${KEY} form CMake uses, so the
-    # keys below carry the braces.
+    # expand_template() substitutes the key as a literal string wherever it
+    # appears in the template, so the keys below carry the braces.
     ctx.actions.expand_template(
         template = ctx.file.loader_template,
         output = loader,
@@ -103,8 +100,8 @@ def _fixture_tree_impl(ctx):
     Bazel ships a target's data as a runfiles tree of symlinks, and DuckDB's `**`
     crawl skips symlinks (LocalFileSystem::CrawlDirectoryLevel), so a test that
     globs `dir/**` finds nothing under such a tree. The affected targets get real
-    copies at the same paths instead, which is what CMake gives them. Symlinks
-    inside the fixtures stay symlinks: one test asserts they are not crawled.
+    copies at the same paths instead. Symlinks inside the fixtures stay symlinks:
+    one test asserts they are not crawled.
     """
     outputs = [ctx.actions.declare_directory(tree) for tree in ctx.attr.trees]
     dest = outputs[0].dirname
@@ -193,8 +190,7 @@ def _version_info_header_impl(ctx):
 # A header carrying the values the workspace status script reports, which is where
 # a stamped build gets the checkout's commit and version without those appearing
 # on the command line: they would otherwise sit in the defines of every compile
-# action, so a new commit would rebuild the world. CMake has the same tension and
-# solves it the other way, re-running its configure instead.
+# action, so a new commit would rebuild the world.
 #
 # Stamping is opt-in, because even isolated this way the header feeds a link of
 # every binary that reports a version. Unstamped it is a copy of VERSION_DEFAULTS

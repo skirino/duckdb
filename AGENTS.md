@@ -198,22 +198,17 @@ DuckDB supports two types of extensions:
 
 **In-Tree Extensions** (in `extension/` directory):
 - Extensions are located in-tree
-- Full list in `.github/config/in_tree_extensions.cmake`
+- One `duckdb_library` per extension in the root `BUILD.bazel`
 - Code can be edited directly and checked into the repository.
 
 **Out-of-Tree Extensions**:
 - Extensions are located in a separate git repository
-- Full list in `.github/config/out_of_tree_extensions.cmake`
+- Each is pinned by a descriptor in `.github/config/extensions/<name>.json`; `scripts/extension_config.py` is the one reader
 - When changes have to be made, they have to be made in patch files stored in `.github/patches`
 - Before adapting an out-of-tree extension, changing its pinned revision, or modifying `.github/patches/extensions`, read and follow `.github/patches/extensions/AGENTS.md`.
 
-Building with extensions:
-```bash
-# build all extensions
-BUILD_ALL_EXT=1 make
-# build specific extensions
-DUCKDB_EXTENSIONS='json;icu' make
-```
+`make sync_out_of_tree_extensions` clones each pinned extension and applies its patches. Building one
+is a Bazel target that does not exist yet, so that step stops at the checkouts.
 
 ## Key Development Patterns
 
@@ -460,11 +455,13 @@ This regenerates:
 
 ## Important Files
 
-- `Makefile` - Main build configuration
-- `CMakeLists.txt` - CMake configuration
+- `Makefile` - The driver CI and developers call; every target shells out to `bazel`
+- `BUILD.bazel` - The build itself: every target in the tree
+- `duckdb_build_config.bzl` - The includes, defines and flags every library shares
+- `.bazelrc` - Toolchain flags, and the four build types as configs
 - `CONTRIBUTING.md` - Contribution guidelines
 - `test/README.md` - Testing documentation
-- `extension/extension_config.cmake` - Extension configuration
+- `extension/README.md` - How an extension becomes a target
 - `scripts/format.py` - Code formatter
 - `scripts/generate_*.py` - Code generation scripts
 
@@ -506,8 +503,8 @@ mode the smoke test cannot see.
 
 `#[crubit_annotate::must_bind]` turns it into a build failure instead, and is
 the right thing on anything crossing the bridge. It is not wired up yet: the
-dependency is commented out in `ahirudb/Cargo.toml` and points at a CMake build
-tree that does not exist under Bazel, and the crate is not copied into
+dependency is commented out in `ahirudb/Cargo.toml` and points at a build
+tree that does not exist here, and the crate is not copied into
 `@crubit_toolchain`. Wiring it is a small task of its own.
 
 When something cannot be bridged, wrap it rather than dropping it. A `Vec<T>`
@@ -542,7 +539,7 @@ crate attributes, which both build paths honour.
 C++/Rust interop goes through Crubit, which generates a C++ header and a staticlib
 from the crate. Crubit has Bazel rules of its own (`@rules_crubit`), but they are
 Linux-only and build LLVM from sources, so this build uses the same generator
-Crubit's own CMake integration drives, `cargo cpp_api_from_rust`:
+Crubit's own upstream integration drives, `cargo cpp_api_from_rust`:
 
 - `MODULE.bazel` pins the Crubit revision, and `rust/crubit_toolchain.bzl` builds
   the generator once and exposes it as `@crubit_toolchain`.

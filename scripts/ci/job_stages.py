@@ -11,17 +11,10 @@ from typing import TextIO
 COMMON_JOBS = [
     "linux-relassert",
     "linux-relassert-tests",
-    "tidy-check",
-    "extensions-build",
-    "extensions-deploy",
-    "wasm-eh",
     "linux-release",
     "linux-release-tests",
-    "linux-release-musl",
     "swift",
-    "windows",
     "no-string-inline",
-    "no-rtti",
     "vector-sizes",
     "threadsan",
     "linux-configs",
@@ -35,7 +28,6 @@ PULL_REQUEST_JOBS = COMMON_JOBS + PULL_REQUEST_ONLY_JOBS
 
 NIGHTLY_ONLY_JOBS = [
     "osx",
-    "codecov",
 ]
 
 NIGHTLY_JOBS = COMMON_JOBS + NIGHTLY_ONLY_JOBS
@@ -44,7 +36,6 @@ MERGE_GROUP_JOBS = [
     "linux-relassert",
     "linux-release",
     "linux-release-tests",
-    "tidy-check",
 ]
 
 RELEASE_JOBS = [
@@ -83,7 +74,6 @@ class JobSelection:
     save_cache: bool
     optimized_release: bool = False
     linux_release_matrix: list[dict[str, object]] = field(default_factory=list)
-    linux_musl_matrix: list[dict[str, object]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -162,18 +152,13 @@ def compatibility_release_config(*, runner: str, arch: str, optimized_release: b
         "name": f"{arch} compatibility",
         "artifact_suffix": artifact_suffix,
         "build_artifact": build_artifact,
-        "extension_config": "linux_release_extensions.cmake" if is_amd64 else "bundled_extensions.cmake",
-        "vcpkg_cache_suffix": "" if is_amd64 else "linux-cli-arm64-glibc",
         "build_jemalloc": "1" if is_amd64 else "0",
         "use_ccache": True,
         "ccache_key": f"linux-cli-{arch}-glibc",
-        "save_vcpkg_cache": True,
         "lto": "",
         "lto_jobs": "",
-        "extra_cmake_variables": "",
         "is_compatibility_build": True,
         "is_canonical_build": not optimized_release,
-        "publish_static": True,
         "publish_source": is_amd64,
         "run_smoke": is_amd64,
         "run_arm_tests": not is_amd64 and not optimized_release,
@@ -189,18 +174,13 @@ def optimized_release_config(*, runner: str, arch: str) -> dict[str, object]:
         "name": f"{arch} optimized",
         "artifact_suffix": f"linux-{arch}",
         "build_artifact": "linux-release-build" if is_amd64 else "linux-release-arm64-build",
-        "extension_config": "linux_release_extensions.cmake" if is_amd64 else "bundled_extensions.cmake",
-        "vcpkg_cache_suffix": "" if is_amd64 else "linux-cli-arm64-glibc",
         "build_jemalloc": "1" if is_amd64 else "0",
         "use_ccache": False,
         "ccache_key": "",
-        "save_vcpkg_cache": False,
         "lto": "thin",
         "lto_jobs": "8",
-        "extra_cmake_variables": "-DCMAKE_C_COMPILER_LAUNCHER= -DCMAKE_CXX_COMPILER_LAUNCHER=",
         "is_compatibility_build": False,
         "is_canonical_build": True,
-        "publish_static": False,
         "publish_source": False,
         "run_smoke": True,
         "run_arm_tests": not is_amd64,
@@ -231,32 +211,6 @@ def linux_release_matrix(selection_input: JobSelectionInput, optimized_release: 
     return result
 
 
-def linux_musl_matrix(selection_input: JobSelectionInput) -> list[dict[str, object]]:
-    result: list[dict[str, object]] = []
-    if selection_input.event_name != "pull_request":
-        result.append(
-            {
-                "runner": selection_input.runners.get("linux_x64", ""),
-                "arch": "amd64",
-                "image": "alpine_amd64_main",
-                "name": "amd64",
-                "artifact_suffix": "linux-amd64-musl",
-                "cache_suffix": "amd64-musl",
-            }
-        )
-    result.append(
-        {
-            "runner": selection_input.runners.get("linux_arm64", ""),
-            "arch": "arm64",
-            "image": "alpine_arm64_main",
-            "name": "arm64",
-            "artifact_suffix": "linux-arm64-musl",
-            "cache_suffix": "arm64-musl",
-        }
-    )
-    return result
-
-
 def compute_job_selection(selection_input: JobSelectionInput) -> JobSelection:
     selected_jobs = enabled_jobs(selection_input)
     optimized_release = selection_input.event_name == "workflow_dispatch" and "linux-release" in selected_jobs
@@ -265,7 +219,6 @@ def compute_job_selection(selection_input: JobSelectionInput) -> JobSelection:
         save_cache=should_save_cache(selection_input),
         optimized_release=optimized_release,
         linux_release_matrix=linux_release_matrix(selection_input, optimized_release),
-        linux_musl_matrix=linux_musl_matrix(selection_input),
     )
 
 
@@ -275,7 +228,6 @@ def write_outputs(selection: JobSelection, out: TextIO, *, include_matrices: boo
     out.write(f"optimized_release={'true' if selection.optimized_release else 'false'}\n")
     if include_matrices:
         out.write(f"linux_release_matrix={json.dumps(selection.linux_release_matrix, separators=(',', ':'))}\n")
-        out.write(f"linux_musl_matrix={json.dumps(selection.linux_musl_matrix, separators=(',', ':'))}\n")
 
 
 def parse_args() -> argparse.Namespace:

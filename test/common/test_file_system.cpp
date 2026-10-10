@@ -561,10 +561,10 @@ TEST_CASE("Test path canonicalization", "[file_system]") {
 	test_cases.emplace_back("src/common/..", "src", "trailing parent removal");
 	test_cases.emplace_back("./src", "src", "leading dot removal");
 	test_cases.emplace_back("src/.", "src", "trailing dot removal");
-	test_cases.emplace_back("src/common/../../CMakeLists.txt", "CMakeLists.txt", "multiple parent traversal");
-	test_cases.emplace_back("src/./common/./CMakeLists.txt", "src/common/CMakeLists.txt", "multiple dot removal");
+	test_cases.emplace_back("src/common/../../BUILD.bazel", "BUILD.bazel", "multiple parent traversal");
+	test_cases.emplace_back("src/./common/./BUILD.bazel", "src/common/BUILD.bazel", "multiple dot removal");
 	test_cases.emplace_back("./././src", "src", "repeated leading dots");
-	test_cases.emplace_back("src/common/../../../CMakeLists.txt", "../CMakeLists.txt", "parent beyond root (relative)");
+	test_cases.emplace_back("src/common/../../../BUILD.bazel", "../BUILD.bazel", "parent beyond root (relative)");
 	test_cases.emplace_back("src//common", "src/common", "double slash");
 	test_cases.emplace_back("src///common", "src/common", "triple slash");
 	test_cases.emplace_back("src/common/", "src/common", "trailing slash");
@@ -574,8 +574,8 @@ TEST_CASE("Test path canonicalization", "[file_system]") {
 	test_cases.emplace_back("", "", "empty path");
 	test_cases.emplace_back("/", "/", "root only");
 	test_cases.emplace_back("src", "src", "simple filename");
-	test_cases.emplace_back("src/./common/../CMakeLists.txt/./qux/..", "src/CMakeLists.txt", "mixed operations");
-	test_cases.emplace_back("./src/../common/./CMakeLists.txt", "common/CMakeLists.txt", "leading dot with parent");
+	test_cases.emplace_back("src/./common/../BUILD.bazel/./qux/..", "src/BUILD.bazel", "mixed operations");
+	test_cases.emplace_back("./src/../common/./BUILD.bazel", "common/BUILD.bazel", "leading dot with parent");
 	test_cases.emplace_back("a/b/c/../../d/e/../f", "a/d/f", "interleaved parents");
 
 #ifdef _WIN32
@@ -585,7 +585,7 @@ TEST_CASE("Test path canonicalization", "[file_system]") {
 	// Backslash handling
 	test_cases.emplace_back("src\\common", "src/common", "backslash separator equivalant to forward slash");
 	test_cases.emplace_back("src\\..\\common", "common", "parent with backslash");
-	test_cases.emplace_back("src/common\\CMakeLists.txt", "src\\common\\CMakeLists.txt", "mixed separators");
+	test_cases.emplace_back("src/common\\BUILD.bazel", "src\\common\\BUILD.bazel", "mixed separators");
 
 	// Drive letters
 	test_cases.emplace_back("C:\\src\\common", "C:\\src\\common", "absolute with drive");

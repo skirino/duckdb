@@ -30,7 +30,7 @@ use_repo(rust, "rust_toolchains")
 # Crubit pins as its `rust_version`, because the generator compiles against rustc
 # internals that upstream renames between releases -- so a Crubit bump is the
 # thing most likely to need a new nightly. mise.toml pins the same version as the
-# ambient default, so the Bazel and CMake builds agree on the toolchain.
+# ambient default, so the two agree on the toolchain.
 crubit_toolchain = use_repo_rule("//rust:crubit_toolchain.bzl", "crubit_toolchain_repository")
 crubit_toolchain(
     name = "crubit_toolchain",

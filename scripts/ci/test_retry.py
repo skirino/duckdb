@@ -135,10 +135,10 @@ class RetryScriptTest(unittest.TestCase):
             mock.patch.object(retry.subprocess, "CREATE_NEW_PROCESS_GROUP", 512, create=True),
             mock.patch.object(retry.subprocess, "Popen", return_value=process) as popen,
         ):
-            completed = retry.run_command(["where", "cmake"], "where cmake", 1)
+            completed = retry.run_command(["where", "bazel"], "where bazel", 1)
 
         self.assertEqual(completed.returncode, 0)
-        popen.assert_called_once_with("where cmake", shell=True, creationflags=512)
+        popen.assert_called_once_with("where bazel", shell=True, creationflags=512)
 
     def test_windows_cleanup_terminates_process_tree(self):
         process = mock.Mock(pid=123)

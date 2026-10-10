@@ -32,16 +32,14 @@ jobs:
     - name: Install dependencies
       run: |
         python3 scripts/ci/retry.py -- make toolsci
-        python3 scripts/ci/retry.py -- sudo apt install -y git g++ cmake libssl-dev default-jdk
+        python3 scripts/ci/retry.py -- sudo apt install -y git g++ libssl-dev default-jdk
 
     - uses: actions/setup-python@v6
       with:
         python-version: '3.12'
 
     - name: Build with cov-build
-      run: cov-analysis-linux64/bin/cov-build --dir cov-int make
-      env:
-        CORE_EXTENSIONS: "autocomplete;icu;tpcds;tpch;fts;httpfs;json;inet"
+      run: cov-analysis-linux64/bin/cov-build --dir cov-int -- bazel build //...
 
     - name: Upload the result
       run: |

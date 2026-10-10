@@ -121,35 +121,35 @@ def install_extensions(cli_path, extensions):
         logger.info(f"[{cli.version}] Installed {len(installed)} extensions.")
 
         if len(failed):
-            root_ext_cmake_path = Path(__file__).parent.parent.parent.parent / ".github/config/extensions"
-            if not root_ext_cmake_path.is_dir():
+            repo_root = Path(__file__).parent.parent.parent.parent
+            extensions_dir = repo_root / ".github/config/extensions"
+            if not extensions_dir.is_dir():
                 raise RuntimeError(
-                    f"Extensions CMake config directory does not exist at '{root_ext_cmake_path}' - did the repo structure change?"
+                    f"Extensions registry directory does not exist at '{extensions_dir}' - did the repo structure change?"
                 )
 
-            # test if `.github/config/extensions/{extension}.cmake` is a file
-            cmake_files_ext = []
-            core_extensions = []
+            # An extension with a descriptor is out-of-tree and has to be built
+            # from its pin; everything else is in-tree and a plain build covers it.
+            pinned_ext = []
+            in_tree_ext = []
             for ext in failed:
-                ext_filename = "test-utils" if ext == "test_utils" else ext
-                ext_cmake_path = root_ext_cmake_path / f"{ext_filename}.cmake"
-                if ext_cmake_path.is_file():
-                    cmake_files_ext.append(ext_filename)
+                if (extensions_dir / f"{ext}.json").is_file():
+                    pinned_ext.append(ext)
                 else:
-                    core_extensions.append(ext)
+                    in_tree_ext.append(ext)
 
             # Build a string that suggests how to install the failed extensions
-            install_cmd = f"make release "
-            if len(cmake_files_ext) > 0:
+            install_cmd = "make release "
+            if len(pinned_ext) > 0:
                 install_cmd += (
                     "EXTENSION_CONFIGS='"
-                    + ";".join([f".github/config/extensions/{ext}.cmake" for ext in cmake_files_ext])
+                    + ";".join([f".github/config/extensions/{ext}.json" for ext in pinned_ext])
                     + "' "
                 )
-            if len(core_extensions) > 0:
-                install_cmd += "DUCKDB_EXTENSIONS='" + ";".join(core_extensions) + "'"
+            if len(in_tree_ext) > 0:
+                install_cmd += "DUCKDB_EXTENSIONS='" + ";".join(in_tree_ext) + "'"
 
-            if len(cmake_files_ext) > 0 or len(core_extensions) > 0:
+            if len(pinned_ext) > 0 or len(in_tree_ext) > 0:
                 logger.info(
                     f"[{cli.version}] Failed to install {len(failed)} extensions. If you need to compile them:\n{install_cmd}"
                 )

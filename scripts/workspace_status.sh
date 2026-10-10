@@ -6,10 +6,9 @@
 # checkout without putting it on the command line. The STABLE_ prefix keeps the
 # keys in the stable status file, so the action that reads them is a cache hit
 # unless the commit actually moved; volatile-status.txt carries BUILD_TIMESTAMP
-# and would re-run it every build. The recipes mirror CMake's,
-# which bakes the same two values at configure time (CMakeLists.txt:443 and
-# :501): `git log -1 --format=%H` truncated to 10 and lowercased, and
-# release_version.txt's major.minor with the patch at 0 and the dev iteration at
+# and would re-run it every build. The two values are `git log -1
+# --format=%H` truncated to 10 and lowercased, and release_version.txt's
+# major.minor with the patch at 0 and the dev iteration at
 # `git rev-list --count HEAD`.
 set -euo pipefail
 repo="$(git rev-parse --show-toplevel)"

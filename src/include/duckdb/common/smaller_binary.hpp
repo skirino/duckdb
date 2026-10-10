@@ -21,7 +21,7 @@
 //   -DDUCKDB_SMALLER_BINARY_ALL              trim everything
 //   -DDUCKDB_SB_FEATURE_<name>=DUCKDB_SB_ON  trim one feature
 //   -DDUCKDB_SB_FEATURE_<name>=DUCKDB_SB_OFF keep one feature
-// See the SMALLER_BINARY / SMALLER_BINARY_EXCEPT options in CMakeLists.txt.
+// Bazel has no equivalent: state the flags with --copt on the build you want trimmed.
 
 #define DUCKDB_SB_CAT_INDIRECT(a, b) a##b
 #define DUCKDB_SB_CAT(a, b)          DUCKDB_SB_CAT_INDIRECT(a, b)
@@ -41,7 +41,7 @@
 // Feature registry
 //===----------------------------------------------------------------------===//
 // Each entry must be #ifndef-guarded so a -D on the command line wins over the default.
-// The trailing `group:` tag is parsed by CMakeLists.txt to build the group aliases.
+// The trailing `group:` tag names the feature group an entry belongs to.
 //
 // Sites belonging to one feature must be trimmed together: a definition and every call site that
 // references it share a feature name, otherwise trimming produces an unused or undefined symbol.

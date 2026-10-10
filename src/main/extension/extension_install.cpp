@@ -64,7 +64,7 @@ string ExtensionHelper::ExtensionInstallDocumentationLink(const string &extensio
 
 vector<duckdb::string> ExtensionHelper::DefaultExtensionFolders(FileSystem &fs) {
 	vector<duckdb::string> default_folders;
-// These fallbacks are necessary if the user doesn't use the CMake build.
+// These fallbacks are necessary if the user doesn't build against the engine's headers.
 #ifndef DUCKDB_EXTENSION_DIRECTORIES
 #ifdef _WIN32
 #define DUCKDB_EXTENSION_DIRECTORIES "~\\.duckdb\\extensions"

@@ -46,11 +46,10 @@ This project and everyone participating in it is governed by a [Code of Conduct]
 
 ## Building
 
-* To build the project, run `make`.
+* To build the project, run `make`, or `bazel build //...` to skip the Makefile.
 * To build the project for debugging, run `make debug`.
-* For parallel builds, you can use the [Ninja](https://ninja-build.org/) build system: `GEN=ninja make`.
-  * The default number of parallel processes can lock up the system depending on the CPU-to-memory ratio. If this happens, restrict the maximum number of build processes: `CMAKE_BUILD_PARALLEL_LEVEL=4 GEN=ninja make`.
-  * Without using Ninja, build times can still be reduced by setting `CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)`.
+* The other build types are `make relassert` (optimized with assertions live), `make reldebug` (optimized with symbols) and `make debug`. Each is its own Bazel configuration, so switching between them does not invalidate the others' caches.
+* Bazel runs as many actions in parallel as the machine can take. If that locks up the system depending on the CPU-to-memory ratio, restrict it with `--jobs=4`.
 * To speed up rebuilds, install [ccache](https://ccache.dev/). The build system will automatically detect and use it if available.
 
 ## Testing

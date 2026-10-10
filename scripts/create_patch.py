@@ -7,6 +7,9 @@ from typing import List, Dict
 from pathlib import Path
 
 SCRIPT_DIR = os.path.dirname(__file__)
+sys.path.insert(0, SCRIPT_DIR)
+
+import extension_config
 
 parser = argparse.ArgumentParser(description="Generate a patch file for a DuckDB extension.")
 
@@ -19,7 +22,7 @@ parser.add_argument(
 parser.add_argument(
     "extension_name",
     type=str,
-    help="Name of the extension to patch, should match the name in `.github/config/extensions/<extension_name>.cmake`.",
+    help="Name of the extension to patch, should match the name in `.github/config/extensions/<extension_name>.json`.",
 )
 
 parser.add_argument("patch_name", type=str, help="Name for the patch file to create.")
@@ -30,21 +33,15 @@ args = parser.parse_args()
 
 
 def verify_git_tag():
-    # Locate the cmake file to extract the GIT_TAG from
-    cmake_path = Path(SCRIPT_DIR) / '..' / ".github" / "config" / "extensions" / f"{args.extension_name}.cmake"
-    if not cmake_path.is_file():
-        print(f"Error: Extension CMake file not found: {cmake_path}")
+    # Locate the extension descriptor to read the pinned git_tag from
+    descriptor_path = Path(SCRIPT_DIR) / '..' / ".github" / "config" / "extensions" / f"{args.extension_name}.json"
+    try:
+        pin = extension_config.load_pin(descriptor_path.parent.parent, args.extension_name)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Error: {exc}")
         sys.exit(1)
 
-    cmake_content = cmake_path.read_text()
-
-    # Extract GIT_TAG from the cmake file
-    match = re.search(r"\bGIT_TAG\s+([^\s\)]+)", cmake_content)
-    if not match:
-        print(f"Error: Could not find GIT_TAG in {cmake_path}")
-        sys.exit(1)
-
-    git_tag_in_cmake = match.group(1)
+    git_tag_in_config = pin.git_tag
 
     # Get the current commit hash in repository_path
     try:
@@ -62,9 +59,9 @@ def verify_git_tag():
         sys.exit(1)
 
     # Compare the tags
-    if git_tag_in_cmake != current_commit:
+    if git_tag_in_config != current_commit:
         print(
-            f"Error: GIT_TAG in {cmake_path} is {git_tag_in_cmake}, "
+            f"Error: git_tag in {descriptor_path} is {git_tag_in_config}, "
             f"but repository {args.repository_path} is checked out at {current_commit}."
         )
         sys.exit(1)

@@ -778,7 +778,7 @@ void ExtensionHelper::LoadExternalExtension(DatabaseInstance &db, FileSystem &fs
                                             optional_ptr<ClientContext> context) {
 	// Loading a second copy of an extension that is already linked into this binary is an ODR
 	// violation. The default extension table cannot detect that for out-of-tree extensions, which
-	// are never marked statically_loaded, so ask the CMake-generated loader instead.
+	// are never marked statically_loaded, so ask the generated loader instead.
 	// Statically linked extensions are inherently core-trusted, so only take this shortcut for a bare
 	// load or an explicit core namespace - never let community/x or myrepo/x resolve to a linked core extension.
 	bool allow_static_shortcut = options.repository.empty() || StringUtil::Lower(options.repository) == "core";

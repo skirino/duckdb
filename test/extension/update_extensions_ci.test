@@ -2,7 +2,8 @@
 # description: Tests for the update extensions statement
 # group: [extension]
 
-# NOTE: this test requires specific setup and should probably only by ran through `scripts/run_extension_medata_tests.sh`
+# NOTE: this test requires specific setup: a local extension repository built by an
+# out-of-tree extension pipeline, which the Bazel build does not have yet.
 
 load {TEST_DIR}/update_extensions_ci.db
 

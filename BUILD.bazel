@@ -1,12 +1,12 @@
-"""Bazel build for DuckDB, generated from the CMake action model.
+"""Bazel build for DuckDB.
 
-The CMake build fans the sources out over ~190 object libraries, but those
-compile under only 23 distinct (defines, includes, flags) profiles, so each
-profile becomes one cc_library here. Compile parity is checked against the
-per-source flags, not the grouping, so this is grouping-agnostic by design.
+The sources divide into a handful of distinct (defines, includes, flags)
+profiles, so each profile is one cc_library here rather than one per directory.
+The shared parts of a profile live in duckdb_build_config.bzl, and a target
+states only where it differs.
 
-Toolchain-level flags (-std, -Wthread-safety, -mcpu, -DNDEBUG) live in
-.bazelrc under --config=macos, mirroring the CMake Release configure.
+Toolchain-level flags (-std, -Wthread-safety, -mcpu) live in .bazelrc, and the
+four build types (release, relassert, reldebug, debug) are configs there.
 """
 
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
@@ -26,8 +26,13 @@ load(":duckdb_test.bzl", "FIXTURE_TREES", "TEST_DATA_GLOBS",
 extension_codegen_files(
     name = "generated_extension_codegen",
     extensions = [
+        "autocomplete",
         "core_functions",
+        "icu",
+        "json",
         "parquet",
+        "tpcds",
+        "tpch",
     ],
     header_out = "generated_extension_headers.hpp",
     loader_out = "generated_extension_loader.cpp",
@@ -48,7 +53,20 @@ filegroup(
 cc_library(
     name = "generated_extension_headers",
     hdrs = [":generated_extension_headers_files"],
-    includes = ["codegen"],
+    # One <name>_extension.hpp per statically linked extension, so the include
+    # roots of those extensions are what the generated header needs to be
+    # found through. Listed here rather than in DUCKDB_INCLUDES so that adding
+    # an extension does not restate them for every translation unit.
+    includes = [
+        "codegen",
+        "extension/autocomplete/include",
+        "extension/core_functions/include",
+        "extension/icu/include",
+        "extension/json/include",
+        "extension/parquet/include",
+        "extension/tpcds/include",
+        "extension/tpch/include",
+    ],
     deps = [":duckdb_headers"],
 )
 
@@ -68,6 +86,7 @@ cc_library(
         [
             "src/include/**/*.h",
             "src/include/**/*.hpp",
+            "extension/**/*.h",
             "extension/**/*.hpp",
             "third_party/**/*.h",
             "third_party/**/*.hpp",
@@ -88,13 +107,13 @@ cc_library(
 duckdb_library(
     name = "duckdb_catalog",
     srcs = glob(["src/catalog/*.cpp"]),
-    local_defines = sorted(DUCKDB_DEFINES + ["DISABLE_CORE_FUNCTIONS_EXTENSION=1"]),
+    local_defines = DUCKDB_DEFINES + ["DISABLE_CORE_FUNCTIONS_EXTENSION=1"],
 )
 
 duckdb_library(
     name = "duckdb_main_extension",
     srcs = glob(["src/main/extension/*.cpp"]),
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_EXTENSION_DIRECTORIES=\\\"~/.duckdb/extensions\\\""]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_EXTENSION_DIRECTORIES=\\\"~/.duckdb/extensions\\\""],
 )
 
 duckdb_library(
@@ -108,7 +127,7 @@ duckdb_library(
         "src/function/table/version/pragma_version.cpp",
         ":generated_version_info",
     ],
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_VERSION_INFO_HEADER=1"]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_VERSION_INFO_HEADER=1"],
 )
 
 duckdb_library(
@@ -130,6 +149,7 @@ duckdb_library(
         ],
         exclude = [
             "src/common/allocator/allocator_jemalloc.cpp",
+            "src/common/allocator/allocator_standard.cpp",
             "src/function/table/version/pragma_version.cpp",
             "src/main/extension/extension_alias.cpp",
             "src/main/extension/extension_helper.cpp",
@@ -143,11 +163,17 @@ duckdb_library(
             "src/main/http/http_transport_manager.cpp",
             "src/main/http/http_util.cpp",
         ],
-    ),
+    ) + select({
+        # The two allocator backends define the same set of Allocator methods, so
+        # exactly one of them belongs in this library. The jemalloc one lives in
+        # its own target, which the //:jemalloc setting pulls in instead.
+        ":jemalloc_enabled": [],
+        "//conditions:default": ["src/common/allocator/allocator_standard.cpp"],
+    }),
 )
 
-# src/logging is a library of its own in CMake (src/logging/CMakeLists.txt) because
-# it is the one that calls into the ahirudb crate: log_rust_bridge.cpp includes
+# src/logging is a library of its own because it is the one that calls into the
+# ahirudb crate: log_rust_bridge.cpp includes
 # crubit/ahirudb.h and calls the Rust logging implementation through it. Crubit's
 # generated headers need C++20 and two warnings off, which nothing else in src/
 # wants, so both belong to this target alone.
@@ -157,8 +183,7 @@ duckdb_library(
     # Private to this library, and deliberately not under src/include: it pulls in
     # crubit/ahirudb.h, which nothing outside src/logging should see. Bazel only
     # puts declared files in the sandbox and does not search a source file's own
-    # directory the way CMake's quoted include does, so src/logging is an include
-    # root here.
+    # directory, so src/logging is an include root here.
     hdrs = ["src/logging/log_rust_bridge.hpp"],
     includes = sorted(DUCKDB_INCLUDES + ["src/logging"]),
     copts = crubit_copts(),
@@ -195,6 +220,115 @@ duckdb_library(
         "third_party/snappy",
         "third_party/thrift",
     ]),
+)
+
+duckdb_library(
+    name = "autocomplete_extension",
+    srcs = glob(["extension/autocomplete/*.cpp"]),
+    includes = sorted(DUCKDB_INCLUDES + ["extension/autocomplete/include"]),
+)
+
+duckdb_library(
+    name = "icu_extension",
+    srcs = glob(["extension/icu/**/*.cpp"]),
+    includes = sorted(DUCKDB_INCLUDES + [
+        "extension/icu/collation/include",
+        "extension/icu/datetime/include",
+        "extension/icu/include",
+    ]),
+)
+
+duckdb_library(
+    name = "json_extension",
+    srcs = glob(["extension/json/**/*.cpp"]),
+    includes = sorted(DUCKDB_INCLUDES + ["extension/json/include"]),
+)
+
+duckdb_library(
+    name = "tpch_dbgen",
+    srcs = glob(["extension/tpch/dbgen/*.cpp"]),
+    includes = sorted(DUCKDB_INCLUDES + ["extension/tpch/dbgen/include"]),
+    copts = ["-fPIC", "-w"],
+)
+
+duckdb_library(
+    name = "tpch_extension",
+    srcs = [
+        "extension/tpch/tpch_extension.cpp",
+        ":tpch_dbgen",
+    ],
+    includes = sorted(DUCKDB_INCLUDES + [
+        "extension/tpch/dbgen/include",
+        "extension/tpch/include",
+    ]),
+)
+
+duckdb_library(
+    name = "tpcds_dsdgen",
+    srcs = glob(["extension/tpcds/dsdgen/*.cpp"]) + glob(["extension/tpcds/dsdgen/dsdgen-c/*.cpp"]),
+    includes = sorted(DUCKDB_INCLUDES + [
+        "extension/tpcds/dsdgen/include",
+        "extension/tpcds/dsdgen/include/dsdgen-c",
+    ]),
+    copts = ["-fPIC", "-w"],
+)
+
+duckdb_library(
+    name = "tpcds_extension",
+    srcs = [
+        "extension/tpcds/tpcds_extension.cpp",
+        ":tpcds_dsdgen",
+    ],
+    includes = sorted(DUCKDB_INCLUDES + [
+        "extension/tpcds/dsdgen/include",
+        "extension/tpcds/include",
+    ]),
+)
+
+# The demo of a C ABI extension: a loadable .duckdb_extension, built against the
+# stable v1 C API, and carrying no C++ extension machinery at all. The core
+# registry asks for it DONT_LINK, so it is not part of the shell -- what it is is
+# a file the engine can LOAD.
+#
+# The C API version is one value in two places: the defines the extension compiles
+# against, and the field the loader range-checks the finished file against. So it
+# is spelled once, here, and split for the defines.
+DEMO_CAPI_API_VERSION = "v1.5.6"
+DEMO_CAPI_API_VERSION_PARTS = DEMO_CAPI_API_VERSION[1:].split(".")
+
+duckdb_library(
+    name = "demo_capi_extension_srcs",
+    srcs = glob(["extension/demo_capi/*.cpp"]),
+    local_defines = DUCKDB_DEFINES + [
+        "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
+        "DUCKDB_BUILD_LOADABLE_EXTENSION",
+        "DUCKDB_EXTENSION_API_VERSION_MAJOR=" + DEMO_CAPI_API_VERSION_PARTS[0],
+        "DUCKDB_EXTENSION_API_VERSION_MINOR=" + DEMO_CAPI_API_VERSION_PARTS[1],
+        "DUCKDB_EXTENSION_API_VERSION_PATCH=" + DEMO_CAPI_API_VERSION_PARTS[2],
+        "DUCKDB_EXTENSION_NAME=demo_capi",
+    ],
+    includes = sorted(DUCKDB_INCLUDES + ["extension/demo_capi/include"]),
+    linkopts = ["-Wl,-exported_symbol,_demo_capi_init_c_api", "-Wl,-dead_strip"],
+)
+
+cc_shared_library(
+    name = "demo_capi_extension",
+    deps = [
+        ":demo_capi_extension_srcs",
+        ":duckdb_static",
+        ":dummy_static_extension_loader",
+    ],
+)
+
+genrule(
+    name = "demo_capi_extension_file",
+    srcs = [":demo_capi_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
+    outs = ["test/extension/demo_capi.duckdb_extension"],
+    # C_STRUCT rather than C_STRUCT_UNSTABLE: everything the unstable v1 helpers
+    # offered was stabilized into v1.5.6, so this is the stable entrypoint. That
+    # is also why the footer carries --capi-version: a C_STRUCT version field is
+    # the C API version, not the DuckDB one.
+    cmd = "cp $(location :demo_capi_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"C_STRUCT\" --capi-version " + DEMO_CAPI_API_VERSION,
 )
 
 duckdb_library(
@@ -240,7 +374,7 @@ duckdb_library(
 duckdb_library(
     name = "third_party_re2",
     srcs = glob(["third_party/re2/re2/*.cc", "third_party/re2/util/*.cc"]),
-    local_defines = sorted(DUCKDB_DEFINES + ["RE2_ON_VALGRIND"]),
+    local_defines = DUCKDB_DEFINES + ["RE2_ON_VALGRIND"],
     copts = ["-fPIC", "-fvisibility=hidden", "-w"],
 )
 
@@ -294,7 +428,7 @@ duckdb_library(
 duckdb_library(
     name = "test_helpers",
     srcs = glob(["test/helpers/*.cpp"]),
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_ROOT_DIRECTORY=\\\".\\\""]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_ROOT_DIRECTORY=\\\".\\\""],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -306,7 +440,7 @@ duckdb_library(
 duckdb_library(
     name = "test_sqlite_libs",
     srcs = glob(["test/sqlite/*.cpp"]),
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_ROOT_DIRECTORY=\\\".\\\""]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_ROOT_DIRECTORY=\\\".\\\""],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -318,7 +452,7 @@ duckdb_library(
 duckdb_library(
     name = "test_debug_fs_libs",
     srcs = glob(["test/extension/debug_fs/*.cpp"]),
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\""]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\""],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -330,7 +464,7 @@ duckdb_library(
 duckdb_library(
     name = "test_remote_optimizer",
     srcs = ["test/extension/test_remote_optimizer.cpp"],
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\""]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\""],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -342,7 +476,7 @@ duckdb_library(
 duckdb_library(
     name = "test_static_extension_demo",
     srcs = glob(["test/api/capi/v2/static_extension/*.cpp"]),
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_EXTENSION_NAME=cpp_api_static_demo"]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_EXTENSION_NAME=cpp_api_static_demo"],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
         "test/include",
@@ -356,6 +490,7 @@ duckdb_library(
 
 cc_library(
     name = "duckdb_static",
+    visibility = ["//visibility:public"],
     deps = [
         ":duckdb_catalog",
         ":duckdb_main_extension",
@@ -367,6 +502,11 @@ cc_library(
         ":core_functions",
         ":parquet_extension_init",
         ":parquet_extension",
+        ":autocomplete_extension",
+        ":icu_extension",
+        ":json_extension",
+        ":tpch_extension",
+        ":tpcds_extension",
         ":third_party_fsst",
         ":third_party_mbedtls",
         ":third_party_re2",
@@ -387,14 +527,7 @@ cc_shared_library(
 cc_binary(
     name = "shell",
     srcs = glob(["tools/shell/*.cpp"]),
-    local_defines = [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
+    local_defines = DUCKDB_DEFINES + [
         "HAVE_LINENOISE=1",
         "USE_DUCKDB_SHELL_WRAPPER",
     ],
@@ -417,6 +550,11 @@ cc_binary(
         ":core_functions_extension_init",
         ":parquet_extension",
         ":parquet_extension_init",
+        ":autocomplete_extension",
+        ":icu_extension",
+        ":json_extension",
+        ":tpch_extension",
+        ":tpcds_extension",
         ":third_party_core",
         ":third_party_fsst",
         ":third_party_mbedtls",
@@ -434,15 +572,7 @@ cc_binary(
         ["tools/utils/**/*.cpp"],
         exclude = ["tools/utils/plan_serializer.cpp"],
     ),
-    local_defines = [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ],
+    local_defines = DUCKDB_DEFINES,
     copts = ["-fPIE"],
     includes = DUCKDB_INCLUDES,
     linkopts = [
@@ -458,15 +588,7 @@ cc_binary(
         ["tools/utils/**/*.cpp"],
         exclude = ["tools/utils/test_platform.cpp"],
     ),
-    local_defines = [
-        "DUCKDB_BUILD_LIBRARY",
-        "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1",
-        "DUCKDB_EXTENSION_PARQUET_LINKED=1",
-        "DUCKDB_MAJOR_VERSION=2",
-        "DUCKDB_MINOR_VERSION=0",
-        "DUCKDB_PATCH_VERSION=0",
-        "GENERATED_EXTENSION_HEADERS=1",
-    ],
+    local_defines = DUCKDB_DEFINES,
     copts = ["-fPIE"],
     linkopts = [
         "-Wl,-search_paths_first",
@@ -477,11 +599,11 @@ cc_binary(
 
 # The test harness every target links: Catch2's main, the helpers and the
 # sqllogictest engine. The engine statically loads DebugFsExtension, so the
-# extension libraries are here too, exactly as CMake's `unittest` does.
+# extension libraries are here too.
 duckdb_library(
     name = "unittest_harness",
     srcs = glob(["test/*.cpp"]),
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_ROOT_DIRECTORY=\\\".\\\"", "DUCKDB_UNITTEST_CRASH_STACKTRACE"]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_ROOT_DIRECTORY=\\\".\\\"", "DUCKDB_UNITTEST_CRASH_STACKTRACE"],
     copts = ["-fPIC", "-fPIE"],
     includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
     deps = [
@@ -496,14 +618,224 @@ duckdb_library(
     ],
 )
 
-# CMake builds each of these as its own .duckdb_extension shared library
-# (add_library(... SHARED ...) with SUFFIX .duckdb_extension) and the tests
-# LOAD them by that exact path under {BUILD_DIRECTORY}/test/extension/.
-# cc_shared_library keeps them library-kind on the Bazel side too, so parity
-# still folds them into the library union; the genrule then places the artifact
-# in the runfiles where the test looks for it.
-# The loader reads the metadata footer off the end of the file, so the
-# artifact needs one; CMake appends it with a POST_BUILD step.
+# --- benchmark runner --------------------------------------------------------
+
+# The benchmark runner reads its fixtures out of the tree, so the benchmark
+# directories are data rather than build inputs: they hold .test and .csv files
+# the runner globs at run time.
+BENCHMARK_DATA_GLOBS = [
+    "benchmark/**",
+    "data/**",
+    "third_party/**",
+]
+
+filegroup(
+    name = "benchmark_data",
+    srcs = glob(BENCHMARK_DATA_GLOBS),
+)
+
+cc_library(
+    name = "benchmark_headers",
+    hdrs = glob(["benchmark/include/*.hpp"]),
+    includes = ["benchmark/include"],
+    deps = [":duckdb_headers"],
+)
+
+duckdb_library(
+    name = "third_party_imdb",
+    srcs = ["third_party/imdb/imdb.cpp"],
+    copts = ["-fPIC", "-w"],
+    # imdb.cpp spells its first include as "include/imdb.hpp" and its second as
+    # the bare header name, so both roots are needed.
+    includes = sorted(DUCKDB_INCLUDES + [
+        "third_party/imdb",
+        "third_party/imdb/include",
+    ]),
+)
+
+duckdb_library(
+    name = "benchmark_micro",
+    srcs = glob(["benchmark/micro/*.cpp"]),
+    includes = sorted(DUCKDB_INCLUDES + [
+        "benchmark/include",
+        "third_party/catch",
+        "third_party/sqlite/include",
+    ]),
+    deps = DUCKDB_LIB_DEPS + [
+        ":benchmark_headers",
+        ":test_helpers",
+    ],
+)
+
+duckdb_library(
+    name = "benchmark_tpch",
+    srcs = glob(["benchmark/tpch/*.cpp"]),
+    includes = sorted(DUCKDB_INCLUDES + [
+        "benchmark/include",
+        "extension/tpch/include",
+        "third_party/catch",
+    ]),
+    deps = DUCKDB_LIB_DEPS + [
+        ":benchmark_headers",
+        ":test_helpers",
+        ":tpch_extension",
+    ],
+)
+
+cc_binary(
+    name = "benchmark_runner",
+    srcs = [
+        "benchmark/benchmark_runner.cpp",
+        "benchmark/interpreted_benchmark.cpp",
+    ],
+    local_defines = DUCKDB_DEFINES + [
+        "DUCKDB_ROOT_DIRECTORY=\\\".\\\"",
+        "DUCKDB_UNITTEST_CRASH_STACKTRACE",
+    ],
+    copts = ["-fPIC"],
+    includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES + ["benchmark/include"]),
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    data = [":benchmark_data"],
+    deps = [
+        ":benchmark_headers",
+        ":benchmark_micro",
+        ":benchmark_tpch",
+        ":duckdb_headers",
+        ":duckdb_static",
+        ":generated_extension_loader",
+        ":test_debug_fs_libs",
+        ":test_helpers",
+        ":third_party_imdb",
+    ],
+)
+
+# --- jemalloc ----------------------------------------------------------------
+
+# An alternative allocator. jemalloc reaches malloc through its own exported
+# symbols rather than by overriding new/delete, so linking it is a link-time
+# choice -- which is what the build setting below selects. Nothing in src/ has
+# to know about it except the allocator's own backend, which is gated on
+# DUCKDB_ENABLE_JEMALLOC.
+#
+# Every target here is `manual`, so `bazel build //...` does not pay for the ~200
+# jemalloc translation units and the second shell link on a build that does not
+# use them. `bazel build --//:use_jemalloc=true //:jemalloc_shell` is what asks
+# for it; a manual target is still built when something else needs it.
+bool_flag(
+    name = "use_jemalloc",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "jemalloc_enabled",
+    flag_values = {"//:use_jemalloc": "true"},
+)
+
+cc_library(
+    name = "jemalloc_lib",
+    srcs = glob(["third_party/jemalloc/src/*.c"]),
+    # jemalloc's own private headers live beside its sources in include/ and are
+    # included by bare name, so they have to be declared or the sandboxed
+    # compile cannot see them. jemalloc_preamble.h reaches back out of
+    # internal/ with a relative "../", which is why the public headers are here
+    # too and why the include root is the directory holding internal/.
+    hdrs = glob(
+        [
+            "third_party/jemalloc/include/duckdb/*.h",
+            "third_party/jemalloc/include/jemalloc/*.h",
+            "third_party/jemalloc/include/jemalloc/internal/*.h",
+        ],
+    ),
+    # alwayslink is Bazel's --whole-archive: jemalloc's malloc replacement is
+    # only reachable if its object files survive the link, and a linker would
+    # otherwise drop them as unreferenced.
+    alwayslink = 1,
+    copts = ["-w"],
+    # jemalloc_preamble.h reaches back out of internal/ with a relative "../",
+    # so the include root has to be the directory holding internal/, not
+    # internal/ itself.
+    includes = [
+        "third_party/jemalloc/include",
+        "third_party/jemalloc/include/jemalloc",
+    ],
+    tags = ["manual"],
+)
+
+duckdb_library(
+    name = "duckdb_jemalloc_allocator",
+    srcs = ["src/common/allocator/allocator_jemalloc.cpp"],
+    local_defines = DUCKDB_DEFINES + [
+        "DUCKDB_ENABLE_JEMALLOC",
+        "DUCKDB_JEMALLOC_DECAY=1000",
+    ],
+    includes = sorted(DUCKDB_INCLUDES + ["third_party/jemalloc/include"]),
+    deps = DUCKDB_LIB_DEPS + [":jemalloc_lib"],
+    tags = ["manual"],
+)
+
+cc_library(
+    name = "jemalloc",
+    deps = select({
+        ":jemalloc_enabled": [":duckdb_jemalloc_allocator"],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+)
+
+cc_binary(
+    name = "jemalloc_shell",
+    srcs = glob(["tools/shell/*.cpp"]),
+    local_defines = DUCKDB_DEFINES + [
+        "HAVE_LINENOISE=1",
+        "USE_DUCKDB_SHELL_WRAPPER",
+    ],
+    copts = ["-fPIE"],
+    includes = sorted(DUCKDB_INCLUDES + [
+        "third_party/jemalloc/include",
+        "tools/shell/include",
+        "tools/shell/linenoise/include",
+    ]),
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    tags = ["manual"],
+    deps = [
+        ":duckdb_core",
+        ":duckdb_catalog",
+        ":duckdb_main_extension",
+        ":duckdb_common_http",
+        ":duckdb_func_table_version",
+        ":core_functions",
+        ":core_functions_extension_init",
+        ":parquet_extension",
+        ":parquet_extension_init",
+        ":autocomplete_extension",
+        ":icu_extension",
+        ":json_extension",
+        ":tpch_extension",
+        ":tpcds_extension",
+        ":third_party_core",
+        ":third_party_fsst",
+        ":third_party_mbedtls",
+        ":third_party_re2",
+        ":extension_loader",
+        ":generated_extension_loader",
+        ":duckdb_linenoise",
+        ":jemalloc",
+        ":duckdb_static",
+    ],
+)
+
+# Each of these is its own .duckdb_extension shared library, and the tests LOAD
+# them by that exact path under test/extension/. cc_shared_library keeps them
+# library-kind, and the genrule then places the artifact in the runfiles where
+# the test looks for it.
+# The loader reads the metadata footer off the end of the file, so the artifact
+# needs one; scripts/append_extension_metadata.py appends it.
 genrule(
     name = "duckdb_platform_out",
     srcs = [":duckdb_platform_binary"],
@@ -514,13 +846,13 @@ genrule(
 duckdb_library(
     name = "cpp_api_demo_loadable_extension_srcs",
     srcs = ["test/extension/cpp_api_demo.cpp"],
-    local_defines = sorted(DUCKDB_DEFINES + [
+    local_defines = DUCKDB_DEFINES + [
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
         "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=bc5e2bb7ee",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo",
-    ]),
+    ],
     includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
     linkopts = ["-Wl,-exported_symbol,_cpp_api_demo_init_c_api_v2", "-Wl,-dead_strip"],
 )
@@ -545,13 +877,13 @@ genrule(
 duckdb_library(
     name = "cpp_api_demo_fail_loadable_extension_srcs",
     srcs = ["test/extension/cpp_api_demo_fail.cpp"],
-    local_defines = sorted(DUCKDB_DEFINES + [
+    local_defines = DUCKDB_DEFINES + [
         "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
         "DUCKDB_BUILD_LOADABLE_EXTENSION",
         "DUCKDB_CPP_API_LOADABLE",
         "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=bc5e2bb7ee",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo_fail",
-    ]),
+    ],
     includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
     linkopts = ["-Wl,-exported_symbol,_cpp_api_demo_fail_init_c_api_v2", "-Wl,-dead_strip"],
 )
@@ -576,7 +908,7 @@ genrule(
 duckdb_library(
     name = "explicit_extension_schema_loadable_extension_srcs",
     srcs = ["test/extension/explicit_extension_schema.cpp"],
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
     copts = ["-fPIC", "-fvisibility=hidden"],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
@@ -606,7 +938,7 @@ genrule(
 duckdb_library(
     name = "explicit_extension_schema_alias_loadable_extension_srcs",
     srcs = ["test/extension/explicit_extension_schema_alias.cpp"],
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
     copts = ["-fPIC", "-fvisibility=hidden"],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
@@ -636,7 +968,7 @@ genrule(
 duckdb_library(
     name = "loadable_extension_demo_loadable_extension_srcs",
     srcs = ["test/extension/loadable_extension_demo.cpp"],
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
     copts = ["-fPIC", "-fvisibility=hidden"],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
@@ -666,7 +998,7 @@ genrule(
 duckdb_library(
     name = "loadable_extension_demo_double_loadable_extension_srcs",
     srcs = ["test/extension/loadable_extension_demo_alt.cpp"],
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
     copts = ["-fPIC", "-fvisibility=hidden"],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
@@ -696,7 +1028,7 @@ genrule(
 duckdb_library(
     name = "loadable_extension_optimizer_demo_loadable_extension_srcs",
     srcs = ["test/extension/loadable_extension_optimizer_demo.cpp"],
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
     copts = ["-fPIC", "-fvisibility=hidden"],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
@@ -726,7 +1058,7 @@ genrule(
 duckdb_library(
     name = "loadable_grammar_extension_demo_loadable_extension_srcs",
     srcs = ["test/extension/loadable_grammar_extension_demo.cpp"],
-    local_defines = sorted(DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"]),
+    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
     copts = ["-fPIC", "-fvisibility=hidden"],
     includes = sorted(DUCKDB_INCLUDES + [
         "test/extension/debug_fs/include",
@@ -755,27 +1087,12 @@ genrule(
 
 filegroup(
     name = "test_data",
-    srcs = glob(
-        [
-            "test/**",
-            "benchmark/aoc24/**",
-            "benchmark/recursive_cte/**",
-            "data/**",
-            "third_party/**",
-        ],
-    ),
+    srcs = glob(TEST_DATA_GLOBS),
 )
 
 filegroup(
     name = "test_data_without_fixtures",
-    srcs = glob(
-        [
-            "test/**",
-            "benchmark/aoc24/**",
-            "benchmark/recursive_cte/**",
-            "third_party/**",
-        ],
-    ),
+    srcs = glob(TEST_DATA_GLOBS_WITHOUT_FIXTURES),
 )
 
 filegroup(
@@ -783,6 +1100,7 @@ filegroup(
     srcs = [
         ":cpp_api_demo_loadable_extension_file",
         ":cpp_api_demo_fail_loadable_extension_file",
+        ":demo_capi_extension_file",
         ":explicit_extension_schema_loadable_extension_file",
         ":explicit_extension_schema_alias_loadable_extension_file",
         ":loadable_extension_demo_loadable_extension_file",
@@ -2097,18 +2415,13 @@ sql_logic_test_list(
     kind = "slow",
 )
 
+# A real copy of data/, for the targets that need one: DuckDB's `**` crawl skips
+# symlinks, and `allowed_directories` compares the configured paths against the
+# resolved ones, so a runfiles symlink tree fails both ways.
 fixture_tree(
-    name = "sql_copy_fixture_tree",
+    name = "data_fixture_tree",
     trees = ["data"],
-    srcs = glob(
-        [
-            "test/**",
-            "benchmark/aoc24/**",
-            "benchmark/recursive_cte/**",
-            "data/**",
-            "third_party/**",
-        ],
-    ),
+    srcs = glob(TEST_DATA_GLOBS),
 )
 
 subdirectory_test(
@@ -2116,7 +2429,7 @@ subdirectory_test(
     args = ["-f", "sql_copy_fast_testlist.txt"],
     size = "large",
     testlist = ":sql_copy_fast_testlist",
-    fixture_tree = "sql_copy_fixture_tree",
+    fixture_tree = "data_fixture_tree",
 )
 
 subdirectory_test(
@@ -2124,7 +2437,7 @@ subdirectory_test(
     args = ["-f", "sql_copy_slow_testlist.txt"],
     size = "large",
     testlist = ":sql_copy_slow_testlist",
-    fixture_tree = "sql_copy_fixture_tree",
+    fixture_tree = "data_fixture_tree",
 )
 
 sql_logic_test_list(
@@ -3134,6 +3447,9 @@ subdirectory_test(
     name = "sql_settings_test",
     args = ["-f", "sql_settings_fast_testlist.txt"],
     testlist = ":sql_settings_fast_testlist",
+    # allowed_directories matches the configured paths against the resolved ones,
+    # so data/ has to be a real directory here rather than a runfiles symlink.
+    fixture_tree = "data_fixture_tree",
 )
 
 subdirectory_test(
@@ -3681,15 +3997,7 @@ cc_test(
         ":unittest_harness",
         ":test_remote_optimizer",
     ],
-    data = glob(
-        [
-            "test/**",
-            "benchmark/aoc24/**",
-            "benchmark/recursive_cte/**",
-            "data/**",
-            "third_party/**",
-        ],
-    ) + [
+    data = glob(TEST_DATA_GLOBS) + [
         ":cpp_api_demo_loadable_extension_file",
         ":cpp_api_demo_fail_loadable_extension_file",
         ":explicit_extension_schema_loadable_extension_file",
@@ -3699,6 +4007,80 @@ cc_test(
         ":loadable_extension_optimizer_demo_loadable_extension_file",
         ":loadable_grammar_extension_demo_loadable_extension_file",
     ],
+)
+
+# Every C++ test case in one binary, which is what `build/<type>/test/run` runs.
+# The per-directory targets above are the ones `bazel test //...` drives: they
+# finish in parallel and let a failure name its directory. This one exists for
+# the callers that run the suite as a single process -- the artifact a CI job
+# downloads, and the storage-version regression against released binaries.
+cc_binary(
+    name = "unittest",
+    copts = ["-fPIE"],
+    includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = [":unittest_harness"] + [
+        ":test_cpp_api",
+        ":test_cpp_api_adbc",
+        ":test_cpp_appender",
+        ":test_cpp_arrow",
+        ":test_cpp_catalog",
+        ":test_cpp_common",
+        ":test_cpp_cpp_api",
+        ":test_cpp_encryption",
+        ":test_cpp_logging",
+        ":test_cpp_mbedtls",
+        ":test_cpp_memoryleak",
+        ":test_cpp_optimizer",
+        ":test_cpp_ossfuzz",
+        ":test_cpp_persistence",
+        ":test_cpp_secrets",
+        ":test_cpp_serialize",
+        ":test_cpp_sql_filter",
+        ":test_cpp_sql_function_table",
+        ":test_cpp_sql_index",
+        ":test_cpp_sql_parallelism_interquery",
+        ":test_cpp_sql_pivot",
+        ":test_cpp_sql_storage",
+        ":test_cpp_sql_storage_catalog",
+        ":test_remote_optimizer",
+    ],
+)
+
+# `make smoke`: a fixed subset of the suite that finishes in a couple of minutes,
+# so a change gets an answer without waiting for all of `bazel test //...`.
+genrule(
+    name = "smoke_testlist",
+    srcs = ["test/smoke_tests.list"],
+    outs = ["smoke_testlist.txt"],
+    cmd = "cp $(SRCS) $@",
+)
+
+# The corpus is spread over every test directory, so the list is one file rather
+# than one per directory. `size` is what bounds the run: under Bazel there is no
+# wrapper to give a per-batch timeout.
+subdirectory_test(
+    name = "smoke_test",
+    args = ["-f", "smoke_testlist.txt"],
+    size = "medium",
+    testlist = ":smoke_testlist",
+)
+
+# An optimized build whose D_ASSERT stays live, which is `make relassert` and the
+# configuration several CI jobs test. The define is read by every translation unit
+# (src/include/duckdb/common/assert.hpp), so it is a select on the shared define
+# list rather than a copts on the handful of targets that assert.
+bool_flag(
+    name = "force_assert",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "force_assert_enabled",
+    flag_values = {"//:force_assert": "true"},
 )
 
 # The engine's own commit and version, which reach it through a header rather than

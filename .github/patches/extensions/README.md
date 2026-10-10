@@ -1,23 +1,24 @@
 # Extension patches
 Patches in this directory are used to smoothen the process of introducing changes to DuckDB that break compatibility with an
-out-of-tree extension. Extensions installed from git urls can automatically apply patches found in this directory. The APPLY_PATCHES flag 
-should be used to explicitly enable this feature. For example,
-lets say our extension config looks like this:
+out-of-tree extension. Extensions installed from git urls can automatically apply patches found in this directory. The
+`apply_patches` flag should be used to explicitly enable this feature. For example,
+lets say our extension descriptor looks like this:
 
-```shell
-duckdb_extension_load(spatial
-    DONT_LINK
-    GIT_URL https://github.com/duckdb/duckdb_spatial
-    GIT_TAG f577b9441793f9170403e489f5d3587e023a945f
-    APPLY_PATCHES
-)
+```json
+{
+  "name": "spatial",
+  "git_url": "https://github.com/duckdb/duckdb_spatial",
+  "git_tag": "f577b9441793f9170403e489f5d3587e023a945f",
+  "submodules": [],
+  "apply_patches": true
+}
 ```
-In this example, upon downloading the spatial extension, all patches in the `.github/patches/extensions/spatial/*.patch`
+In this example, upon cloning the spatial extension, all patches in the `.github/patches/extensions/spatial/*.patch`
 will be automatically applied.
 
-Note that the reason for having the APPLY_PATCHES flag explicitly enabled is to make it easier for developers reading
-the extension config to detect a patch is present. For this reason, the patching mechanism will actually fail if `APPLY_PATCHES`
-is set with no patches in `.github/patches/extensions/<ext>/*.patch`.
+Note that the reason for having the `apply_patches` flag explicitly enabled is to make it easier for developers reading
+the extension config to detect a patch is present. For this reason, the patching mechanism will actually fail if
+`apply_patches` is `true` with no patches in `.github/patches/extensions/<ext>/*.patch`.
 
 # Workflow
 Imagine a change to DuckDB is introduced that breaks compatibility with extension X. The
@@ -26,9 +27,9 @@ workflow for this is as follows:
 ### PR #1: breaking change to DuckDB
 1. Commit breaking change to DuckDB
 2. Git clone extension.
-3. In DuckDB repo, go to .github/config/extensions/your_extension.cmake
-4. If APPLY_PATCHES is not set in duckdb_extension_load, set it.
-5. In cloned extension, checkout the GIT_TAG from the your_extension.cmake file.
+3. In DuckDB repo, go to .github/config/extensions/your_extension.json
+4. If `"apply_patches"` is `false` in `your_extension.json`, set it to `true`.
+5. In cloned extension, check out the `git_tag` from the `your_extension.json` file.
 6. In cloned extension, apply existing patches found in .github/patches/extensions
     ```bash 
     git apply [path to duckdb]/.github/patches/extensions/[your_extension]/fix.patch
@@ -54,5 +55,5 @@ workflow for this is as follows:
 
 ### PR #3: update extension X in DuckDB
 - Remove patches in `.github/patches/extensions/x/*.patch`
-- Remove `APPLY_PATCHES` flag from config
-- Update hash of extension in config
+- Set `"apply_patches": false` in the descriptor
+- Update `git_tag` of the extension in the descriptor

@@ -214,7 +214,6 @@ def build_package(
     target_dir,
     extensions,
     linenumbers=False,
-    unity_count=32,
     folder_name='duckdb',
     short_paths=False,
     default_linked_extensions=None,
@@ -282,7 +281,6 @@ def build_package(
         )
 
         # handle generated_extension_loader
-        # this - beautifully - approximates code in extension/CMakeLists.txt
         if ext_kind == 'CAPI':
             ext_capi_declarations += (
                 f'#if {ext_linked_define}\n'
@@ -329,7 +327,6 @@ def build_package(
         .replace('${EXT_CAPI_DECLARATIONS}', ext_capi_declarations)
         .replace('${EXT_NAME_VECTOR_INITIALIZER}', ext_name_vector_initializer)
         .replace('${EXT_TEST_PATH_INITIALIZER}', '')
-        .replace('CMake', 'package_build.py')
     )
 
     loader_code = ext_loader_defines + ext_headers + loader_code
@@ -426,55 +423,15 @@ def build_package(
                 f.write('#include "{}"\n\n'.format(convert_backslashes(entry)))
         return ub_file
 
-    def generate_unity_builds(source_list, nsplits, linenumbers):
-        files_per_directory = {}
-        for source in source_list:
-            dirname = os.path.dirname(source)
-            if dirname not in files_per_directory:
-                files_per_directory[dirname] = []
-            files_per_directory[dirname].append(source)
-
-        new_source_files = []
-        for dirname in files_per_directory.keys():
-            current_files = files_per_directory[dirname]
-            cmake_file = os.path.join(dirname, 'CMakeLists.txt')
-            unity_files = []
-            if os.path.isfile(cmake_file) and len(current_files) > 1:
-                with open(cmake_file, 'r') as f:
-                    text = f.read()
-                    # Find the unity files in groups
-                    pos = 0
-                    end = len(text)
-                    while pos < end:
-                        lib = text.find('add_library_unity', pos)
-                        if lib == -1:
-                            break
-                        pos = text.find(')', lib)
-                        if pos == -1:
-                            break
-                        filenames = [x[0] for x in re.findall('([a-zA-Z0-9_]+[.](cpp|cc|c|cxx))', text[lib:pos])]
-                        # Remove the unity files from the CMake list
-                        unity_set = set(filenames)
-                        unity_files += [x for x in current_files if os.path.basename(x) in unity_set]
-                        current_files = [x for x in current_files if os.path.basename(x) not in unity_set]
-            if current_files:
-                if short_paths:
-                    # replace source files with "__"
-                    for file in current_files:
-                        unity_filename = os.path.basename(file)
-                        new_source_files.append(generate_unity_build([file], unity_filename, linenumbers))
-                else:
-                    # directly use the source files
-                    new_source_files += [os.path.join(folder_name, file) for file in current_files]
-            if unity_files:
-                unity_files.sort()
-                unity_base = dirname.replace(os.path.sep, '_')
-                unity_name = f'ub_{unity_base}.cpp'
-                new_source_files.append(generate_unity_build(unity_files, unity_name, linenumbers))
-        return new_source_files
-
+    # One translation unit per source. The grouping that used to live here read
+    # an `add_library_unity` call out of each directory's build file, which is
+    # gone with it: the packaged sources are the same, but they compile one at a
+    # time.
     original_sources = source_list
-    source_list = generate_unity_builds(source_list, unity_count, linenumbers)
+    if short_paths:
+        source_list = [generate_unity_build([source], os.path.basename(source), linenumbers) for source in source_list]
+    else:
+        source_list = [os.path.join(folder_name, source) for source in source_list]
 
     os.chdir(prev_wd)
     return (

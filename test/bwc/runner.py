@@ -198,7 +198,7 @@ def do_run_test(ctx, test_spec):
             if not has_checked_versions:
                 versions = get_extensions_versions([old_cli, new_cli])
                 if versions[0] != versions[1]:
-                    # make release EXTENSION_CONFIGS=.github/config/extensions/test-utils.cmake to compile in this repo
+                    # build the release configuration to compile test_utils into this repo
                     raise RuntimeError(
                         f"test-utils extension version mismatch: {old_cli.version} is @ {versions[0]} and {new_cli.version} is @ {versions[1]}"
                     )

@@ -8,7 +8,7 @@ link flags and the same fixture tree. Spelling that out 225 times is what made
 BUILD.bazel grow past 14k lines, so it lives here instead.
 """
 
-# The trees every target ships, as CMake's unittest sees them: the tests include
+# The trees every target ships: the tests include
 # fixtures from other directories by path (a .test_template in test/sql/tpch, the
 # CSVs under test/sakila/data), so each target ships all of them. BUILD.bazel turns
 # this into a single filegroup, so the glob is expanded once.
@@ -18,6 +18,16 @@ TEST_DATA_GLOBS = [
     "benchmark/recursive_cte/**",
     "data/**",
     "third_party/**",
+    # The TPC-H and TPC-DS answer sets live beside the data generators, and the
+    # SQL tests read them by path to compare a query against known results. Only
+    # the three scale factors a test names are listed: every target ships this
+    # filegroup, so the sf10 and sf100 answer sets -- 14 MB of the 16, and no test
+    # that runs here -- would be paid for 226 times over.
+    "extension/tpcds/dsdgen/answers/sf0.01/**",
+    "extension/tpcds/dsdgen/answers/sf1/**",
+    "extension/tpch/dbgen/answers/sf0.01/**",
+    "extension/tpch/dbgen/answers/sf0.1/**",
+    "extension/tpch/dbgen/answers/sf1/**",
 ]
 
 # The same list for a target that takes data/ as a real copy (see FIXTURE_TREES):

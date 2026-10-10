@@ -1,22 +1,16 @@
 # Directories Bazel does not need to treat as packages. Everything the build
-# compiles lives under src/, extension/{core_functions,parquet,loader}, test/,
-# third_party/ and tools/{shell,cpp,utils}. test/, data/, benchmark/{aoc24,
-# recursive_cte} and scripts/ stay in: the unittest cc_test compiles from test/,
-# the tests read fixtures out of the others, and the extension metadata genrule
-# runs a script from scripts/.
+# compiles lives under src/, extension/{autocomplete,core_functions,demo_capi,
+# icu,json,loader,parquet,tpcds,tpch}, examples/, test/, third_party/ and
+# tools/{shell,cpp,utils}. test/, data/, benchmark/{aoc24,recursive_cte} and
+# scripts/ stay in: the unittest cc_test compiles from test/, the tests read
+# fixtures out of the others, and the extension metadata genrule runs a script
+# from scripts/.
 .github
 api_spec
 bazel-build
 build
 duckdb_unittest_tempdir
-examples
-extension/autocomplete
 extension/delta
-extension/demo_capi
-extension/icu
-extension/json
-extension/tpcds
-extension/tpch
 real_dir
 tools/juliapkg
 tools/nodejs

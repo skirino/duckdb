@@ -58,8 +58,8 @@
 #if defined(GENERATED_EXTENSION_HEADERS) && GENERATED_EXTENSION_HEADERS
 #include "duckdb/main/extension/generated_extension_loader.hpp"
 #else
-// TODO: rewrite package_build.py to allow also loading out-of-tree extensions in non-cmake builds, after that
-//		 these can be removed
+// TODO: rewrite package_build.py to allow also loading out-of-tree extensions in
+//		 builds that have no generated loader, after that these can be removed
 #if DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED
 #include "core_functions_extension.hpp"
 #endif
