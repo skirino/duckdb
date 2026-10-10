@@ -1,5 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library", "cc_test")
-load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test", "rustfmt_test")
 load("//rust:crubit_bindings.bzl", "CRUBIT_TARGET_TRIPLE", "crubit_bindings", "crubit_copts")
 
 package(default_visibility = ["//visibility:public"])
@@ -71,5 +71,14 @@ cc_test(
     deps = [
         ":ahirudb_cc_api",
         ":ahirudb_static",
+    ],
+)
+
+# Rust formatting test - runs rustfmt --check on all Rust sources in the crate
+rustfmt_test(
+    name = "ahirudb_fmt_test",
+    targets = [
+        ":ahirudb",
+        ":integration_test",
     ],
 )

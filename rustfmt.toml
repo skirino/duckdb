@@ -1,0 +1,50 @@
+# Rust formatting configuration for DuckDB project
+# This file is used by rustfmt for consistent code formatting
+
+edition = "2024"
+skip_children = true
+
+# Standard Rust style guide options
+max_width = 100
+tab_spaces = 4
+hard_tabs = false
+newline_style = "Unix"
+use_small_heuristics = "Max"
+fn_args_layout = "Tall"
+brace_style = "SameLineWhere"
+control_brace_style = "AlwaysNextLine"
+merge_derives = true
+merge_imports = true
+reorder_imports = true
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+blank_lines_upper_bound = 1
+blank_lines_lower_bound = 0
+trailing_comma = "Vertical"
+wrap_comments = true
+normalize_doc_attributes = true
+format_code_in_doc_comments = true
+format_strings = true
+hex_literals_case = "Lower"
+use_field_init_shorthand = true
+use_try_shorthand = true
+chain_width = 60
+single_line_if_else_max_width = 50
+attr_fn_like_width = 70
+force_explicit_abi = false
+empty_item_single_line = true
+struct_lit_single_line = true
+fn_single_line = true
+where_single_line = true
+imports_layout = "Vertical"
+item_brace_style = "PreferSameLine"
+fn_brace_style = "PreferSameLine"
+struct_variant_width = 70
+enum_discriminant_align_threshold = 0
+force_multiline_blocks = false
+conditional_brace_style = "PreferSameLine"
+match_block_trailing_comma = true
+reorder_modules = false
+sort_macro_args = true
+format_macro_matchers = true
+format_macro_bodies = true

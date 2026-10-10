@@ -1,15 +1,22 @@
 //! Scaffolding shared by the unit tests of the logging modules.
 //!
-//! None of them reach a storage - they all test decisions that happen before a write - so a sink that fails loudly if
-//! it is ever called is enough. The C-ABI signatures live here, next to `CLogStorage::new`, which is the one place
-//! they have to stay in step with.
+//! None of them reach a storage - they all test decisions that happen before a
+//! write - so a sink that fails loudly if it is ever called is enough. The
+//! C-ABI signatures live here, next to `CLogStorage::new`, which is the one
+//! place they have to stay in step with.
 
-use crate::logging::log_manager::LogManager;
-use crate::logging::log_storage::CLogStorage;
-use crate::logging::logging::RegisteredLoggingContextLayout;
-use std::ffi::{c_char, c_void};
+use std::ffi::{
+    c_char,
+    c_void,
+};
 
-extern "C" fn no_write(
+use crate::logging::{
+    log_manager::LogManager,
+    log_storage::CLogStorage,
+    logging::RegisteredLoggingContextLayout,
+};
+
+extern fn no_write(
     _ctx: *mut c_void,
     _timestamp: i64,
     _level: u8,
@@ -22,27 +29,19 @@ extern "C" fn no_write(
     panic!("these tests never reach the storage")
 }
 
-extern "C" fn no_op(_ctx: *mut c_void) -> bool {
-    panic!("these tests never reach the storage")
-}
+extern fn no_op(_ctx: *mut c_void) -> bool { panic!("these tests never reach the storage") }
 
-extern "C" fn no_scan(_ctx: *mut c_void, _table: u8) -> bool {
-    false
-}
+extern fn no_scan(_ctx: *mut c_void, _table: u8) -> bool { false }
 
-/// A [`LogManager`] whose storage is the sink above. The manager has to outlive every logger built from it, which holds
-/// a raw pointer to it just like the loggers C++ creates.
+/// A [`LogManager`] whose storage is the sink above. The manager has to outlive
+/// every logger built from it, which holds a raw pointer to it just like the
+/// loggers C++ creates.
 pub(crate) fn test_manager() -> LogManager {
-    LogManager::new(CLogStorage::new(
-        std::ptr::null_mut(),
-        no_write,
-        no_op,
-        no_op,
-        no_scan,
-    ))
+    LogManager::new(CLogStorage::new(std::ptr::null_mut(), no_write, no_op, no_op, no_scan))
 }
 
-/// The context C++ would build for a database-scope logging context without any ids set
+/// The context C++ would build for a database-scope logging context without any
+/// ids set
 pub(crate) fn context() -> RegisteredLoggingContextLayout {
     const DATABASE_SCOPE: u8 = 10;
     RegisteredLoggingContextLayout {

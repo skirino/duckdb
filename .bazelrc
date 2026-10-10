@@ -48,3 +48,9 @@ build:debug -c dbg
 build:threadsan -c opt
 build:threadsan --copt=-fsanitize=thread
 build:threadsan --linkopt=-fsanitize=thread
+
+# Rust formatting: enable rustfmt_aspect for build-time format checking
+# This makes `bazel build //...` fail if any Rust code is incorrectly formatted
+build --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
+build --output_groups=+rustfmt_checks
+build --@rules_rust//rust/settings:rustfmt.toml=//:rustfmt.toml

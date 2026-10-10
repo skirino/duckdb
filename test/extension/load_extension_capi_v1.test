@@ -1,0 +1,30 @@
+# name: test/extension/load_extension_capi_v1.test
+# description: Load an extension built against the stable V1 C API
+# group: [extension]
+
+require notmingw
+
+require skip_reload
+
+require allow_unsigned_extensions
+
+statement ok
+LOAD '{BUILD_DIRECTORY}/test/extension/demo_capi.duckdb_extension';
+
+query I
+SELECT extension_version FROM duckdb_extensions() WHERE extension_name = 'demo_capi';
+----
+default-version
+
+# A C_STRUCT footer carries the C API version the extension was compiled against, and the loader
+# range-checks it. If that field held anything else the load above would already have failed.
+query I
+SELECT add_numbers_together(20, 22);
+----
+42
+
+# The function handles NULL itself, through the validity mask of the input vectors.
+query I
+SELECT add_numbers_together(20, NULL);
+----
+NULL

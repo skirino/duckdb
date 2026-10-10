@@ -1,13 +1,24 @@
-//! End-to-end tests for the Rust logging port: a `LogManager` wired to an in-Rust storage through the C-ABI bridge,
-//! exercising the same behaviour as `test/sql/logging/*.test` on the C++ side.
+//! End-to-end tests for the Rust logging port: a `LogManager` wired to an
+//! in-Rust storage through the C-ABI bridge, exercising the same behaviour as
+//! `test/sql/logging/*.test` on the C++ side.
 
-use ahirudb::logging::log_storage::LoggingTargetTable;
-use ahirudb::logging::{
-    CLogStorage, LogConfig, LogLevel, LogManager, LogMode, MutableLogger,
-    RegisteredLoggingContextLayout, StorageSwitchErrorKind, ThreadSafeLogger,
+use std::{
+    ffi::c_void,
+    sync::Mutex,
 };
-use std::ffi::c_void;
-use std::sync::Mutex;
+
+use ahirudb::logging::{
+    CLogStorage,
+    LogConfig,
+    LogLevel,
+    LogManager,
+    LogMode,
+    MutableLogger,
+    RegisteredLoggingContextLayout,
+    StorageSwitchErrorKind,
+    ThreadSafeLogger,
+    log_storage::LoggingTargetTable,
+};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct WrittenEntry {
@@ -43,9 +54,7 @@ impl InMemoryStorage {
         });
     }
 
-    fn flush_all(&self) {
-        *self.flush_count.lock().unwrap() += 1;
-    }
+    fn flush_all(&self) { *self.flush_count.lock().unwrap() += 1; }
 
     fn truncate(&self) {
         *self.truncate_count.lock().unwrap() += 1;
@@ -53,13 +62,15 @@ impl InMemoryStorage {
     }
 }
 
-/// Turns a borrowed byte slice back into a `&str` without allocating, mirroring what the C++ bridge does.
+/// Turns a borrowed byte slice back into a `&str` without allocating, mirroring
+/// what the C++ bridge does.
 unsafe fn to_str<'a>(bytes: *const i8, len: usize) -> &'a str {
     unsafe { std::str::from_utf8(std::slice::from_raw_parts(bytes.cast::<u8>(), len)) }.unwrap()
 }
 
-/// Reports `false` when the storage call fails, which is how the C++ bridge signals that it caught an exception.
-extern "C" fn c_write_log_entry(
+/// Reports `false` when the storage call fails, which is how the C++ bridge
+/// signals that it caught an exception.
+extern fn c_write_log_entry(
     ctx: *mut c_void,
     timestamp: i64,
     level: u8,
@@ -80,20 +91,22 @@ extern "C" fn c_write_log_entry(
     true
 }
 
-extern "C" fn c_flush_all(ctx: *mut c_void) -> bool {
+extern fn c_flush_all(ctx: *mut c_void) -> bool {
     unsafe { &*(ctx as *const InMemoryStorage) }.flush_all();
     true
 }
 
-extern "C" fn c_truncate(ctx: *mut c_void) -> bool {
+extern fn c_truncate(ctx: *mut c_void) -> bool {
     unsafe { &*(ctx as *const InMemoryStorage) }.truncate();
     true
 }
 
-// Turns the raw byte the C ABI hands back into the enum. C++ passes the target table in as a `u8` and only takes a
-// `bool` out, so the crate itself never has to go the other way.
+// Turns the raw byte the C ABI hands back into the enum. C++ passes the target
+// table in as a `u8` and only takes a `bool` out, so the crate itself never has
+// to go the other way.
 fn target_table(value: u8) -> LoggingTargetTable {
-    match value {
+    match value
+    {
         0 => LoggingTargetTable::ALL_LOGS,
         1 => LoggingTargetTable::LOG_ENTRIES,
         2 => LoggingTargetTable::LOG_CONTEXTS,
@@ -101,7 +114,7 @@ fn target_table(value: u8) -> LoggingTargetTable {
     }
 }
 
-extern "C" fn c_can_scan(_ctx: *mut c_void, table: u8) -> bool {
+extern fn c_can_scan(_ctx: *mut c_void, table: u8) -> bool {
     matches!(target_table(table), LoggingTargetTable::LOG_ENTRIES)
 }
 
@@ -120,8 +133,9 @@ const DATABASE_SCOPE: u8 = 10;
 const CONNECTION_SCOPE: u8 = 20;
 const THREAD_SCOPE: u8 = 30;
 
-/// The context C++ hands over when it registers a logging context. `context_id` is what the LogManager assigns, so the
-/// value the caller passes in does not matter.
+/// The context C++ hands over when it registers a logging context. `context_id`
+/// is what the LogManager assigns, so the value the caller passes in does not
+/// matter.
 fn context_layout(scope: u8) -> RegisteredLoggingContextLayout {
     RegisteredLoggingContextLayout {
         context_id: 0,
@@ -138,16 +152,15 @@ fn context_layout(scope: u8) -> RegisteredLoggingContextLayout {
 }
 
 fn register_log_types(manager: &LogManager) {
-    for (name, level) in [
-        ("QueryLog", LogLevel::LOG_INFO),
-        ("FileSystem", LogLevel::LOG_TRACE),
-    ] {
+    for (name, level) in [("QueryLog", LogLevel::LOG_INFO), ("FileSystem", LogLevel::LOG_TRACE)]
+    {
         manager.register_log_type(name, level as u8).unwrap();
     }
 }
 
-/// Builds the logger the LogManager decided on, exactly like the C++ `LogManager::CreateLogger` does: from the filter it
-/// returned, so that there is a single config read per logger.
+/// Builds the logger the LogManager decided on, exactly like the C++
+/// `LogManager::CreateLogger` does: from the filter it returned, so that there
+/// is a single config read per logger.
 fn thread_safe_logger(manager: &LogManager) -> ThreadSafeLogger {
     let created = manager
         .create_logger(context_layout(DATABASE_SCOPE), false)
@@ -170,8 +183,8 @@ fn mutable_logger(manager: &LogManager) -> MutableLogger {
     )
 }
 
-/// The storage is leaked because the C++-style bridge passes a raw pointer to it, which has to stay valid for as long as
-/// the manager that uses it.
+/// The storage is leaked because the C++-style bridge passes a raw pointer to
+/// it, which has to stay valid for as long as the manager that uses it.
 fn make_manager() -> (&'static InMemoryStorage, *mut LogManager) {
     let storage = Box::leak(Box::new(InMemoryStorage::default()));
     let manager = LogManager::new(c_log_storage(storage));
@@ -181,9 +194,7 @@ fn make_manager() -> (&'static InMemoryStorage, *mut LogManager) {
     (storage, Box::into_raw(Box::new(manager)))
 }
 
-fn destroy_manager(manager: *mut LogManager) {
-    unsafe { drop(Box::from_raw(manager)) };
-}
+fn destroy_manager(manager: *mut LogManager) { unsafe { drop(Box::from_raw(manager)) }; }
 
 #[test]
 fn log_config_default_matches_cpp() {
@@ -205,14 +216,12 @@ fn log_levels_and_modes_roundtrip() {
         LogLevel::LOG_WARNING,
         LogLevel::LOG_ERROR,
         LogLevel::LOG_FATAL,
-    ] {
+    ]
+    {
         assert_eq!(LogLevel::from(level as u8), level);
     }
-    for mode in [
-        LogMode::LEVEL_ONLY,
-        LogMode::DISABLE_SELECTED,
-        LogMode::ENABLE_SELECTED,
-    ] {
+    for mode in [LogMode::LEVEL_ONLY, LogMode::DISABLE_SELECTED, LogMode::ENABLE_SELECTED]
+    {
         assert_eq!(LogMode::from(mode as u8), mode);
     }
 }
@@ -254,9 +263,11 @@ fn level_only_logging_writes_every_type() {
     destroy_manager(manager);
 }
 
-/// The Rust side of the bridge passes `(pointer, length)`, so a message is not cut short at a NUL byte. This is a
-/// statement about the boundary inside this crate only: C++ hands the message to `RustStr` as a `const char *`, which
-/// reads it as a NUL-terminated string, so a message that reaches a C++ storage through it is still truncated there.
+/// The Rust side of the bridge passes `(pointer, length)`, so a message is not
+/// cut short at a NUL byte. This is a statement about the boundary inside this
+/// crate only: C++ hands the message to `RustStr` as a `const char *`, which
+/// reads it as a NUL-terminated string, so a message that reaches a C++ storage
+/// through it is still truncated there.
 #[test]
 fn messages_with_interior_nul_reach_the_storage_intact() {
     let (storage, manager) = make_manager();
@@ -421,7 +432,8 @@ fn switching_storage_reports_the_new_name_without_flushing() {
     let (storage, manager) = make_manager();
     let manager_ref = unsafe { &*manager };
 
-    // The active storage is the one installed by `make_manager`, and C++ hands its (lowercased) name in
+    // The active storage is the one installed by `make_manager`, and C++ hands
+    // its (lowercased) name in
     let active = "test_log_storage";
     assert_eq!(manager_ref.get_config().storage, active);
     assert_eq!(
@@ -440,16 +452,14 @@ fn switching_storage_reports_the_new_name_without_flushing() {
             .set_log_storage_name(active, "unregistered", true)
             .is_err()
     );
-    // Rejected for the LocalFileSystem, not for the name. `set_log_storage_name` cannot reach this: 'file' needs a
-    // path there, so it is rejected even earlier.
+    // Rejected for the LocalFileSystem, not for the name.
+    // `set_log_storage_name` cannot reach this: 'file' needs a path there,
+    // so it is rejected even earlier.
     let error = manager_ref
         .resolve_log_storage(active, "file", false)
         .unwrap_err();
     assert_eq!(error.kind, StorageSwitchErrorKind::FileSystemDisabled);
-    assert_eq!(
-        error.message,
-        "Can not enable file logging with the LocalFileSystem disabled"
-    );
+    assert_eq!(error.message, "Can not enable file logging with the LocalFileSystem disabled");
     assert!(manager_ref.register_log_storage("extra"));
     assert_eq!(
         manager_ref
@@ -457,15 +467,18 @@ fn switching_storage_reports_the_new_name_without_flushing() {
             .unwrap(),
         Some("extra".to_string())
     );
-    // Neither a rejected nor an accepted switch reaches the storage: C++ flushes it in the same critical section that
-    // installs its replacement, which is the only way that flush can be atomic with respect to a concurrent write
+    // Neither a rejected nor an accepted switch reaches the storage: C++
+    // flushes it in the same critical section that installs its
+    // replacement, which is the only way that flush can be atomic with respect
+    // to a concurrent write
     assert_eq!(*storage.flush_count.lock().unwrap(), 0);
 
     destroy_manager(manager);
 }
 
-/// The write path reads the sink without taking a lock of its own and `set_config` takes `config`, so the two run
-/// against each other here: every entry has to reach the storage and neither thread may deadlock.
+/// The write path reads the sink without taking a lock of its own and
+/// `set_config` takes `config`, so the two run against each other here: every
+/// entry has to reach the storage and neither thread may deadlock.
 #[test]
 fn concurrent_writes_and_config_changes_do_not_deadlock() {
     let storage = Box::leak(Box::new(InMemoryStorage::default()));
@@ -474,7 +487,8 @@ fn concurrent_writes_and_config_changes_do_not_deadlock() {
     let entries = 500usize;
     std::thread::scope(|scope| {
         let writer = scope.spawn(|| {
-            for _ in 0..entries {
+            for _ in 0..entries
+            {
                 manager.write_log_entry(
                     "QueryLog",
                     LogLevel::LOG_INFO,
@@ -484,10 +498,14 @@ fn concurrent_writes_and_config_changes_do_not_deadlock() {
             }
         });
         let switcher = scope.spawn(|| {
-            for i in 0..entries {
-                let level = if i % 2 == 0 {
+            for i in 0..entries
+            {
+                let level = if i % 2 == 0
+                {
                     LogLevel::LOG_INFO
-                } else {
+                }
+                else
+                {
                     LogLevel::LOG_DEBUG
                 };
                 manager.set_config(
@@ -507,9 +525,11 @@ fn concurrent_writes_and_config_changes_do_not_deadlock() {
     assert_eq!(storage.entries.lock().unwrap().len(), entries);
 }
 
-/// `set_config` replaces the whole config in one step, so the storage name in the config and the other settings cannot be
-/// read half-updated. The sink itself is not part of that: it is built once, and a config change cannot redirect where a
-/// write lands (in C++ that is what installing a storage under the write lock does).
+/// `set_config` replaces the whole config in one step, so the storage name in
+/// the config and the other settings cannot be read half-updated. The sink
+/// itself is not part of that: it is built once, and a config change cannot
+/// redirect where a write lands (in C++ that is what installing a storage under
+/// the write lock does).
 #[test]
 fn set_config_replaces_the_config_in_one_step() {
     let (storage, manager) = make_manager();
@@ -534,16 +554,18 @@ fn set_config_replaces_the_config_in_one_step() {
     let rust_logger = thread_safe_logger(manager_ref);
     rust_logger.write_log_internal("QueryLog", LogLevel::LOG_INFO, "written");
     assert_eq!(storage.entries.lock().unwrap().len(), 1);
-    // And the name the config records is what C++ recorded, not something a write can change
+    // And the name the config records is what C++ recorded, not something a
+    // write can change
     assert_eq!(manager_ref.get_config().storage, "memory");
 
     destroy_manager(manager);
 }
 
-/// A storage that reports failure cannot leave the manager in a state where it cannot be used again.
+/// A storage that reports failure cannot leave the manager in a state where it
+/// cannot be used again.
 #[test]
 fn a_failing_storage_does_not_wedge_the_manager() {
-    extern "C" fn failing_write(
+    extern fn failing_write(
         _ctx: *mut c_void,
         _timestamp: i64,
         _level: u8,
@@ -555,9 +577,7 @@ fn a_failing_storage_does_not_wedge_the_manager() {
     ) -> bool {
         false
     }
-    extern "C" fn failing_noop(_ctx: *mut c_void) -> bool {
-        false
-    }
+    extern fn failing_noop(_ctx: *mut c_void) -> bool { false }
 
     let storage = CLogStorage::new(
         std::ptr::null_mut(),
@@ -571,8 +591,8 @@ fn a_failing_storage_does_not_wedge_the_manager() {
     manager.set_enable_logging(true);
 
     let rust_logger = thread_safe_logger(&manager);
-    // The failures are reported out of band (the C++ side rethrows them), so all this can assert is that the write
-    // path survives them
+    // The failures are reported out of band (the C++ side rethrows them), so
+    // all this can assert is that the write path survives them
     rust_logger.write_log_internal("QueryLog", LogLevel::LOG_INFO, "dropped");
     rust_logger.flush();
     manager.flush();
