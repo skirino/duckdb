@@ -1,0 +1,20 @@
+[
+  "avro",
+  "excel",
+  "inet",
+  "quack",
+  "sqlsmith",
+  "aws",
+  "azure",
+  "ducklake",
+  "httpfs",
+  "iceberg",
+  "encodings",
+  "fts",
+  "spatial",
+  "vss",
+  "mysql_scanner",
+  "odbc_scanner",
+  "postgres_scanner",
+  "sqlite_scanner"
+]

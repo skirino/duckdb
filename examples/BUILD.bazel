@@ -1,0 +1,37 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+"""The two embedding examples: the smallest C and C++ programs against libduckdb.
+
+Each reaches its headers through src/include, which is where the C API and duckdb.hpp
+are declared, and links the engine the way an embedding application does.
+`bazel run //examples:embedded-c` is the shortest path from a checkout to a running query.
+
+`includes` is resolved relative to this package, so the roots are spelled with the
+`../` that gets them back to the repository root -- src/include, not
+examples/src/include.
+"""
+
+cc_binary(
+    name = "embedded-c",
+    srcs = ["embedded-c/main.c"],
+    includes = ["../src/include"],
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = ["//:duckdb_static"],
+)
+
+cc_binary(
+    name = "embedded-c++",
+    srcs = ["embedded-c++/main.cpp"],
+    includes = [
+        "../src/include",
+        "../third_party/fmt/include",
+    ],
+    linkopts = [
+        "-Wl,-search_paths_first",
+        "-Wl,-headerpad_max_install_names",
+    ],
+    deps = ["//:duckdb_static"],
+)

@@ -1,0 +1,7 @@
+{
+  "name": "ducklake",
+  "git_url": "https://github.com/duckdb/ducklake",
+  "git_tag": "eb7b95df82fc3ba0ace777e34ef1c81280477042",
+  "submodules": [],
+  "apply_patches": true
+}

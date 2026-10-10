@@ -1,0 +1,7 @@
+{
+  "name": "iceberg",
+  "git_url": "https://github.com/duckdb/duckdb-iceberg",
+  "git_tag": "63fe159100b9cd4e79e31ff4314353d29b3e6a82",
+  "submodules": [],
+  "apply_patches": true
+}

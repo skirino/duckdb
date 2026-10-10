@@ -1,0 +1,7 @@
+{
+  "name": "azure",
+  "git_url": "https://github.com/duckdb/duckdb-azure",
+  "git_tag": "8a5df75eaaaa9a75e6bb4596f374eb44ec35032d",
+  "submodules": [],
+  "apply_patches": false
+}

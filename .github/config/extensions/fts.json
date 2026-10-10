@@ -1,0 +1,7 @@
+{
+  "name": "fts",
+  "git_url": "https://github.com/duckdb/duckdb-fts",
+  "git_tag": "2266e67d01c737cb65114e77c7c672e58869a635",
+  "submodules": [],
+  "apply_patches": true
+}

@@ -1,0 +1,9 @@
+{
+  "name": "quack",
+  "git_url": "https://github.com/duckdb/duckdb-quack",
+  "git_tag": "50bd1913e42999211208ace844db8ed6f1ba8687",
+  "submodules": [
+    "extension-ci-tools"
+  ],
+  "apply_patches": true
+}

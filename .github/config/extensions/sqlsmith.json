@@ -1,0 +1,7 @@
+{
+  "name": "sqlsmith",
+  "git_url": "https://github.com/duckdb/duckdb-sqlsmith",
+  "git_tag": "acceef43a7626b59e3e4c9d85c3b54d06b52b009",
+  "submodules": [],
+  "apply_patches": true
+}

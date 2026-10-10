@@ -1,0 +1,9 @@
+{
+  "name": "avro",
+  "git_url": "https://github.com/duckdb/duckdb-avro",
+  "git_tag": "36a4d8ac56647e0810529a3c725162b0976ee73f",
+  "submodules": [
+    "third_party/avro-c"
+  ],
+  "apply_patches": false
+}
