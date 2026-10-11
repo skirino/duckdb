@@ -24,7 +24,7 @@ The headers are copied rather than referenced where they sit in Crubit's
 checkout because Bazel does not glob into a directory holding a BUILD file and
 Crubit's tree is full of them; the copy is the only tree here Bazel reads as a
 single package. The generator reads its own checkout directly for everything
-else, which //rust:crubit_bindings.bzl documents.
+else, which //bazel:crubit_bindings.bzl documents.
 """
 
 CRUBIT_URL_FORMAT = "https://github.com/google/crubit/archive/%s.tar.gz"
@@ -58,7 +58,7 @@ cc_library(
     includes = ["crubit_headers"],
 )
 
-# The same headers as plain files, for //rust:crubit_bindings.bzl to copy into the
+# The same headers as plain files, for //bazel:crubit_bindings.bzl to copy into the
 # include root it writes.
 filegroup(
     name = "support_headers_files",
@@ -76,7 +76,7 @@ components = ["rustc-dev", "llvm-tools", "rust-src", "rustfmt"]
 # Extracted under `crubit_headers/support/` because the generated bindings spell
 # these `#include <support/bridge.h>` and `#include <support/rs_std/option.h>`:
 # `support` is part of the path, not the include root. The wrapper directory is
-# what //rust:crubit_bindings.bzl strips to lay the tree out again, so nothing
+# what //bazel:crubit_bindings.bzl strips to lay the tree out again, so nothing
 # else may be placed beside it.
 _COPY_HEADERS = """
   cd '{support}' &&

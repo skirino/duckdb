@@ -1,1 +1,0 @@
-"""Moved to bazel/crubit_toolchain.bzl - do not edit directly."""

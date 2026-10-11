@@ -33,10 +33,10 @@ STDLIB_HEADERS = ["alloc", "core", "proc_macro", "std"]
 # does not name gets an empty triple and fails on it, rather than quietly
 # generating bindings for the wrong architecture.
 CRUBIT_TARGET_TRIPLE = select({
-    "//rust:darwin_arm64": "aarch64-apple-darwin",
-    "//rust:darwin_x86_64": "x86_64-apple-darwin",
-    "//rust:linux_arm64": "aarch64-unknown-linux-gnu",
-    "//rust:linux_x86_64": "x86_64-unknown-linux-gnu",
+    "//bazel:darwin_arm64": "aarch64-apple-darwin",
+    "//bazel:darwin_x86_64": "x86_64-apple-darwin",
+    "//bazel:linux_arm64": "aarch64-unknown-linux-gnu",
+    "//bazel:linux_x86_64": "x86_64-unknown-linux-gnu",
 })
 
 _GENERATE = """
