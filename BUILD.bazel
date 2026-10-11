@@ -12,12 +12,12 @@ four build types (release, relassert, reldebug, debug) are configs there.
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library", "cc_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
-load(":duckdb_build_config.bzl", "DUCKDB_DEFINES", "DUCKDB_INCLUDES",
+load("//bazel:duckdb_build_config.bzl", "DUCKDB_DEFINES", "DUCKDB_INCLUDES",
       "DUCKDB_LIB_DEPS", "DUCKDB_TEST_INCLUDES", "duckdb_library")
-load("//rust:crubit_bindings.bzl", "crubit_copts")
-load(":duckdb_codegen.bzl", "extension_codegen_files", "fixture_tree",
+load("//bazel:crubit_bindings.bzl", "crubit_copts")
+load("//bazel:duckdb_codegen.bzl", "extension_codegen_files", "fixture_tree",
       "version_info_header")
-load(":duckdb_test.bzl", "FIXTURE_TREES", "TEST_DATA_GLOBS",
+load("//bazel:duckdb_test.bzl", "FIXTURE_TREES", "TEST_DATA_GLOBS",
       "TEST_DATA_GLOBS_WITHOUT_FIXTURES", "subdirectory_test",
       "sql_logic_test_list")
 

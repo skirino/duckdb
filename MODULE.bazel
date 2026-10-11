@@ -31,7 +31,7 @@ use_repo(rust, "rust_toolchains")
 # internals that upstream renames between releases -- so a Crubit bump is the
 # thing most likely to need a new nightly. mise.toml pins the same version as the
 # ambient default, so the two agree on the toolchain.
-crubit_toolchain = use_repo_rule("//rust:crubit_toolchain.bzl", "crubit_toolchain_repository")
+crubit_toolchain = use_repo_rule("//bazel:crubit_toolchain.bzl", "crubit_toolchain_repository")
 crubit_toolchain(
     name = "crubit_toolchain",
     commit = "6d8a753d2797781f1466227df7c014f6868b92a8",

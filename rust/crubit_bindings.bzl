@@ -61,7 +61,7 @@ trap 'rm -rf "$scratch"' EXIT
 # generator generates, so the path has to be absolute. It is read out of the
 # generator's own checkout rather than declared as an input, because that is a
 # directory of Crubit's, full of BUILD files that Bazel cannot glob or label
-# from here -- see rust/crubit_toolchain.bzl. A Crubit bump rebuilds the
+# from here -- see bazel/crubit_toolchain.bzl. A Crubit bump rebuilds the
 # generator, which is an input, so this path cannot go stale unnoticed.
 export CRUBIT_SUPPORT_RUST_PATH="$exec_root/$(dirname "$generator")/crubit/support/crubit_support"
 # cargo runs a subcommand by exec'ing `cargo-<name>` off PATH, and runs rustc off
@@ -71,7 +71,7 @@ export CRUBIT_SUPPORT_RUST_PATH="$exec_root/$(dirname "$generator")/crubit/suppo
 PATH="$exec_root/$(dirname "$generator"):$exec_root/$(dirname "$rustc"):$PATH"
 export PATH
 # The generator links against its Rust nightly's own shared libraries by @rpath
-# and records none, so the loader is told where //rust:crubit_toolchain put them.
+# and records none, so the loader is told where //bazel:crubit_toolchain put them.
 export DYLD_LIBRARY_PATH="$exec_root/$(dirname "$generator")${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH="$DYLD_LIBRARY_PATH"
 
@@ -101,7 +101,7 @@ cp "$(ls "$scratch/$triple/release/deps"/*/target/release/lib"$crate"_cc_api.a)"
    "$exec_root/$archive"
 """
 
-# The one directory //rust:crubit_toolchain.bzl copies Crubit's headers into.
+# The one directory //bazel:crubit_toolchain.bzl copies Crubit's headers into.
 # Their paths have to be taken relative to this and not to the deepest directory
 # holding all of them, which is `crubit_headers/support/` -- and losing that
 # `support/` is exactly what the generated bindings include by.
@@ -115,7 +115,7 @@ def _paths_under_headers_root(paths):
     for path in paths:
         head, found, tail = path.partition(marker)
         if not found:
-            fail("%s is not under %s; //rust:crubit_toolchain.bzl and this rule " +
+            fail("%s is not under %s; //bazel:crubit_toolchain.bzl and this rule " +
                  "have to agree on where Crubit's headers are copied to" %
                  (path, _SUPPORT_HEADERS_ROOT))
         roots.add(head + "/" + _SUPPORT_HEADERS_ROOT)
@@ -141,7 +141,7 @@ def _crubit_bindings_impl(ctx):
     # generated bindings include them with angle brackets
     # (`#include <support/bridge.h>`) and a cc_library's `includes` reaches only
     # its direct dependents, so a consumer would otherwise have to name
-    # //rust:crubit_toolchain's headers itself.
+    # //bazel:crubit_toolchain's headers itself.
     support = ctx.files.support_headers
     support_root, support_tails = _paths_under_headers_root([f.path for f in support])
     support_outputs = [
@@ -227,7 +227,7 @@ crubit_bindings = rule(
         "cargo": attr.label(
             default = Label("@crubit_toolchain//:cargo"),
             allow_single_file = True,
-            doc = "The generator's own cargo. See rust/crubit_toolchain.bzl for why " +
+            doc = "The generator's own cargo. See bazel/crubit_toolchain.bzl for why " +
                   "this is not rules_rust's.",
         ),
         "rustc": attr.label(
