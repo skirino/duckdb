@@ -75,24 +75,6 @@ private:
 };
 
 struct ListVector {
-	[[deprecated("Use FlatVector::GetData<list_entry_t> instead")]] static inline const list_entry_t *
-	GetData(const Vector &v) {
-		if (v.GetVectorType() == VectorType::DICTIONARY_VECTOR) {
-			throw InternalException("ListVector::GetData called on dictionary vector");
-		}
-		return FlatVector::GetData<const list_entry_t>(v);
-	}
-	[[deprecated("Use FlatVector::GetData<list_entry_t> instead")]] static inline list_entry_t *GetData(Vector &v) {
-		if (v.GetVectorType() == VectorType::DICTIONARY_VECTOR) {
-			throw InternalException("ListVector::GetData called on dictionary vector");
-		}
-		return FlatVector::GetDataMutable<list_entry_t>(v);
-	}
-	//! Gets a reference to the underlying child-vector of a list
-	[[deprecated("Use ListVector::GetChild instead")]] DUCKDB_API static const Vector &GetEntry(const Vector &vector);
-	//! Gets a reference to the underlying child-vector of a list
-	[[deprecated("Use ListVector::GetChild or ListVector::GetChildMutable instead")]] DUCKDB_API static Vector &
-	GetEntry(Vector &vector);
 	//! Gets a reference to the underlying child-vector of a list
 	DUCKDB_API static const Vector &GetChild(const Vector &vector);
 	//! Gets a mutable reference to the underlying child-vector of a list

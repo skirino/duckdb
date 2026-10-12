@@ -4,6 +4,7 @@
 #include "duckdb/common/vector/string_vector.hpp"
 #include "duckdb/common/vector/struct_vector.hpp"
 #include "duckdb/common/types/bignum.hpp"
+#include "vector_rust_bridge.hpp"
 
 namespace duckdb {
 StandardVectorBuffer::StandardVectorBuffer(Allocator &allocator, capacity_t capacity_p, idx_t type_size_p)
@@ -149,42 +150,6 @@ void StandardVectorBuffer::ReserveInternal(idx_t new_size) {
 	validity.Resize(new_size);
 }
 
-template <idx_t TYPE_SIZE>
-void FixedFlattenCopy(data_ptr_t target, const_data_ptr_t source, const SelectionVector &sel, idx_t count) {
-	for (idx_t i = 0; i < count; i++) {
-		auto src_idx = sel.get_index(i);
-		memcpy(target + i * TYPE_SIZE, source + src_idx * TYPE_SIZE, TYPE_SIZE);
-	}
-}
-
-void FlattenVectorBuffer(data_ptr_t target, const_data_ptr_t source, const SelectionVector &sel, idx_t count,
-                         idx_t type_size) {
-	switch (type_size) {
-	case 1:
-		FixedFlattenCopy<1>(target, source, sel, count);
-		break;
-	case 2:
-		FixedFlattenCopy<2>(target, source, sel, count);
-		break;
-	case 4:
-		FixedFlattenCopy<4>(target, source, sel, count);
-		break;
-	case 8:
-		FixedFlattenCopy<8>(target, source, sel, count);
-		break;
-	case 16:
-		FixedFlattenCopy<16>(target, source, sel, count);
-		break;
-	default:
-		// fallback: use non-fixed-width copy
-		for (idx_t i = 0; i < count; i++) {
-			auto src_idx = sel.get_index(i);
-			memcpy(target + i * type_size, source + src_idx * type_size, type_size);
-		}
-		break;
-	}
-}
-
 buffer_ptr<VectorBuffer> StandardVectorBuffer::Flatten(const LogicalType &type) const {
 	if (vector_type == VectorType::FLAT_VECTOR) {
 		// already a flat vector - bail
@@ -201,8 +166,10 @@ buffer_ptr<VectorBuffer> StandardVectorBuffer::FlattenSliceInternal(const Logica
 	auto stored_allocator = GetAllocator();
 	auto &allocator = stored_allocator ? *stored_allocator : Allocator::DefaultAllocator();
 	auto new_data = allocator.Allocate(target_byte_count);
-	// copy data using sel
-	FlattenVectorBuffer(new_data.get(), data_ptr, sel, count, type_size);
+	// copy the rows the selection vector asks for, in the order it asks for them
+	ThrowOnVectorError(rust::copy_vector_buffer(RustBytes(new_data.get(), target_byte_count),
+	                                            RustBytes(data_ptr, Capacity() * type_size), RustSel(sel, count),
+	                                            idx_t(0), idx_t(0), count, type_size));
 
 	auto result = CreateBuffer(std::move(new_data), count_t(count));
 	// copy validity using sel
@@ -222,58 +189,21 @@ void StandardVectorBuffer::ToUnifiedFormat(UnifiedVectorFormat &format) const {
 	format.validity = validity;
 }
 
-template <idx_t TYPE_SIZE>
-void FixedSizeCopy(data_ptr_t target_data, const_data_ptr_t source_data, const SelectionVector &sel,
-                   idx_t base_source_offset, idx_t base_target_offset, idx_t copy_count) {
-	for (idx_t i = 0; i < copy_count; i++) {
-		auto source_idx = sel.get_index(base_source_offset + i);
-		auto target_offset = (base_target_offset + i) * TYPE_SIZE;
-		auto source_offset = source_idx * TYPE_SIZE;
-		memcpy(target_data + target_offset, source_data + source_offset, TYPE_SIZE);
-	}
-}
-
-void CopyVectorBuffer(data_ptr_t target_data, const_data_ptr_t source_data, const SelectionVector &sel,
-                      idx_t base_source_offset, idx_t base_target_offset, idx_t copy_count, idx_t type_size) {
-	switch (type_size) {
-	case 1:
-		FixedSizeCopy<1>(target_data, source_data, sel, base_source_offset, base_target_offset, copy_count);
-		break;
-	case 2:
-		FixedSizeCopy<2>(target_data, source_data, sel, base_source_offset, base_target_offset, copy_count);
-		break;
-	case 4:
-		FixedSizeCopy<4>(target_data, source_data, sel, base_source_offset, base_target_offset, copy_count);
-		break;
-	case 8:
-		FixedSizeCopy<8>(target_data, source_data, sel, base_source_offset, base_target_offset, copy_count);
-		break;
-	case 16:
-		FixedSizeCopy<16>(target_data, source_data, sel, base_source_offset, base_target_offset, copy_count);
-		break;
-	default:
-		// fallback: use non-fixed-width copy
-		for (idx_t i = 0; i < copy_count; i++) {
-			auto source_idx = sel.get_index(base_source_offset + i);
-			auto target_offset = (base_target_offset + i) * type_size;
-			auto source_offset = source_idx * type_size;
-			memcpy(target_data + target_offset, source_data + source_offset, type_size);
-		}
-		break;
-	}
-}
-
 void StandardVectorBuffer::CopyInternal(const Vector &source, const SelectionVector &source_sel, idx_t source_count,
                                         idx_t source_offset, idx_t target_offset, idx_t copy_count) {
-	// now copy over the data
-	const_data_ptr_t source_data;
-	if (source.GetVectorType() == VectorType::CONSTANT_VECTOR) {
-		source_data = ConstantVector::GetData(source);
-	} else {
-		source_data = FlatVector::GetData(source);
+	auto target_data = RustBytes(data_ptr, Capacity() * type_size);
+	auto source_data = RustEntryBuffer(source, type_size);
+	if (RustCopyIsIdentity(target_data, source_data, source_sel, source_offset, target_offset)) {
+		// every row is written over itself, which is the no-op the `memcpy` this
+		// replaced ran; DuckDB uses a self-copy as an idiom
+		return;
 	}
-
-	CopyVectorBuffer(data_ptr, source_data, source_sel, source_offset, target_offset, copy_count, type_size);
+	RustRejectOverlappingCopy(target_data, source_data);
+	// the source selection vector resolves into the source's own rows, so it runs
+	// from `source_offset` to `source_offset + copy_count`
+	ThrowOnVectorError(rust::copy_vector_buffer(target_data, source_data,
+	                                            RustSel(source_sel, source_offset + copy_count), source_offset,
+	                                            target_offset, copy_count, type_size));
 }
 
 void StandardVectorBuffer::SetValue(const LogicalType &type, idx_t index, const Value &val) {

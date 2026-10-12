@@ -3,6 +3,7 @@
 #include "duckdb/common/vector/dictionary_vector.hpp"
 #include "duckdb/common/vector/flat_vector.hpp"
 #include "duckdb/common/vector_operations/vector_operations.hpp"
+#include "vector_rust_bridge.hpp"
 
 namespace duckdb {
 
@@ -72,24 +73,12 @@ void VectorArrayBuffer::VerifyInternal(const LogicalType &type, const SelectionV
 		return;
 	}
 	// flat vector case - only verify children for valid (non-NULL) entries
-	idx_t selected_child_count = 0;
-	for (idx_t i = 0; i < count; i++) {
-		auto oidx = sel.get_index(i);
-		if (validity.RowIsValid(oidx)) {
-			selected_child_count += array_size;
-		}
-	}
-	SelectionVector child_sel(selected_child_count);
-	idx_t child_count = 0;
-	for (idx_t i = 0; i < count; i++) {
-		auto oidx = sel.get_index(i);
-		if (validity.RowIsValid(oidx)) {
-			for (idx_t r = 0; r < array_size; r++) {
-				child_sel.set_index(child_count++, oidx * array_size + r);
-			}
-		}
-	}
-	child->Verify(child_sel, child_count);
+	// a NULL array row has no child rows to verify, so the child selection is
+	// dense over the valid rows
+	auto child_rows = ThrowOnVectorError(
+	    rust::array_child_sel(RustSel(sel, count), RustValidity(validity, count), 0, count, array_size));
+	SelectionVector child_sel(child_rows.data(), child_rows.size());
+	child->Verify(child_sel, child_rows.size());
 	// FIXME: verify NULL-ness in child
 }
 
@@ -108,15 +97,12 @@ buffer_ptr<VectorBuffer> VectorArrayBuffer::FlattenSliceInternal(const LogicalTy
 	auto target_child_size = count * array_size;
 	auto child_result = make_uniq<Vector>(Vector::Ref(*child));
 
-	SelectionVector child_sel(target_child_size);
-	for (idx_t array_idx = 0; array_idx < count; array_idx++) {
-		auto src_array_idx = sel.get_index(array_idx);
-		for (idx_t elem_idx = 0; elem_idx < array_size; elem_idx++) {
-			auto position = array_idx * array_size + elem_idx;
-			auto src_position = src_array_idx * array_size + elem_idx;
-			child_sel.set_index(position, src_position);
-		}
-	}
+	// each array row in the slice gathers its elements from the array row the
+	// selection vector points at, element by element. A NULL array row still
+	// owns its child rows, so no mask is passed and every row contributes.
+	auto child_rows = ThrowOnVectorError(
+	    rust::array_child_sel(RustSel(sel, count), rs_std::SliceRef<const std::uint64_t>(), 0, count, array_size));
+	SelectionVector child_sel(child_rows.data(), child_rows.size());
 	// flatten the child using the child selection vector
 	child_result->Flatten(child_sel, target_child_size);
 
@@ -174,14 +160,12 @@ void VectorArrayBuffer::CopyInternal(const Vector &source, const SelectionVector
 
 	auto &source_child = ArrayVector::GetChild(source);
 
-	// Create a selection vector for the child elements
-	SelectionVector child_sel(copy_count * array_size);
-	for (idx_t i = 0; i < copy_count; i++) {
-		auto source_idx = source_sel.get_index(source_offset + i);
-		for (idx_t j = 0; j < array_size; j++) {
-			child_sel.set_index(i * array_size + j, source_idx * array_size + j);
-		}
-	}
+	// Create a selection vector for the child elements. A NULL array row still
+	// owns its child rows, so no mask is passed and every row contributes.
+	auto child_rows = ThrowOnVectorError(rust::array_child_sel(RustSel(source_sel, source_offset + copy_count),
+	                                                           rs_std::SliceRef<const std::uint64_t>(), source_offset,
+	                                                           copy_count, array_size));
+	SelectionVector child_sel(child_rows.data(), child_rows.size());
 	child->Copy(source_child, child_sel, source_count * array_size, 0, target_offset * array_size,
 	            copy_count * array_size);
 }
@@ -240,14 +224,6 @@ const Vector &ArrayVector::GetChild(const Vector &vector) {
 
 Vector &ArrayVector::GetChildMutable(Vector &vector) {
 	return GetEntryInternal<Vector>(vector);
-}
-
-const Vector &ArrayVector::GetEntry(const Vector &vector) {
-	return GetChild(vector);
-}
-
-Vector &ArrayVector::GetEntry(Vector &vector) {
-	return GetChildMutable(vector);
 }
 
 idx_t ArrayVector::GetTotalSize(const Vector &vector) {

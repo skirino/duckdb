@@ -18,6 +18,8 @@ What this repository exposes:
     :cpp_api_from_rust     the generator executable
     :support_headers       the headers the generated bindings include, which
                            they spell `#include <support/bridge.h>`
+    :support_runtime       the part of Crubit's C++ runtime the generated
+                           bindings need at link time
     :cargo, :rustc         the pinned toolchain's cargo and rustc
 
 The headers are copied rather than referenced where they sit in Crubit's
@@ -58,6 +60,17 @@ cc_library(
     includes = ["crubit_headers"],
 )
 
+# The part of Crubit's C++ runtime the generated bindings need at link time. It is
+# separate from the headers because it is the only piece with sources, and because
+# it is a dependency of the generated staticlib rather than of the headers that
+# include it.
+cc_library(
+    name = "support_runtime",
+    srcs = ["crubit_headers/support/rs_std/waker.cc"],
+    hdrs = ["crubit_headers/support/rs_std/waker.h"],
+    includes = ["crubit_headers"],
+)
+
 # The same headers as plain files, for //bazel:crubit_bindings.bzl to copy into the
 # include root it writes.
 filegroup(
@@ -78,12 +91,25 @@ components = ["rustc-dev", "llvm-tools", "rust-src", "rustfmt"]
 # `support` is part of the path, not the include root. The wrapper directory is
 # what //bazel:crubit_bindings.bzl strips to lay the tree out again, so nothing
 # else may be placed beside it.
+#
+# `rs_std/waker.cc` comes along as well. The generated bindings' use of
+# `rs_std::Vec` and friends reaches the Rust `crubit_support` crate, and the
+# codegen unit holding `crubit_alloc` also holds `dyn_erased_future`'s
+# implementations, which call the four functions `waker.cc` defines. Which of
+# Crubit's C++ runtime sources a link needs therefore depends on where the
+# generator happened to put them, so that one file is copied whole here and the
+# list is re-checked against the next release, rather than being spelled out as
+# a part-by-part recipe of what this one happened to need.
+_COPY_SOURCES = """
+  mkdir -p '{repo}/crubit_headers/support/rs_std' &&
+  cp '{support}/rs_std/waker.cc' '{repo}/crubit_headers/support/rs_std/'
+"""
 _COPY_HEADERS = """
   cd '{support}' &&
   find . -name '*.h' -print | tar cf - -T - |
     (mkdir -p '{repo}/crubit_headers/support' &&
-     cd '{repo}/crubit_headers/support' && tar xf -)
-"""
+     cd '{repo}/crubit_headers/support' && tar xf -) &&
+""" + _COPY_SOURCES
 
 # The generator links against the Rust nightly's own shared libraries by @rpath,
 # with no rpath recorded, so the loader has to be told where they are. They are

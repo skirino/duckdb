@@ -152,6 +152,8 @@ duckdb_library(
         exclude = [
             "src/common/allocator/allocator_jemalloc.cpp",
             "src/common/allocator/allocator_standard.cpp",
+            # src/common/vector has a target of its own, below.
+            "src/common/vector/**/*.cpp",
             "src/function/table/version/pragma_version.cpp",
             "src/main/extension/extension_alias.cpp",
             "src/main/extension/extension_helper.cpp",
@@ -196,6 +198,37 @@ duckdb_library(
         # together with the generated C++ shims.
         "//ahirudb:ahirudb_cc_api",
         "//ahirudb:ahirudb_static",
+        # The C++ side of the crubit runtime, which the generated bindings call
+        # into when a Rust value crosses the boundary.
+        "@crubit_toolchain//:support_runtime",
+    ],
+)
+
+# src/common/vector is a library of its own for the same reason as src/logging: the
+# buffer classes reach the Rust vector module in `ahirudb` for their
+# selection-vector and validity-mask arithmetic, and vector_rust_bridge.cpp
+# includes crubit/ahirudb.h to do it. Crubit's generated headers need C++20 and
+# two warnings off, so both belong to this target alone.
+duckdb_library(
+    name = "duckdb_vector",
+    srcs = glob(["src/common/vector/**/*.cpp"]),
+    # Private to this library, and deliberately not under src/include: it pulls in
+    # crubit/ahirudb.h, which nothing outside src/common/vector should see. Bazel
+    # only puts declared files in the sandbox and does not search a source file's
+    # own directory, so src/common/vector is an include root here.
+    hdrs = ["src/common/vector/vector_rust_bridge.hpp"],
+    includes = sorted(DUCKDB_INCLUDES + ["src/common/vector"]),
+    copts = crubit_copts(),
+    # duckdb_library's `deps` replaces the default rather than extending it, so
+    # the Rust half is added to DUCKDB_LIB_DEPS instead of standing in for it.
+    deps = DUCKDB_LIB_DEPS + [
+        # Crubit's generated C++ API, and the staticlib the generator builds
+        # together with the generated C++ shims.
+        "//ahirudb:ahirudb_cc_api",
+        "//ahirudb:ahirudb_static",
+        # The C++ side of the crubit runtime, which the generated bindings call
+        # into when a Rust value crosses the boundary.
+        "@crubit_toolchain//:support_runtime",
     ],
 )
 
@@ -500,6 +533,7 @@ cc_library(
         ":duckdb_func_table_version",
         ":duckdb_core",
         ":duckdb_logging",
+        ":duckdb_vector",
         ":core_functions_extension_init",
         ":core_functions",
         ":parquet_extension_init",

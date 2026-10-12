@@ -1,5 +1,6 @@
 #include "duckdb/common/vector/list_vector.hpp"
 #include "duckdb/common/vector_operations/vector_operations.hpp"
+#include "vector_rust_bridge.hpp"
 
 namespace duckdb {
 
@@ -170,28 +171,22 @@ void VectorListBuffer::CopyInternal(const Vector &source, const SelectionVector 
 	D_ASSERT(source.GetType().InternalType() == PhysicalType::LIST);
 
 	auto &source_child = ListVector::GetChild(source);
-	auto sdata = FlatVector::GetData<list_entry_t>(source);
 	auto tdata = reinterpret_cast<list_entry_t *>(data_ptr);
 
 	//! we need to append the child elements to the target
-	//! build a selection vector for the copied child elements
-	idx_t current_child_len = child->size();
-	vector<sel_t> child_rows;
-	for (idx_t i = 0; i < copy_count; ++i) {
-		if (!validity.RowIsValid(target_offset + i)) {
-			continue;
-		}
-		auto source_idx = source_sel.get_index(source_offset + i);
-		auto &source_entry = sdata[source_idx];
-		auto &target_entry = tdata[target_offset + i];
-		for (idx_t j = 0; j < source_entry.length; ++j) {
-			child_rows.emplace_back(source_entry.offset + j);
-		}
-		// point the list to the new length / offset
-		target_entry.offset = current_child_len;
-		target_entry.length = source_entry.length;
-		current_child_len += source_entry.length;
-	}
+	auto source_entries = RustEntryBuffer(source, sizeof(list_entry_t));
+	auto target_entries = RustBytes(reinterpret_cast<data_ptr_t>(tdata), capacity * sizeof(list_entry_t));
+	// Unlike a flat copy, this one is not a no-op onto itself — it re-points the
+	// target entries and appends the child rows — so there is nothing to
+	// short-circuit, and a copy that shares its rows with its source is refused.
+	RustRejectOverlappingCopy(target_entries, source_entries);
+	//! re-pointing the target entries and gathering the child rows to append is
+	//! the Rust kernel's job; the append itself needs the child vector, so it
+	//! stays here
+	rust::CopyRange range {source_offset, target_offset, copy_count};
+	auto child_rows = ThrowOnVectorError(
+	    rust::copy_list_entries(source_entries, RustSel(source_sel, source_offset + copy_count), target_entries,
+	                            RustValidity(validity, target_offset + copy_count), range, child->size()));
 	if (child_rows.empty()) {
 		// nothing to copy
 		return;
@@ -284,14 +279,6 @@ Vector &ListVector::GetChildMutable(Vector &vector) {
 	return GetEntryInternal<Vector>(vector);
 }
 
-const Vector &ListVector::GetEntry(const Vector &vector) {
-	return GetChild(vector);
-}
-
-Vector &ListVector::GetEntry(Vector &vector) {
-	return GetChildMutable(vector);
-}
-
 void ListVector::Reserve(Vector &vector, idx_t required_capacity) {
 	D_ASSERT(vector.GetType().id() == LogicalTypeId::LIST || vector.GetType().id() == LogicalTypeId::MAP);
 	D_ASSERT(vector.GetVectorType() == VectorType::FLAT_VECTOR ||
@@ -372,86 +359,31 @@ idx_t ListVector::GetConsecutiveChildList(const Vector &list, Vector &result, id
 }
 
 idx_t ListVector::GetTotalEntryCount(const Vector &list) {
-	idx_t total_count = 0;
-	for (auto entry : list.ValidValues<list_entry_t>()) {
-		total_count += entry.GetValue().length;
-	}
-	return total_count;
+	RustVectorView view(list, sizeof(list_entry_t));
+	return ThrowOnVectorError(rust::total_entry_count(view.entries, view.selection, view.validity, list.size()));
 }
 
 ConsecutiveChildListInfo ListVector::GetConsecutiveChildListInfo(const Vector &list, idx_t offset, idx_t count) {
+	RustVectorView view(list, sizeof(list_entry_t));
+	auto rust_info =
+	    ThrowOnVectorError(rust::consecutive_child_list_info(view.entries, view.selection, view.validity, offset, count,
+	                                                         list.GetVectorType() == VectorType::CONSTANT_VECTOR));
+
 	ConsecutiveChildListInfo info;
-	auto list_data = list.Values<list_entry_t>();
-
-	// find the first non-NULL entry
-	idx_t first_length = 0;
-	for (idx_t i = offset; i < offset + count; i++) {
-		auto entry = list_data[i];
-		if (!entry.IsValid()) {
-			continue;
-		}
-		auto &list_val = entry.GetValue();
-		info.child_list_info.offset = list_val.offset;
-		first_length = list_val.length;
-		break;
-	}
-
-	// small performance improvement for constant vectors
-	// avoids iterating over all their (constant) elements
-	if (list.GetVectorType() == VectorType::CONSTANT_VECTOR) {
-		info.child_list_info.length = first_length;
-		return info;
-	}
-
-	// now get the child count and determine whether the children are stored consecutively
-	// also determine if a flat vector has pseudo constant values (all offsets + length the same)
-	// this can happen e.g. for UNNESTs
-	bool is_consecutive = true;
-	for (idx_t i = offset; i < offset + count; i++) {
-		auto entry = list_data[i];
-		if (!entry.IsValid()) {
-			continue;
-		}
-		auto &list_val = entry.GetValue();
-		if (list_val.offset != info.child_list_info.offset || list_val.length != first_length) {
-			info.is_constant = false;
-		}
-		if (list_val.offset != info.child_list_info.offset + info.child_list_info.length) {
-			is_consecutive = false;
-		}
-		info.child_list_info.length += list_val.length;
-	}
-
-	if (info.is_constant) {
-		info.child_list_info.length = first_length;
-	}
-	if (!info.is_constant && !is_consecutive) {
-		info.needs_slicing = true;
-	}
-
+	info.child_list_info.offset = rust_info.child_offset;
+	info.child_list_info.length = rust_info.child_length;
+	info.is_constant = rust_info.is_constant;
+	info.needs_slicing = rust_info.needs_slicing;
 	return info;
 }
 
 void ListVector::GetConsecutiveChildSelVector(const Vector &list, SelectionVector &sel, idx_t offset, idx_t count) {
-	auto list_data = list.Values<list_entry_t>();
-
-	//	SelectionVector child_sel(info.second.length);
-	idx_t entry = 0;
-	for (idx_t i = offset; i < offset + count; i++) {
-		auto list_entry = list_data[i];
-		if (!list_entry.IsValid()) {
-			continue;
-		}
-		auto &list_val = list_entry.GetValue();
-		for (idx_t k = 0; k < list_val.length; k++) {
-			//			child_sel.set_index(entry++, list_data[idx].offset + k);
-			sel.set_index(entry++, list_val.offset + k);
-		}
-	}
-	//
-	//	result.Slice(child_sel, info.second.length);
-	//	result.Flatten(info.second.length);
-	//	info.second.offset = 0;
+	RustVectorView view(list, sizeof(list_entry_t));
+	// the kernel reports a selection vector too small to gather into rather than
+	// writing past its end, so the count it wrote can be dropped: the caller
+	// sized the vector to that count
+	ThrowOnVectorError(rust::consecutive_child_sel_vector(view.entries, view.selection, view.validity, offset, count,
+	                                                      RustSelMut(sel)));
 }
 
 const Vector &VectorIteratorGetListChild(const Vector &vector) {
