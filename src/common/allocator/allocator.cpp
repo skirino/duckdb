@@ -1,24 +1,14 @@
 #include "duckdb/common/allocator.hpp"
 
 #include "duckdb/common/assert.hpp"
-#include "duckdb/common/atomic.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
-#include "duckdb/common/numeric_utils.hpp"
 #include "duckdb/common/time_point.hpp"
 
-#include <cstdint>
+#include "allocator_rust_bridge.hpp"
 
 #ifdef __GLIBC__
 #include <malloc.h>
-#endif
-
-#ifdef DUCKDB_DEBUG_ALLOCATION
-#include "duckdb/common/mutex.hpp"
-#include "duckdb/common/pair.hpp"
-#include "duckdb/common/unordered_map.hpp"
-
-#include <execinfo.h>
 #endif
 
 namespace duckdb {
@@ -74,14 +64,10 @@ struct AllocatorDebugInfo {
 	void ReallocateData(data_ptr_t pointer, data_ptr_t new_pointer, idx_t old_size, idx_t new_size);
 
 private:
-	//! The number of bytes that are outstanding (i.e. that have been allocated - but not freed)
-	//! Used for debug purposes
-	atomic<idx_t> allocation_count;
-#ifdef DUCKDB_DEBUG_ALLOCATION
-	mutex pointer_lock;
-	//! Set of active outstanding pointers together with stack traces
-	unordered_map<data_ptr_t, pair<idx_t, string>> pointers;
-#endif
+	//! The Rust-side tracker doing the bookkeeping for this
+	//! allocator, owned through the opaque pointer the bridge
+	//! handed us.
+	ahirudb::allocator::debug::DebugTracker *tracker;
 #endif
 };
 
@@ -180,21 +166,10 @@ Allocator &Allocator::DefaultAllocator() {
 
 void Allocator::MallocTrim(idx_t pad) {
 #ifdef __GLIBC__
-	static constexpr int64_t TRIM_INTERVAL_MS = 100;
-	static atomic<int64_t> LAST_TRIM_TICK_MS {-TRIM_INTERVAL_MS};
-
-	int64_t last_trim_tick_ms = LAST_TRIM_TICK_MS.load();
-	auto current_tick_ms = TimePoint::GetTickMs();
-
-	if (current_tick_ms - last_trim_tick_ms < TRIM_INTERVAL_MS) {
-		return; // We trimmed less than TRIM_INTERVAL_MS ago
+	const auto current_tick_ms = TimePoint::GetTickMs();
+	if (!ahirudb::allocator::bridge::should_trim(current_tick_ms)) {
+		return;
 	}
-	if (!LAST_TRIM_TICK_MS.compare_exchange_strong(last_trim_tick_ms, current_tick_ms, std::memory_order_acquire,
-	                                               std::memory_order_relaxed)) {
-		return; // Another thread has updated LAST_TRIM_TICK_MS since we loaded it
-	}
-
-	// We successfully updated LAST_TRIM_TICK_MS, we can trim
 	malloc_trim(pad);
 #endif
 }
@@ -204,50 +179,57 @@ void Allocator::MallocTrim(idx_t pad) {
 //===--------------------------------------------------------------------===//
 #ifdef DEBUG
 AllocatorDebugInfo::AllocatorDebugInfo() {
-	allocation_count = 0;
-}
-AllocatorDebugInfo::~AllocatorDebugInfo() {
+	tracker = ahirudb::allocator::bridge::new_debug_tracker(
 #ifdef DUCKDB_DEBUG_ALLOCATION
-	if (allocation_count != 0) {
-		printf("Outstanding allocations found for Allocator\n");
-		for (auto &entry : pointers) {
-			printf("Allocation of size %llu at address %p\n", entry.second.first, (void *)entry.first);
-			printf("Stack trace:\n%s\n", entry.second.second.c_str());
-			printf("\n");
-		}
-	}
+	    /*capture_stacks=*/true
+#else
+	    /*capture_stacks=*/false
 #endif
-	//! Verify that there is no outstanding memory still associated with the batched allocator
-	//! Only works for access to the batched allocator through the batched allocator interface
-	//! If this assertion triggers, enable DUCKDB_DEBUG_ALLOCATION for more information about the allocations
-	D_ASSERT(allocation_count == 0);
+	);
+}
+
+AllocatorDebugInfo::~AllocatorDebugInfo() {
+	auto report = tracker->leak_report();
+	if (report.len != 0) {
+		// The report is a DEBUG-only diagnostic printed to
+		// stdout, exactly as the original did under
+		// DUCKDB_DEBUG_ALLOCATION.
+		fwrite(report.ptr, 1, report.len, stdout);
+		fflush(stdout);
+	}
+	ahirudb::allocator::bridge::free_leak_report(report);
+	//! Verify that there is no outstanding memory still associated with the allocator
+	D_ASSERT(tracker->is_empty());
+	ahirudb::allocator::bridge::delete_debug_tracker(tracker);
+	tracker = nullptr;
 }
 
 void AllocatorDebugInfo::AllocateData(data_ptr_t pointer, idx_t size) {
-	allocation_count += size;
 #ifdef DUCKDB_DEBUG_ALLOCATION
-	lock_guard<mutex> l(pointer_lock);
-	pointers[pointer] = make_pair(size, Exception::GetStackTrace());
+	const auto stack = Exception::GetStackTrace();
+	tracker->track_allocate(
+	    reinterpret_cast<uint64_t>(pointer), size,
+	    rs_std::SliceRef<const unsigned char>(reinterpret_cast<const unsigned char *>(stack.data()), stack.size()));
+#else
+	tracker->track_allocate(reinterpret_cast<uint64_t>(pointer), size,
+	                        rs_std::SliceRef<const unsigned char>(nullptr, 0));
 #endif
 }
 
 void AllocatorDebugInfo::FreeData(data_ptr_t pointer, idx_t size) {
-	D_ASSERT(allocation_count >= size);
-	allocation_count -= size;
-#ifdef DUCKDB_DEBUG_ALLOCATION
-	lock_guard<mutex> l(pointer_lock);
-	// verify that the pointer exists
-	D_ASSERT(pointers.find(pointer) != pointers.end());
-	// verify that the stored size matches the passed in size
-	D_ASSERT(pointers[pointer].first == size);
-	// erase the pointer
-	pointers.erase(pointer);
-#endif
+	D_ASSERT(tracker->track_free(reinterpret_cast<uint64_t>(pointer), size));
 }
 
 void AllocatorDebugInfo::ReallocateData(data_ptr_t pointer, data_ptr_t new_pointer, idx_t old_size, idx_t new_size) {
-	FreeData(pointer, old_size);
-	AllocateData(new_pointer, new_size);
+#ifdef DUCKDB_DEBUG_ALLOCATION
+	const auto stack = Exception::GetStackTrace();
+	D_ASSERT(tracker->track_reallocate(
+	    reinterpret_cast<uint64_t>(pointer), reinterpret_cast<uint64_t>(new_pointer), old_size, new_size,
+	    rs_std::SliceRef<const unsigned char>(reinterpret_cast<const unsigned char *>(stack.data()), stack.size())));
+#else
+	D_ASSERT(tracker->track_reallocate(reinterpret_cast<uint64_t>(pointer), reinterpret_cast<uint64_t>(new_pointer),
+	                                   old_size, new_size, rs_std::SliceRef<const unsigned char>(nullptr, 0)));
+#endif
 }
 
 #endif

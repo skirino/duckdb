@@ -150,6 +150,7 @@ duckdb_library(
             "src/transaction/**/*.cpp",
         ],
         exclude = [
+            "src/common/allocator/allocator.cpp",
             "src/common/allocator/allocator_jemalloc.cpp",
             "src/common/allocator/allocator_standard.cpp",
             # src/common/vector has a target of its own, below.
@@ -170,15 +171,9 @@ duckdb_library(
             "src/main/http/http_transport_manager.cpp",
             "src/main/http/http_util.cpp",
         ],
-    ) + select({
-        # The two allocator backends define the same set of Allocator methods, so
-        # exactly one of them belongs in this library. The jemalloc one lives in
-        # its own target, which the //:jemalloc setting pulls in instead.
-        ":jemalloc_enabled": [],
-        "//conditions:default": ["src/common/allocator/allocator_standard.cpp"],
-    }),
+    ),
     # duckdb_library's `deps` replaces the default rather than extending it.
-    deps = DUCKDB_LIB_DEPS + [":duckdb_exception"],
+    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator"],
 )
 
 # src/logging is a library of its own because it is the one that calls into the
@@ -261,6 +256,32 @@ duckdb_library(
         "//ahirudb:ahirudb_static",
         # The C++ side of the crubit runtime, which the generated bindings call
         # into when a Rust value crosses the boundary.
+        "@crubit_toolchain//:support_runtime",
+    ],
+)
+
+# src/common/allocator is a library of its own for the same reason as
+# duckdb_exception/duckdb_vector: allocator.cpp's debug info shells out to the
+# Rust allocator module, and allocator_rust_bridge.cpp includes crubit/ahirudb.h.
+# Crubit's generated headers need C++20 and two warnings off.
+duckdb_library(
+    name = "duckdb_allocator",
+    srcs = [
+        "src/common/allocator/allocator.cpp",
+        "src/common/allocator/allocator_rust_bridge.cpp",
+    ] + select({
+        ":jemalloc_enabled": [],
+        "//conditions:default": ["src/common/allocator/allocator_standard.cpp"],
+    }),
+    # Private to this library, deliberately not under src/include.
+    hdrs = ["src/common/allocator/allocator_rust_bridge.hpp"],
+    includes = sorted(DUCKDB_INCLUDES + ["src/common/allocator"]),
+    copts = crubit_copts(),
+    # duckdb_library's `deps` replaces the default rather than extending it.
+    deps = DUCKDB_LIB_DEPS + [
+        ":duckdb_exception",
+        "//ahirudb:ahirudb_cc_api",
+        "//ahirudb:ahirudb_static",
         "@crubit_toolchain//:support_runtime",
     ],
 )
@@ -568,6 +589,7 @@ cc_library(
         ":duckdb_logging",
         ":duckdb_vector",
         ":duckdb_exception",
+        ":duckdb_allocator",
         ":core_functions_extension_init",
         ":core_functions",
         ":parquet_extension_init",
@@ -842,7 +864,7 @@ duckdb_library(
         "DUCKDB_JEMALLOC_DECAY=1000",
     ],
     includes = sorted(DUCKDB_INCLUDES + ["third_party/jemalloc/include"]),
-    deps = DUCKDB_LIB_DEPS + [":jemalloc_lib"],
+    deps = DUCKDB_LIB_DEPS + [":duckdb_allocator", ":jemalloc_lib"],
     tags = ["manual"],
 )
 

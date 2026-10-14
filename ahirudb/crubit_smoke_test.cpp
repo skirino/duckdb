@@ -215,6 +215,70 @@ int main() {
 	Check(payload_text(column_not_found.entries[4].value) == "id,idx", "the candidate names are joined with a comma");
 	bridge::free_payload(column_not_found);
 
+	// --- the allocator module ----------------------------------------------
+	// One tracker per PrivateAllocatorData, owned through an opaque pointer
+	// the way the C++ shell owns a LogManager: created in Rust, freed in Rust,
+	// called into from C++.
+	{
+		using namespace ahirudb::allocator;
+		namespace bridge = ahirudb::allocator::bridge;
+		debug::DebugTracker *tracker = bridge::new_debug_tracker(true);
+		tracker->track_allocate(0x1000, 64,
+		                       rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("stack"), 5));
+		Check(tracker->outstanding_bytes() == 64, "the allocator tracker counts allocated bytes");
+		Check(!tracker->is_empty(), "a tracker with an outstanding allocation is not empty");
+
+		// A free that never happened, or one with the wrong size, is refused.
+		Check(!tracker->track_free(0x2000, 64), "an untracked free is refused");
+		Check(!tracker->track_free(0x1000, 32), "a free with the wrong size is refused");
+		Check(tracker->outstanding_bytes() == 64, "a refused free leaves the accounting alone");
+
+		Check(tracker->track_free(0x1000, 64), "the matching free is accepted");
+		Check(tracker->is_empty(), "the tracker is empty again");
+
+		// A reallocate moves the tracking from the old pointer to the new.
+		tracker->track_allocate(0x3000, 32,
+		                       rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("old"), 3));
+		Check(tracker->track_reallocate(0x3000, 0x4000, 32, 48,
+		                                rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("new"),
+		                                                                         3)),
+		      "a reallocate moves the tracking to the new pointer");
+		Check(tracker->outstanding_bytes() == 48, "the tracker holds the reallocated size");
+		Check(!tracker->track_free(0x3000, 32), "the old pointer no longer has tracking");
+
+		// A leak report names every outstanding pointer.
+		auto bytes_text = [](const debug::OwnedBytes &bytes) {
+			if (bytes.len == 0) {
+				return std::string();
+			}
+			return std::string(reinterpret_cast<const char *>(bytes.ptr), bytes.len);
+		};
+		debug::OwnedBytes leaked = tracker->leak_report();
+		std::string report = bytes_text(leaked);
+		Check(report.find("Outstanding allocations found for Allocator") != std::string::npos,
+		      "the leak report has the expected header");
+		Check(report.find("Allocation of size 48 at address 0x4000") != std::string::npos,
+		      "the leak report names the outstanding pointer");
+		Check(report.find("Stack trace:\nnew\n\n") != std::string::npos, "the leak report carries the stack trace");
+
+		// The free that ends the leaked allocation works.
+		Check(tracker->track_free(0x4000, 48), "the outstanding allocation frees normally");
+		Check(bytes_text(tracker->leak_report()).empty(), "a tracker with nothing outstanding has an empty report");
+
+		bridge::free_leak_report(leaked);
+		bridge::delete_debug_tracker(tracker);
+
+		// A bytes-only tracker never inspects pointers.
+		debug::DebugTracker *counting = bridge::new_debug_tracker(false);
+		counting->track_allocate(0x1000, 64, rs_std::SliceRef<const std::uint8_t>(nullptr, 0));
+		Check(counting->track_free(0x9999, 64), "a bytes-only tracker accepts any pointer");
+		bridge::delete_debug_tracker(counting);
+
+		// The trim gate trims once per interval against a fresh call sequence.
+		Check(bridge::should_trim(1000), "the first trim tick is due");
+		Check(!bridge::should_trim(1000), "a second trim within the interval is not due");
+	}
+
 	if (failures == 0) {
 		std::printf("ahirudb bindings OK\n");
 	}

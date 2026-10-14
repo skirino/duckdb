@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "duckdb/common/allocator.hpp"
 #include "duckdb/function/function_set.hpp"
 #include "re2/re2.h"
 #include "duckdb/function/built_in_functions.hpp"
@@ -33,6 +34,16 @@ inline duckdb_re2::StringPiece CreateStringPiece(const string_t &input) {
 }
 
 } // namespace regexp_util
+
+template <class T>
+T *AllocateArray(idx_t size) {
+	return reinterpret_cast<T *>(Allocator::DefaultAllocator().AllocateData(size * sizeof(T)));
+}
+
+template <class T>
+void DeleteArray(T *ptr, idx_t size) {
+	Allocator::DefaultAllocator().FreeData(data_ptr_cast(ptr), size * sizeof(T));
+}
 
 struct RegexpExtractAll {
 	static void Execute(DataChunk &args, ExpressionState &state, Vector &result);
