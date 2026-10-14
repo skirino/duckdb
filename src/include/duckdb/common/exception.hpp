@@ -28,20 +28,6 @@ struct hugeint_t;
 class optional_idx; // NOLINT: matching std style
 struct QueryLocation;
 
-inline void AssertRestrictFunction(const void *left_start, const void *left_end, const void *right_start,
-                                   const void *right_end, const char *fname, int linenr) {
-	// assert that the two pointers do not overlap
-#ifdef DEBUG
-	if (!(left_end <= right_start || right_end <= left_start)) {
-		printf("ASSERT RESTRICT FAILED: %s:%d\n", fname, linenr);
-		D_ASSERT(0);
-	}
-#endif
-}
-
-#define ASSERT_RESTRICT(left_start, left_end, right_start, right_end)                                                  \
-	AssertRestrictFunction(left_start, left_end, right_start, right_end, __FILE__, __LINE__)
-
 //===--------------------------------------------------------------------===//
 // Exception Types
 //===--------------------------------------------------------------------===//
@@ -146,9 +132,7 @@ public:
 	DUCKDB_API static bool UncaughtException();
 
 	DUCKDB_API static string GetStackTrace(idx_t max_depth = 120);
-	static string FormatStackTrace(const string &message = "") {
-		return (message + "\n" + GetStackTrace());
-	}
+	DUCKDB_API static string FormatStackTrace(const string &message = "");
 
 	DUCKDB_API static void SetQueryLocation(QueryLocation error_location, unordered_map<string, string> &extra_info);
 };

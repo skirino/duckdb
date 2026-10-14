@@ -18,6 +18,8 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -130,6 +132,88 @@ int main() {
 	const auto refused_array = ahirudb::vector::array_vector::array_child_sel(
 	    rs_std::SliceRef<const std::uint32_t>(array_rows, 1), rs_std::SliceRef<const std::uint64_t>(), 0, 2, 3);
 	Check(!refused_array.has_value(), "array_child_sel refuses a selection vector that is too short");
+
+	// --- the exception module -----------------------------------------------
+	// Everything below is what `src/common/exception` reaches into Rust for. The
+	// interesting part is the shape: a factory hands C++ a payload of owned bytes and
+	// C++ hands it straight back, so a wrong free or a wrong copy shows up here.
+	namespace bridge = ahirudb::exception::bridge;
+	using ahirudb::exception::types::ByteSlice;
+	using ahirudb::exception::types::ExceptionPayload;
+	using ahirudb::exception::types::OwnedBytes;
+	using ahirudb::exception::types::QueryLocationLayout;
+
+	Check(std::string_view(bridge::exception_type_to_string(24)) == "Binder",
+	      "the binder type is named Binder, as the error text spells it");
+	// NETWORK has no entry in the C++ EXCEPTION_MAP, so it has no name there either.
+	Check(std::string_view(bridge::exception_type_to_string(25)) == "Unknown", "NETWORK has no name");
+	Check(bridge::string_to_exception_type(std::string_view("Catalog")) == 13, "Catalog names the catalog type");
+	Check(bridge::string_to_exception_type(std::string_view("nonsense")) == 0, "an unknown name is INVALID");
+
+	Check(!bridge::invalidates_transaction(24), "a binder error leaves the transaction alone");
+	Check(bridge::invalidates_database(30), "a fatal error invalidates the database");
+	Check(bridge::is_execution_error(2), "a conversion error happens during execution");
+
+	// Reads a payload the way the C++ bridge does: copy the bytes out, then free it.
+	// An empty run is not read from at all - its pointer is a dangling sentinel.
+	auto payload_text = [](const OwnedBytes &bytes) {
+		if (bytes.len == 0) {
+			return std::string();
+		}
+		return std::string(reinterpret_cast<const char *>(bytes.ptr), bytes.len);
+	};
+	auto check_payload = [&](const ExceptionPayload &payload, const char *message, std::size_t entry_count) {
+		Check(payload_text(payload.message) == message, message);
+		Check(payload.entry_count == entry_count, "the payload has the expected number of extra_info entries");
+	};
+	auto as_slice = [](std::string_view value) {
+		return rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>(value.data()), value.size());
+	};
+	auto as_views = [](std::string_view value) {
+		return ByteSlice {reinterpret_cast<const std::uint8_t *>(value.data()), value.size()};
+	};
+
+	QueryLocationLayout location;
+	location.offset = 10;
+	location.length = 2;
+	const auto known_location = bridge::set_query_location(location);
+	Check(known_location.entry_count == 2, "a known location contributes position and location");
+	Check(known_location.entry_count >= 2 && payload_text(known_location.entries[0].value) == "10",
+	      "position is the start offset");
+	Check(known_location.entry_count >= 2 && payload_text(known_location.entries[1].value) == "[10,2]",
+	      "location is the [start, length] range");
+	Check(payload_text(known_location.message).empty(), "set_query_location builds no message");
+	bridge::free_payload(known_location);
+
+	QueryLocationLayout unknown_location;
+	unknown_location.offset = QueryLocationLayout::INVALID_OFFSET;
+	unknown_location.length = 0;
+	const auto no_location = bridge::set_query_location(unknown_location);
+	Check(no_location.entry_count == 0, "an unknown location contributes nothing");
+	bridge::free_payload(no_location);
+
+	const auto already_exists = bridge::catalog_entry_already_exists(as_slice("Table"), as_slice("tbl"));
+	check_payload(already_exists, "Table with name \"tbl\" already exists!", 3);
+	Check(payload_text(already_exists.entries[0].key) == "error_subtype", "the subtype comes first");
+	Check(payload_text(already_exists.entries[0].value) == "ENTRY_ALREADY_EXISTS", "the subtype is named");
+	bridge::free_payload(already_exists);
+
+	// A list of borrowed strings crosses as a list of views, and the message is built
+	// around the candidate message C++ rendered for them.
+	const std::vector<std::string_view> similar = {"id", "idx"};
+	std::vector<ByteSlice> similar_views;
+	for (const auto &value : similar) {
+		similar_views.push_back(as_views(value));
+	}
+	const auto column_not_found = bridge::binder_column_not_found(
+	    as_slice("i"), rs_std::SliceRef<const ByteSlice>(similar_views.data(), similar_views.size()),
+	    as_slice("\nCandidate bindings: \"id\", \"idx\""), location);
+	check_payload(column_not_found,
+	              "Referenced column \"i\" not found in FROM clause!\nCandidate bindings: \"id\", "
+	              "\"idx\"",
+	              5);
+	Check(payload_text(column_not_found.entries[4].value) == "id,idx", "the candidate names are joined with a comma");
+	bridge::free_payload(column_not_found);
 
 	if (failures == 0) {
 		std::printf("ahirudb bindings OK\n");

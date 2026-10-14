@@ -27,6 +27,22 @@
 
 namespace duckdb {
 
+//! Asserts that two pointer ranges do not overlap. The vector operations below take restrict
+//! pointers, so an input and the result must never be the same vector.
+inline void AssertRestrictFunction(const void *left_start, const void *left_end, const void *right_start,
+                                   const void *right_end, const char *fname, int linenr) {
+	// assert that the two pointers do not overlap
+#ifdef DEBUG
+	if (!(left_end <= right_start || right_end <= left_start)) {
+		printf("ASSERT RESTRICT FAILED: %s:%d\n", fname, linenr);
+		D_ASSERT(0);
+	}
+#endif
+}
+
+#define ASSERT_RESTRICT(left_start, left_end, right_start, right_end)                                                  \
+	AssertRestrictFunction(left_start, left_end, right_start, right_end, __FILE__, __LINE__)
+
 //! Internal execution engine shared by the named scalar executor facades.
 struct ScalarExecutor {
 	using VectorRef = std::reference_wrapper<const Vector>;

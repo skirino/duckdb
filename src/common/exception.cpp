@@ -7,6 +7,7 @@
 #include "duckdb/parser/tableref.hpp"
 #include "duckdb/parser/parsed_expression.hpp"
 #include "duckdb/planner/expression.hpp"
+#include "exception_rust_bridge.hpp"
 
 #ifdef DUCKDB_CRASH_ON_ASSERT
 #include "duckdb/common/printer.hpp"
@@ -58,32 +59,19 @@ bool Exception::UncaughtException() {
 }
 
 bool Exception::InvalidatesTransaction(ExceptionType exception_type) {
-	switch (exception_type) {
-	case ExceptionType::BINDER:
-	case ExceptionType::CATALOG:
-	case ExceptionType::CONNECTION:
-	case ExceptionType::PARAMETER_NOT_ALLOWED:
-	case ExceptionType::PARSER:
-	case ExceptionType::PERMISSION:
-	case ExceptionType::RESOURCE_IN_USE:
-		return false;
-	default:
-		return true;
-	}
+	return ExceptionRustBridge::InvalidatesTransaction(exception_type);
 }
 
 bool Exception::InvalidatesDatabase(ExceptionType exception_type) {
-	switch (exception_type) {
-	case ExceptionType::DATA_CORRUPTION:
-	case ExceptionType::FATAL:
-		return true;
-	default:
-		return false;
-	}
+	return ExceptionRustBridge::InvalidatesDatabase(exception_type);
 }
 
 string Exception::GetStackTrace(idx_t max_depth) {
 	return StackTrace::GetStackTrace(max_depth);
+}
+
+string Exception::FormatStackTrace(const string &message) {
+	return message + "\n" + GetStackTrace();
 }
 
 string Exception::ConstructMessageRecursive(const string &msg, std::vector<ExceptionFormatValue> &values) {
@@ -110,72 +98,12 @@ string Exception::ConstructMessageRecursive(const string &msg, std::vector<Excep
 	return ExceptionFormatValue::Format(msg, values);
 }
 
-struct ExceptionEntry {
-	ExceptionType type;
-	char text[48];
-};
-
-static constexpr ExceptionEntry EXCEPTION_MAP[] = {{ExceptionType::INVALID, "Invalid"},
-                                                   {ExceptionType::OUT_OF_RANGE, "Out of Range"},
-                                                   {ExceptionType::CONVERSION, "Conversion"},
-                                                   {ExceptionType::UNKNOWN_TYPE, "Unknown Type"},
-                                                   {ExceptionType::DECIMAL, "Decimal"},
-                                                   {ExceptionType::MISMATCH_TYPE, "Mismatch Type"},
-                                                   {ExceptionType::DIVIDE_BY_ZERO, "Divide by Zero"},
-                                                   {ExceptionType::OBJECT_SIZE, "Object Size"},
-                                                   {ExceptionType::INVALID_TYPE, "Invalid type"},
-                                                   {ExceptionType::SERIALIZATION, "Serialization"},
-                                                   {ExceptionType::TRANSACTION, "TransactionContext"},
-                                                   {ExceptionType::NOT_IMPLEMENTED, "Not implemented"},
-                                                   {ExceptionType::EXPRESSION, "Expression"},
-                                                   {ExceptionType::CATALOG, "Catalog"},
-                                                   {ExceptionType::PARSER, "Parser"},
-                                                   {ExceptionType::BINDER, "Binder"},
-                                                   {ExceptionType::PLANNER, "Planner"},
-                                                   {ExceptionType::SCHEDULER, "Scheduler"},
-                                                   {ExceptionType::EXECUTOR, "Executor"},
-                                                   {ExceptionType::CONSTRAINT, "Constraint"},
-                                                   {ExceptionType::INDEX, "Index"},
-                                                   {ExceptionType::STAT, "Stat"},
-                                                   {ExceptionType::CONNECTION, "Connection"},
-                                                   {ExceptionType::SYNTAX, "Syntax"},
-                                                   {ExceptionType::SETTINGS, "Settings"},
-                                                   {ExceptionType::OPTIMIZER, "Optimizer"},
-                                                   {ExceptionType::NULL_POINTER, "NullPointer"},
-                                                   {ExceptionType::IO, "IO"},
-                                                   {ExceptionType::INTERRUPT, "INTERRUPT"},
-                                                   {ExceptionType::FATAL, "FATAL"},
-                                                   {ExceptionType::INTERNAL, "INTERNAL"},
-                                                   {ExceptionType::INVALID_INPUT, "Invalid Input"},
-                                                   {ExceptionType::OUT_OF_MEMORY, "Out of Memory"},
-                                                   {ExceptionType::PERMISSION, "Permission"},
-                                                   {ExceptionType::PARAMETER_NOT_RESOLVED, "Parameter Not Resolved"},
-                                                   {ExceptionType::PARAMETER_NOT_ALLOWED, "Parameter Not Allowed"},
-                                                   {ExceptionType::DEPENDENCY, "Dependency"},
-                                                   {ExceptionType::MISSING_EXTENSION, "Missing Extension"},
-                                                   {ExceptionType::HTTP, "HTTP"},
-                                                   {ExceptionType::AUTOLOAD, "Extension Autoloading"},
-                                                   {ExceptionType::SEQUENCE, "Sequence"},
-                                                   {ExceptionType::INVALID_CONFIGURATION, "Invalid Configuration"},
-                                                   {ExceptionType::DATA_CORRUPTION, "Data Corruption"},
-                                                   {ExceptionType::RESOURCE_IN_USE, "Resource In Use"}};
-
 string Exception::ExceptionTypeToString(ExceptionType type) {
-	for (auto &e : EXCEPTION_MAP) {
-		if (e.type == type) {
-			return e.text;
-		}
-	}
-	return "Unknown";
+	return ExceptionRustBridge::ExceptionTypeToString(type);
 }
 
 ExceptionType Exception::StringToExceptionType(const string &type) {
-	for (auto &e : EXCEPTION_MAP) {
-		if (e.text == type) {
-			return e.type;
-		}
-	}
-	return ExceptionType::INVALID;
+	return ExceptionRustBridge::StringToExceptionType(type);
 }
 
 unordered_map<string, string> Exception::InitializeExtraInfo(const Expression &expr) {
@@ -201,14 +129,7 @@ unordered_map<string, string> Exception::InitializeExtraInfo(QueryLocation error
 }
 
 bool Exception::IsExecutionError(ExceptionType type) {
-	switch (type) {
-	case ExceptionType::INVALID_INPUT:
-	case ExceptionType::OUT_OF_RANGE:
-	case ExceptionType::CONVERSION:
-		return true;
-	default:
-		return false;
-	}
+	return ExceptionRustBridge::IsExecutionError(type);
 }
 
 unordered_map<string, string> Exception::InitializeExtraInfo(const string &subtype, QueryLocation error_location) {
@@ -219,12 +140,7 @@ unordered_map<string, string> Exception::InitializeExtraInfo(const string &subty
 }
 
 void Exception::SetQueryLocation(QueryLocation error_location, unordered_map<string, string> &extra_info) {
-	if (error_location.IsValid()) {
-		// "position" is the start offset (kept for backwards compatibility with existing consumers)
-		extra_info["position"] = to_string(error_location.offset);
-		// "location" is the structured [start, length] source range
-		extra_info["location"] = "[" + to_string(error_location.offset) + "," + to_string(error_location.length) + "]";
-	}
+	ExceptionRustBridge::SetQueryLocation(error_location, extra_info);
 }
 
 InvalidTypeException::InvalidTypeException(PhysicalType type, const string &msg)

@@ -4,6 +4,7 @@
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/catalog/entry_lookup_info.hpp"
 #include "duckdb/planner/tableref/bound_at_clause.hpp"
+#include "exception_rust_bridge.hpp"
 
 namespace duckdb {
 
@@ -15,31 +16,18 @@ CatalogException::CatalogException(const unordered_map<string, string> &extra_in
 }
 
 CatalogException CatalogException::MissingEntry(const EntryLookupInfo &lookup_info, const string &suggestion) {
-	auto type = lookup_info.GetCatalogType();
-	auto context = lookup_info.GetErrorContext();
-	auto &name = lookup_info.GetEntryName();
-	auto at_clause = lookup_info.GetAtClause();
-
-	string did_you_mean;
-	if (!suggestion.empty()) {
-		did_you_mean = "\nDid you mean \"" + suggestion + "\"?";
-	}
 	string version_info;
-	if (at_clause) {
+	if (auto at_clause = lookup_info.GetAtClause()) {
 		version_info +=
 		    " at " + StringUtil::Lower(at_clause->Unit().GetIdentifierName()) + " " + at_clause->GetValue().ToString();
 	}
 
-	auto extra_info = Exception::InitializeExtraInfo("MISSING_ENTRY", context.query_location);
-
-	extra_info["name"] = name;
-	extra_info["type"] = CatalogTypeToString(type);
-	if (!suggestion.empty()) {
-		extra_info["candidates"] = suggestion;
-	}
-	return CatalogException(extra_info,
-	                        StringUtil::Format("%s with name %s does not exist%s!%s", CatalogTypeToString(type), name,
-	                                           version_info, did_you_mean));
+	string message;
+	unordered_map<string, string> extra_info;
+	ExceptionRustBridge::MissingEntry(CatalogTypeToString(lookup_info.GetCatalogType()), lookup_info.GetEntryName(),
+	                                  suggestion, version_info, lookup_info.GetErrorContext().query_location, message,
+	                                  extra_info);
+	return CatalogException(extra_info, message);
 }
 
 CatalogException CatalogException::MissingEntry(CatalogType type, const Identifier &name, const string &suggestion,
@@ -50,26 +38,22 @@ CatalogException CatalogException::MissingEntry(CatalogType type, const Identifi
 
 CatalogException CatalogException::MissingEntry(const string &type, const Identifier &name,
                                                 const vector<Identifier> &suggestions, QueryErrorContext context) {
-	auto extra_info = Exception::InitializeExtraInfo("MISSING_ENTRY", context.query_location);
-	extra_info["error_subtype"] = "MISSING_ENTRY";
-	extra_info["name"] = name.GetIdentifierName();
-	extra_info["type"] = type;
-	if (!suggestions.empty()) {
-		extra_info["candidates"] = StringUtil::Join(suggestions, ", ");
-	}
-	return CatalogException(
-	    extra_info, StringUtil::Format("unrecognized %s %s\n%s", type, name,
-	                                   StringUtil::CandidatesErrorMessage(IdentifiersToStrings(suggestions),
-	                                                                      name.GetIdentifierName(), "Did you mean")));
+	auto suggestion_names = IdentifiersToStrings(suggestions);
+	string message;
+	unordered_map<string, string> extra_info;
+	ExceptionRustBridge::MissingEntry(
+	    type, name.GetIdentifierName(), suggestion_names,
+	    StringUtil::CandidatesErrorMessage(suggestion_names, name.GetIdentifierName(), "Did you mean"),
+	    context.query_location, message, extra_info);
+	return CatalogException(extra_info, message);
 }
 
 CatalogException CatalogException::EntryAlreadyExists(CatalogType type, const Identifier &name,
                                                       QueryErrorContext context) {
-	auto extra_info = Exception::InitializeExtraInfo("ENTRY_ALREADY_EXISTS", QueryLocation());
-	extra_info["name"] = name.GetIdentifierName();
-	extra_info["type"] = CatalogTypeToString(type);
-	return CatalogException(extra_info, StringUtil::Format("%s with name \"%s\" already exists!",
-	                                                       CatalogTypeToString(type), name.GetIdentifierName()));
+	string message;
+	unordered_map<string, string> extra_info;
+	ExceptionRustBridge::EntryAlreadyExists(CatalogTypeToString(type), name.GetIdentifierName(), message, extra_info);
+	return CatalogException(extra_info, message);
 }
 
 } // namespace duckdb
