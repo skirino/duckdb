@@ -25,6 +25,4 @@ enum class JoinRefType : uint8_t {
 	NEAREST,    // Nearest-neighbour (top-k per left row) conditions
 };
 
-const char *ToString(JoinRefType value);
-
 } // namespace duckdb

@@ -223,8 +223,8 @@ int main() {
 		using namespace ahirudb::allocator;
 		namespace bridge = ahirudb::allocator::bridge;
 		debug::DebugTracker *tracker = bridge::new_debug_tracker(true);
-		tracker->track_allocate(0x1000, 64,
-		                       rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("stack"), 5));
+		tracker->track_allocate(
+		    0x1000, 64, rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("stack"), 5));
 		Check(tracker->outstanding_bytes() == 64, "the allocator tracker counts allocated bytes");
 		Check(!tracker->is_empty(), "a tracker with an outstanding allocation is not empty");
 
@@ -238,10 +238,10 @@ int main() {
 
 		// A reallocate moves the tracking from the old pointer to the new.
 		tracker->track_allocate(0x3000, 32,
-		                       rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("old"), 3));
-		Check(tracker->track_reallocate(0x3000, 0x4000, 32, 48,
-		                                rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("new"),
-		                                                                         3)),
+		                        rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("old"), 3));
+		Check(tracker->track_reallocate(
+		          0x3000, 0x4000, 32, 48,
+		          rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("new"), 3)),
 		      "a reallocate moves the tracking to the new pointer");
 		Check(tracker->outstanding_bytes() == 48, "the tracker holds the reallocated size");
 		Check(!tracker->track_free(0x3000, 32), "the old pointer no longer has tracking");
@@ -277,6 +277,21 @@ int main() {
 		// The trim gate trims once per interval against a fresh call sequence.
 		Check(bridge::should_trim(1000), "the first trim tick is due");
 		Check(!bridge::should_trim(1000), "a second trim within the interval is not due");
+	}
+
+	// --- the enums module -----------------------------------------------
+	{
+		namespace bridge = ahirudb::enums::bridge;
+		Check(std::string_view(bridge::expression_type_to_operator(25)) == "=",
+		      "expression_type_to_operator maps EQUAL to =");
+		Check(bridge::is_left_outer_join(1), "JOIN LEFT is a left outer join");
+		Check(bridge::inverse_join_type(1) == 2, "LEFT inverts to RIGHT in enums bridge");
+		const auto status = bridge::http_status_message(500);
+		Check(std::string_view(status.data(), status.size()) == "Internal Server Error",
+		      "http_status_message names the 500 code");
+		Check(bridge::catalog_type_from_string(
+		          rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("nonsense"), 8)) == -1,
+		      "an unknown catalog name yields the -1 sentinel");
 	}
 
 	if (failures == 0) {

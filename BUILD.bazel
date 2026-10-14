@@ -158,6 +158,8 @@ duckdb_library(
             # src/common/exception has a target of its own.
             "src/common/exception.cpp",
             "src/common/exception/**/*.cpp",
+            # src/common/enums has a target of its own.
+            "src/common/enums/**/*.cpp",
             "src/function/table/version/pragma_version.cpp",
             "src/main/extension/extension_alias.cpp",
             "src/main/extension/extension_helper.cpp",
@@ -173,7 +175,7 @@ duckdb_library(
         ],
     ),
     # duckdb_library's `deps` replaces the default rather than extending it.
-    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator"],
+    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_enums"],
 )
 
 # src/logging is a library of its own because it is the one that calls into the
@@ -278,6 +280,20 @@ duckdb_library(
     includes = sorted(DUCKDB_INCLUDES + ["src/common/allocator"]),
     copts = crubit_copts(),
     # duckdb_library's `deps` replaces the default rather than extending it.
+    deps = DUCKDB_LIB_DEPS + [
+        ":duckdb_exception",
+        "//ahirudb:ahirudb_cc_api",
+        "//ahirudb:ahirudb_static",
+        "@crubit_toolchain//:support_runtime",
+    ],
+)
+
+duckdb_library(
+    name = "duckdb_enums",
+    srcs = glob(["src/common/enums/**/*.cpp"]),
+    hdrs = ["src/common/enums/enums_rust_bridge.hpp"],
+    includes = sorted(DUCKDB_INCLUDES + ["src/common/enums"]),
+    copts = crubit_copts(),
     deps = DUCKDB_LIB_DEPS + [
         ":duckdb_exception",
         "//ahirudb:ahirudb_cc_api",
