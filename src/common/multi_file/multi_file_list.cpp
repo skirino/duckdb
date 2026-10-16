@@ -1,5 +1,7 @@
 #include "duckdb/common/multi_file/multi_file_reader.hpp"
 
+#include "multi_file_rust_bridge.hpp"
+
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/hive_partitioning.hpp"
 #include "duckdb/common/types.hpp"
@@ -169,14 +171,17 @@ vector<OpenFileInfo> MultiFileList::GetDisplayFileList(optional_idx max_files) c
 }
 
 MultiFileCount MultiFileList::GetFileCount(idx_t min_exact_count) const {
-	return MultiFileCount(GetTotalFileCount());
+	return FromRust(rust::file_count(GetTotalFileCount(), true));
 }
 
 bool MultiFileList::Scan(MultiFileListScanData &iterator, OpenFileInfo &result_file) const {
 	D_ASSERT(iterator.current_file_idx != DConstants::INVALID_INDEX);
-	if (iterator.scan_type == MultiFileListScanType::FETCH_IF_AVAILABLE &&
-	    !FileIsAvailable(iterator.current_file_idx)) {
-		return false;
+	if (!rust::scan_fetches_unconditionally(ToRustScanType(iterator.scan_type))) {
+		// an ALWAYS_FETCH scan reaches past what is expanded, and must not pay for - or deadlock on - the list's lock
+		// on every file to find that out; a FETCH_IF_AVAILABLE one stops at a file it would have to fetch
+		if (!FileIsAvailable(iterator.current_file_idx)) {
+			return false;
+		}
 	}
 	auto maybe_file = GetFile(iterator.current_file_idx);
 
@@ -260,13 +265,7 @@ vector<OpenFileInfo> SimpleMultiFileList::GetAllFiles() const {
 }
 
 FileExpandResult SimpleMultiFileList::GetExpandResult() const {
-	if (paths.size() > 1) {
-		return FileExpandResult::MULTIPLE_FILES;
-	} else if (paths.size() == 1) {
-		return FileExpandResult::SINGLE_FILE;
-	}
-
-	return FileExpandResult::NO_FILES;
+	return ToCppExpandResult(rust::expand_result(paths.size()));
 }
 
 OpenFileInfo SimpleMultiFileList::GetFile(idx_t i) const {
@@ -306,8 +305,7 @@ MultiFileCount LazyMultiFileList::GetFileCount(idx_t min_exact_count) const {
 	// expand files so that we get to min_exact_count
 	while (!all_files_expanded && expanded_files.size() < min_exact_count && ExpandNextPathInternal()) {
 	}
-	auto type = all_files_expanded ? FileExpansionType::ALL_FILES_EXPANDED : FileExpansionType::NOT_ALL_FILES_KNOWN;
-	return MultiFileCount(expanded_files.size(), type);
+	return FromRust(rust::file_count(expanded_files.size(), all_files_expanded));
 }
 
 FileExpandResult LazyMultiFileList::GetExpandResult() const {
@@ -315,12 +313,7 @@ FileExpandResult LazyMultiFileList::GetExpandResult() const {
 	(void)GetFile(1);
 
 	lock_guard<mutex> lck(lock);
-	if (expanded_files.size() > 1) {
-		return FileExpandResult::MULTIPLE_FILES;
-	} else if (expanded_files.size() == 1) {
-		return FileExpandResult::SINGLE_FILE;
-	}
-	return FileExpandResult::NO_FILES;
+	return ToCppExpandResult(rust::expand_result(expanded_files.size()));
 }
 
 bool LazyMultiFileList::FileIsAvailable(idx_t i) const {

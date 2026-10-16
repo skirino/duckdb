@@ -13,8 +13,8 @@ load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library", "cc_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//bazel:duckdb_build_config.bzl", "DUCKDB_DEFINES", "DUCKDB_INCLUDES",
-      "DUCKDB_LIB_DEPS", "DUCKDB_TEST_INCLUDES", "duckdb_library")
-load("//bazel:crubit_bindings.bzl", "crubit_copts")
+      "DUCKDB_LIB_DEPS", "DUCKDB_TEST_INCLUDES", "duckdb_library",
+      "duckdb_rust_bridge_library")
 load("//bazel:duckdb_codegen.bzl", "extension_codegen_files", "fixture_tree",
       "version_info_header")
 load("//bazel:duckdb_test.bzl", "FIXTURE_TREES", "TEST_DATA_GLOBS",
@@ -160,6 +160,8 @@ duckdb_library(
             "src/common/exception/**/*.cpp",
             # src/common/enums has a target of its own.
             "src/common/enums/**/*.cpp",
+            # src/common/multi_file has a target of its own, below.
+            "src/common/multi_file/**/*.cpp",
             "src/function/table/version/pragma_version.cpp",
             "src/main/extension/extension_alias.cpp",
             "src/main/extension/extension_helper.cpp",
@@ -178,95 +180,38 @@ duckdb_library(
     deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_enums"],
 )
 
-# src/logging is a library of its own because it is the one that calls into the
-# ahirudb crate: log_rust_bridge.cpp includes
-# crubit/ahirudb.h and calls the Rust logging implementation through it. Crubit's
-# generated headers need C++20 and two warnings off, which nothing else in src/
-# wants, so both belong to this target alone.
-duckdb_library(
+# src/logging is a library of its own because it is the one that calls into the ahirudb crate: log_rust_bridge.cpp
+# includes crubit/ahirudb.h and calls the Rust logging implementation through it.
+duckdb_rust_bridge_library(
     name = "duckdb_logging",
     srcs = glob(["src/logging/**/*.cpp"]),
-    # Private to this library, and deliberately not under src/include: it pulls in
-    # crubit/ahirudb.h, which nothing outside src/logging should see. Bazel only
-    # puts declared files in the sandbox and does not search a source file's own
-    # directory, so src/logging is an include root here.
     hdrs = ["src/logging/log_rust_bridge.hpp"],
-    includes = sorted(DUCKDB_INCLUDES + ["src/logging"]),
-    copts = crubit_copts(),
-    # duckdb_library's `deps` replaces the default rather than extending it, so
-    # the Rust half is added to DUCKDB_LIB_DEPS instead of standing in for it.
-    deps = DUCKDB_LIB_DEPS + [
-        # Crubit's generated C++ API, and the staticlib the generator builds
-        # together with the generated C++ shims.
-        "//ahirudb:ahirudb_cc_api",
-        "//ahirudb:ahirudb_static",
-        # The C++ side of the crubit runtime, which the generated bindings call
-        # into when a Rust value crosses the boundary.
-        "@crubit_toolchain//:support_runtime",
-    ],
+    include_root = "src/logging",
 )
 
-# src/common/vector is a library of its own for the same reason as src/logging: the
-# buffer classes reach the Rust vector module in `ahirudb` for their
-# selection-vector and validity-mask arithmetic, and vector_rust_bridge.cpp
-# includes crubit/ahirudb.h to do it. Crubit's generated headers need C++20 and
-# two warnings off, so both belong to this target alone.
-duckdb_library(
+# src/common/vector is a library of its own for the same reason as src/logging: the buffer classes reach the Rust vector
+# module in `ahirudb` for their selection-vector and validity-mask arithmetic, and vector_rust_bridge.cpp includes
+# crubit/ahirudb.h to do it.
+duckdb_rust_bridge_library(
     name = "duckdb_vector",
     srcs = glob(["src/common/vector/**/*.cpp"]),
-    # Private to this library, and deliberately not under src/include: it pulls in
-    # crubit/ahirudb.h, which nothing outside src/common/vector should see. Bazel
-    # only puts declared files in the sandbox and does not search a source file's
-    # own directory, so src/common/vector is an include root here.
     hdrs = ["src/common/vector/vector_rust_bridge.hpp"],
-    includes = sorted(DUCKDB_INCLUDES + ["src/common/vector"]),
-    copts = crubit_copts(),
-    # duckdb_library's `deps` replaces the default rather than extending it, so
-    # the Rust half is added to DUCKDB_LIB_DEPS instead of standing in for it.
-    deps = DUCKDB_LIB_DEPS + [
-        # Crubit's generated C++ API, and the staticlib the generator builds
-        # together with the generated C++ shims.
-        "//ahirudb:ahirudb_cc_api",
-        "//ahirudb:ahirudb_static",
-        # The C++ side of the crubit runtime, which the generated bindings call
-        # into when a Rust value crosses the boundary.
-        "@crubit_toolchain//:support_runtime",
-    ],
+    include_root = "src/common/vector",
 )
 
-# src/common/exception is a library of its own for the same reason as src/logging: the
-# exception classes and their factories reach the Rust exception module in `ahirudb` for
-# the type names, the classification and the messages they build, and
-# exception_rust_bridge.cpp includes crubit/ahirudb.h to do it. Crubit's generated headers
-# need C++20 and two warnings off, so both belong to this target alone.
-duckdb_library(
+# src/common/exception is a library of its own for the same reason as src/logging: the exception classes and their
+# factories reach the Rust exception module in `ahirudb` for the type names, the classification and the messages they
+# build, and exception_rust_bridge.cpp includes crubit/ahirudb.h to do it.
+duckdb_rust_bridge_library(
     name = "duckdb_exception",
     srcs = ["src/common/exception.cpp"] + glob(["src/common/exception/**/*.cpp"]),
-    # Private to this library, and deliberately not under src/include: the bridge is the
-    # one thing that sees crubit/ahirudb.h, and nothing outside src/common/exception should
-    # see it. Bazel only puts declared files in the sandbox and does not search a source
-    # file's own directory, so src/common/exception is an include root here.
     hdrs = ["src/common/exception/exception_rust_bridge.hpp"],
-    includes = sorted(DUCKDB_INCLUDES + ["src/common/exception"]),
-    copts = crubit_copts(),
-    # duckdb_library's `deps` replaces the default rather than extending it, so the
-    # Rust half is added to DUCKDB_LIB_DEPS instead of standing in for it.
-    deps = DUCKDB_LIB_DEPS + [
-        # Crubit's generated C++ API, and the staticlib the generator builds
-        # together with the generated C++ shims.
-        "//ahirudb:ahirudb_cc_api",
-        "//ahirudb:ahirudb_static",
-        # The C++ side of the crubit runtime, which the generated bindings call
-        # into when a Rust value crosses the boundary.
-        "@crubit_toolchain//:support_runtime",
-    ],
+    include_root = "src/common/exception",
 )
 
-# src/common/allocator is a library of its own for the same reason as
-# duckdb_exception/duckdb_vector: allocator.cpp's debug info shells out to the
-# Rust allocator module, and allocator_rust_bridge.cpp includes crubit/ahirudb.h.
-# Crubit's generated headers need C++20 and two warnings off.
-duckdb_library(
+# src/common/allocator is a library of its own for the same reason as duckdb_exception/duckdb_vector: allocator.cpp's
+# debug info shells out to the Rust allocator module, and allocator_rust_bridge.cpp includes crubit/ahirudb.h.
+duckdb_rust_bridge_library(
     name = "duckdb_allocator",
     srcs = [
         "src/common/allocator/allocator.cpp",
@@ -275,32 +220,31 @@ duckdb_library(
         ":jemalloc_enabled": [],
         "//conditions:default": ["src/common/allocator/allocator_standard.cpp"],
     }),
-    # Private to this library, deliberately not under src/include.
     hdrs = ["src/common/allocator/allocator_rust_bridge.hpp"],
-    includes = sorted(DUCKDB_INCLUDES + ["src/common/allocator"]),
-    copts = crubit_copts(),
-    # duckdb_library's `deps` replaces the default rather than extending it.
-    deps = DUCKDB_LIB_DEPS + [
-        ":duckdb_exception",
-        "//ahirudb:ahirudb_cc_api",
-        "//ahirudb:ahirudb_static",
-        "@crubit_toolchain//:support_runtime",
-    ],
+    include_root = "src/common/allocator",
+    extra_deps = [":duckdb_exception"],
 )
 
-duckdb_library(
+# src/common/enums reaches the Rust enums module for the string <-> enum conversions, and enums_rust_bridge.cpp
+# includes crubit/ahirudb.h to do it.
+duckdb_rust_bridge_library(
     name = "duckdb_enums",
     srcs = glob(["src/common/enums/**/*.cpp"]),
     hdrs = ["src/common/enums/enums_rust_bridge.hpp"],
-    includes = sorted(DUCKDB_INCLUDES + ["src/common/enums"]),
-    copts = crubit_copts(),
-    deps = DUCKDB_LIB_DEPS + [
-        ":duckdb_exception",
-        "//ahirudb:ahirudb_cc_api",
-        "//ahirudb:ahirudb_static",
-        "@crubit_toolchain//:support_runtime",
-    ],
+    include_root = "src/common/enums",
+    extra_deps = [":duckdb_exception"],
 )
+
+# src/common/multi_file is a library of its own for the same reason as src/logging: multi_file_data.cpp and
+# multi_file_list.cpp reach the Rust multi_file module in `ahirudb` for the rules over the multi-file reader's indices
+# and file lists, and multi_file_rust_bridge.cpp includes crubit/ahirudb.h to do it.
+duckdb_rust_bridge_library(
+    name = "duckdb_multi_file",
+    srcs = glob(["src/common/multi_file/**/*.cpp"]),
+    hdrs = ["src/common/multi_file/multi_file_rust_bridge.hpp"],
+    include_root = "src/common/multi_file",
+)
+
 
 duckdb_library(
     name = "core_functions_extension_init",
@@ -604,6 +548,7 @@ cc_library(
         ":duckdb_core",
         ":duckdb_logging",
         ":duckdb_vector",
+        ":duckdb_multi_file",
         ":duckdb_exception",
         ":duckdb_allocator",
         ":core_functions_extension_init",

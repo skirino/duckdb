@@ -124,6 +124,8 @@ public:
 //! fwd declare
 struct MultiFileCastMap;
 struct MultiFileFilterEntry;
+//! Defined in `src/common/multi_file/multi_file_rust_bridge.hpp`, which is the only place that knows both sides
+struct MultiFileFilterEntryAccess;
 
 //! MultiFileLocalColumnId refers to an absolute column index within a specific file we are reading
 // i.e. if the file has columns "a, b, c", a will have MultiFileLocalColumnId(0), b = 1, c = 2
@@ -154,6 +156,12 @@ struct MultiFileColumnMapping;
 struct MultiFileFilterMap;
 struct MultiFileConstantMap;
 
+//! Resolves a projection position against a list of `size` column ids, refusing one that is invalid or out of range.
+//! `MultiFileLocalColumnIds::operator[]` goes through this rather than indexing its vector directly. The rule is the
+//! Rust module's, hence the out-of-line definition; it is a free function so that it works for every `T` the
+//! `MultiFileLocalColumnIds` template is instantiated with.
+DUCKDB_API idx_t ResolveMultiFileLocalIndex(idx_t size, idx_t index);
+
 //! MultiFileLocalIndex refers to a ProjectionIndex locally within a specific file that we are reading
 //! This refers to an entry in the "column_ids" list - i.e. to get the absolute column (MultiFileLocalColumnId)
 // we can use column_ids[#MultiFileLocalColumnId]
@@ -171,17 +179,11 @@ public:
 	}
 
 public:
+	DUCKDB_API idx_t GetIndex() const;
+	DUCKDB_API bool IsValid() const;
+
 	operator idx_t() const { // NOLINT: allow implicit conversion
 		return GetIndex();
-	}
-	idx_t GetIndex() const {
-		if (!IsValid()) {
-			throw InternalException("MultiFileLocalIndex::GetIndex called on invalid index");
-		}
-		return index;
-	}
-	bool IsValid() const {
-		return index != DConstants::INVALID_INDEX;
 	}
 	operator ProjectionIndex() const { // NOLINT: allow implicit conversion to projection index
 		return ProjectionIndex(index);
@@ -277,40 +279,25 @@ private:
 };
 
 struct MultiFileFilterEntry {
+	//! The Rust rules read these three and are the only thing allowed to see them: `MultiFileFilterEntryAccess` is
+	//! the bridge's half of that, and `Set` is how an entry is built.
+	friend struct MultiFileFilterEntryAccess;
+
 public:
 	MultiFileFilterEntry() : is_set(false), is_constant(false), index(DConstants::INVALID_INDEX) {
 	}
 
 public:
-	void Set(MultiFileConstantMapIndex constant_index) {
-		is_set = true;
-		is_constant = true;
-		index = constant_index.index;
-	}
-	void Set(MultiFileLocalIndex local_index) {
-		is_set = true;
-		is_constant = false;
-		index = local_index.index;
-	}
+	DUCKDB_API void Set(MultiFileConstantMapIndex constant_index);
+	DUCKDB_API void Set(MultiFileLocalIndex local_index);
 
 	bool IsSet() const {
 		return is_set;
 	}
-	bool IsConstant() const {
-		D_ASSERT(is_set);
-		return is_constant;
-	}
-
-	MultiFileConstantMapIndex GetConstantIndex() const {
-		D_ASSERT(is_set);
-		D_ASSERT(is_constant);
-		return MultiFileConstantMapIndex(index);
-	}
-	MultiFileLocalIndex GetLocalIndex() const {
-		D_ASSERT(is_set);
-		D_ASSERT(!is_constant);
-		return MultiFileLocalIndex(index);
-	}
+	//! Whether the entry is a constant. An entry that is not set is neither, which is an error rather than a `false`.
+	DUCKDB_API bool IsConstant() const;
+	DUCKDB_API MultiFileConstantMapIndex GetConstantIndex() const;
+	DUCKDB_API MultiFileLocalIndex GetLocalIndex() const;
 
 private:
 	bool is_set;
@@ -329,8 +316,9 @@ public:
 	void emplace_back(Args &&...args) {
 		column_ids.emplace_back(std::forward<Args>(args)...);
 	}
-	const T &operator[](MultiFileLocalIndex index) {
-		return column_ids[index.index];
+	//! A position that is invalid, or one past the end, is an error rather than a read out of bounds.
+	const T &operator[](MultiFileLocalIndex index) const {
+		return column_ids[ResolveMultiFileLocalIndex(column_ids.size(), index.index)];
 	}
 	bool empty() const { // NOLINT: matching name of std
 		return column_ids.empty();
@@ -343,14 +331,23 @@ private:
 	vector<T> column_ids;
 };
 
+//! Resolves a global index against a `MultiFileFilterMap` of `size` entries, refusing an index the map does not cover.
+//! `MultiFileFilterMap::operator[]` goes through this rather than indexing its vector directly, for the same reason
+//! `ResolveMultiFileLocalIndex` does above: the rule is the Rust module's.
+DUCKDB_API idx_t ResolveMultiFileFilterMapIndex(idx_t size, idx_t index);
+
+//! Resolves a constant-map index against a `MultiFileConstantMap` of `size` entries, refusing an index the map does
+//! not cover. `MultiFileConstantMap::operator[]` goes through this for the same reason `ResolveMultiFileFilterMapIndex`
+//! does above: the rule is the Rust module's.
+DUCKDB_API idx_t ResolveMultiFileConstantMapIndex(idx_t size, idx_t index);
+
 struct MultiFileFilterMap {
 public:
 	void push_back(const MultiFileFilterEntry &filter_entry) { // NOLINT: matching name of std
 		filter_map.push_back(filter_entry);
 	}
-	MultiFileFilterEntry &operator[](MultiFileGlobalIndex global_index) {
-		return filter_map[global_index.index];
-	}
+	//! A global index the map does not cover is an error rather than a read out of bounds.
+	DUCKDB_API MultiFileFilterEntry &operator[](MultiFileGlobalIndex global_index);
 	void resize(idx_t size) { // NOLINT: matching name of std
 		filter_map.resize(size);
 	}
@@ -369,8 +366,9 @@ public:
 	void Add(Args &&...args) {
 		constant_map.emplace_back(std::forward<Args>(args)...);
 	}
+	//! A constant-map index the map does not cover is an error rather than a read out of bounds.
 	const MultiFileConstantEntry &operator[](MultiFileConstantMapIndex constant_index) {
-		return constant_map[constant_index.index];
+		return constant_map[ResolveMultiFileConstantMapIndex(constant_map.size(), constant_index.index)];
 	}
 	idx_t size() const { // NOLINT: matching name of std
 		return constant_map.size();

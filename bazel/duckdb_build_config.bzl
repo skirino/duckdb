@@ -7,6 +7,7 @@ scattered across every target.
 """
 
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//bazel:crubit_bindings.bzl", "crubit_copts")
 
 # The -isystem paths, which every translation unit in the build searches.
 DUCKDB_INCLUDES = [
@@ -76,6 +77,17 @@ DUCKDB_COPTS = ["-fPIC"]
 
 DUCKDB_LIB_DEPS = [":duckdb_headers", ":generated_extension_loader"]
 
+# What a C++ library that calls into the `ahirudb` crate needs beyond the usual.
+# The first two are Crubit's: the generated C++ API, and the staticlib the
+# generator builds together with the generated C++ shims. The third is the C++
+# side of Crubit's runtime, which the generated bindings call into when a Rust
+# value crosses the boundary.
+DUCKDB_RUST_BRIDGE_DEPS = [
+    "//ahirudb:ahirudb_cc_api",
+    "//ahirudb:ahirudb_static",
+    "@crubit_toolchain//:support_runtime",
+]
+
 def duckdb_library(
         name,
         srcs,
@@ -105,4 +117,26 @@ def duckdb_library(
         linkopts = linkopts or [],
         alwayslink = alwayslink,
         tags = tags or [],
+    )
+
+def duckdb_rust_bridge_library(name, srcs, hdrs, include_root, extra_deps = None):
+    """A library whose sources include the crubit-generated bindings.
+
+    Every library that reaches into the `ahirudb` crate looks the same, and has
+    to: the bridge header pulls in the bindings, which need C++20 and two
+    warnings off that nothing else in src/ wants; and the bindings cannot be
+    reached from a public header, because only this library's own sources may
+    include them - so the header is private to the library, and its directory is
+    an include root so that those sources can name it.
+
+    What differs from one to the next is which directory of src/ the Rust module
+    is reached from. That is stated per target; the rest is here once.
+    """
+    duckdb_library(
+        name = name,
+        srcs = srcs,
+        hdrs = hdrs,
+        includes = sorted(DUCKDB_INCLUDES + [include_root]),
+        copts = crubit_copts(),
+        deps = DUCKDB_LIB_DEPS + DUCKDB_RUST_BRIDGE_DEPS + (extra_deps or []),
     )

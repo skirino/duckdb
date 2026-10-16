@@ -36,6 +36,73 @@ void Check(bool condition, const char *what) {
 } // namespace
 
 int main() {
+	// --- the multi_file module -------------------------------------------
+	// The kernels src/common/multi_file calls into Rust for: which index is
+	// valid, what a filter entry means, and how many files a list holds. Each
+	// of them used to be an inline C++ rule, so a bridging that crossed the
+	// values wrongly shows up here as a wrong answer.
+	//
+	// This block runs before the logging checks below on purpose: those abort
+	// on an unknown discriminant until task 007 lands the logging fix, and a
+	// block after them would never run in CI.
+	{
+		namespace data = ahirudb::multi_file::data;
+		namespace list = ahirudb::multi_file::list;
+
+		Check(data::local_index_is_valid(0), "0 is a valid local index");
+		Check(!data::local_index_is_valid(data::INVALID_INDEX), "INVALID_INDEX is not a valid local index");
+		Check(data::local_index_get_index(3).has_value() && data::local_index_get_index(3).value() == 3,
+		      "a valid local index unwraps to itself");
+		Check(!data::local_index_get_index(data::INVALID_INDEX).has_value(),
+		      "an invalid local index is refused rather than unwrapped");
+
+		Check(data::local_column_ids_get(2, 1).has_value(), "a position inside the list resolves");
+		Check(!data::local_column_ids_get(2, 2).has_value(), "a position past the list is refused");
+
+		const auto unset = data::MultiFileFilterEntryLayout();
+		const auto local = data::filter_entry_set_local(1);
+		const auto constant = data::filter_entry_set_constant(2);
+		Check(!unset.is_set, "an entry that was never set is unset");
+		Check(unset.index == data::INVALID_INDEX, "an entry that was never set holds no index");
+		Check(local.is_set && !local.is_constant && local.index == 1, "a local entry holds its local index");
+		Check(constant.is_set && constant.is_constant && constant.index == 2, "a constant entry holds its index");
+		Check(data::filter_entry_is_constant(local).has_value() && !data::filter_entry_is_constant(local).value(),
+		      "a local entry is not a constant one");
+		Check(!data::filter_entry_is_constant(unset).has_value(), "an unset entry is neither kind");
+		Check(data::filter_entry_get_local_index(local).has_value() &&
+		          data::filter_entry_get_local_index(local).value() == 1,
+		      "a local entry reads back its local index");
+		Check(!data::filter_entry_get_constant_index(local).has_value(), "a local entry has no constant index");
+		Check(data::filter_entry_get_constant_index(constant).has_value() &&
+		          data::filter_entry_get_constant_index(constant).value() == 2,
+		      "a constant entry reads back its constant index");
+
+		Check(!data::filter_map_get(1, 1).has_value(), "a global index the filter map does not cover is refused");
+		Check(data::constant_map_get(2, 1).has_value(), "a constant-map index inside the map resolves");
+		Check(!data::constant_map_get(2, 2).has_value(), "a constant-map index past the map is refused");
+
+		Check(list::expand_result(0) == list::FileExpandResult::MakeNO_FILES(), "0 files is NO_FILES");
+		Check(list::expand_result(1) == list::FileExpandResult::MakeSINGLE_FILE(), "1 file is SINGLE_FILE");
+		Check(list::expand_result(7) == list::FileExpandResult::MakeMULTIPLE_FILES(), "7 files is MULTIPLE_FILES");
+
+		const auto exact = list::file_count(4, true);
+		Check(exact.get_count() == 4 && exact.get_type() == list::FileExpansionType::MakeALL_FILES_EXPANDED(),
+		      "a finished list counts exactly");
+		const auto partial = list::file_count(4, false);
+		Check(partial.get_count() == 4 && partial.get_type() == list::FileExpansionType::MakeNOT_ALL_FILES_KNOWN(),
+		      "a list with globs left counts inexactly");
+
+		Check(list::scan_fetches_unconditionally(list::MultiFileListScanType::MakeALWAYS_FETCH()),
+		      "an ALWAYS_FETCH scan always fetches");
+		Check(!list::scan_fetches_unconditionally(list::MultiFileListScanType::MakeFETCH_IF_AVAILABLE()),
+		      "a FETCH_IF_AVAILABLE scan does not always fetch");
+
+		// an entry built in Rust in one step, not default-constructed there and then overwritten here
+		const auto entry = data::MultiFileFilterEntryLayout::new_(true, true, 5);
+		Check(entry.is_set && entry.is_constant && entry.index == 5,
+		      "an entry is built from its kind and its index");
+	}
+
 	using ahirudb::logging::LogLevel;
 
 	// The discriminants are the ones src/logging/logging.rs assigns.

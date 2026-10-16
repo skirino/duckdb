@@ -4,4 +4,5 @@ pub mod allocator;
 pub mod exception;
 pub mod enums;
 pub mod logging;
+pub mod multi_file;
 pub mod vector;
