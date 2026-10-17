@@ -59,9 +59,8 @@ struct EnumsRustBridge {
 
 	static idx_t OptimizerCount();
 	static string OptimizerName(idx_t idx);
-	static uint32_t OptimizerDiscriminant(idx_t idx);
 	static string OptimizerNameForDiscriminant(uint32_t type);
-	static int64_t OptimizerIndexOfName(const string &str);
+	static int64_t OptimizerDiscriminantOfName(const string &str);
 
 	static string PhysicalOperatorToString(PhysicalOperatorType type);
 

@@ -121,6 +121,9 @@ duckdb_library(
 duckdb_library(
     name = "duckdb_common_http",
     srcs = glob(["src/main/http/*.cpp"]),
+    # http_util.cpp calls HTTPUtil::ToStatusCode / GetStatusMessage, which
+    # src/common/enums/http_status_code.cpp defines in //:duckdb_enums.
+    deps = DUCKDB_LIB_DEPS + [":duckdb_enums"],
 )
 
 duckdb_library(

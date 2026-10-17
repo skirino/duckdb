@@ -29,15 +29,18 @@ struct CompressionMethodRequirements {
 
 CompressionAvailabilityResult CompressionTypeIsAvailable(CompressionType compression_type,
                                                          optional_ptr<StorageManager> storage_manager) {
-	// version-gated availability kept in C++
+	//! Max storage compatibility
+	// if minimum version is StorageVersion::INVALID, this is an indication that the
+	// compression method is deprecated (e.g. chimp and patas)
 	vector<CompressionMethodRequirements> candidates(
-	    {{CompressionType::COMPRESSION_PATAS, StorageVersion::INVALID, StorageVersion::V0_10_2},
-	     {CompressionType::COMPRESSION_CHIMP, StorageVersion::INVALID, StorageVersion::V0_10_2},
+	    {{CompressionType::COMPRESSION_PATAS, StorageVersion::INVALID, StorageVersion::V0_10_2}, // phased out
+	     {CompressionType::COMPRESSION_CHIMP, StorageVersion::INVALID, StorageVersion::V0_10_2}, // phased out
 	     {CompressionType::COMPRESSION_DICTIONARY, StorageVersion::V0_10_2, StorageVersion::V1_2_0},
 	     {CompressionType::COMPRESSION_FSST, StorageVersion::V0_10_2, StorageVersion::V1_2_0},
 	     {CompressionType::COMPRESSION_ROARING, StorageVersion::V1_2_0, StorageVersion::LATEST},
 	     {CompressionType::COMPRESSION_ZSTD, StorageVersion::V1_2_0, StorageVersion::LATEST},
 	     {CompressionType::COMPRESSION_DICT_FSST, StorageVersion::V1_3_0, StorageVersion::LATEST},
+	     // Not implemented yet
 	     {CompressionType::COMPRESSION_PFOR_DELTA, (StorageVersion)((int)StorageVersion::LATEST + 1),
 	      StorageVersion::INVALID}});
 
@@ -54,19 +57,25 @@ CompressionAvailabilityResult CompressionTypeIsAvailable(CompressionType compres
 		auto &max = candidate.maximum_storage_version;
 
 		if (min == StorageVersion::INVALID) {
+			//! Used to signal: always deprecated
 			return CompressionAvailabilityResult::Deprecated();
 		}
 
 		if (current_storage_version == StorageVersion::INVALID) {
+			//! Can't determine in this call whether it's available or not, default to available
 			return CompressionAvailabilityResult();
 		}
 
 		auto current_version = current_storage_version;
 		D_ASSERT(min != StorageVersion::INVALID);
 		if (min > current_version) {
+			//! Minimum required storage version is higher than the current storage version, this method isn't available
+			//! yet
 			return CompressionAvailabilityResult::NotAvailableYet();
 		}
 		if (max != StorageVersion::INVALID && max < current_version) {
+			//! Maximum supported storage version is lower than the current storage version, this method is no longer
+			//! available
 			return CompressionAvailabilityResult::Deprecated();
 		}
 		return CompressionAvailabilityResult();

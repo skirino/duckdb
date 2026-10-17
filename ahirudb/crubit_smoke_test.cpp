@@ -347,6 +347,10 @@ int main() {
 	}
 
 	// --- the enums module -----------------------------------------------
+	// Every helper src/common/enums turned into a Rust call. The checks below
+	// pin the two regressions a rewrite of the match tables is likely to
+	// introduce: a comparison operator losing its name, and the `year`
+	// specifier losing its numeric aliases.
 	{
 		namespace bridge = ahirudb::enums::bridge;
 		Check(std::string_view(bridge::expression_type_to_operator(25)) == "=",
@@ -356,9 +360,45 @@ int main() {
 		const auto status = bridge::http_status_message(500);
 		Check(std::string_view(status.data(), status.size()) == "Internal Server Error",
 		      "http_status_message names the 500 code");
-		Check(bridge::catalog_type_from_string(
-		          rs_std::SliceRef<const std::uint8_t>(reinterpret_cast<const std::uint8_t *>("nonsense"), 8)) == -1,
+
+		// The comparison labels, which the match table has to name exactly:
+		// 25..30 are the comparisons and 37/40 the distinctness tests.
+		Check(std::string_view(bridge::expression_type_to_string(25)) == "EQUAL", "25 names EQUAL");
+		Check(std::string_view(bridge::expression_type_to_string(26)) == "NOTEQUAL", "26 names NOTEQUAL");
+		Check(std::string_view(bridge::expression_type_to_string(27)) == "LESSTHAN", "27 names LESSTHAN");
+		Check(std::string_view(bridge::expression_type_to_string(28)) == "GREATERTHAN", "28 names GREATERTHAN");
+		Check(std::string_view(bridge::expression_type_to_string(29)) == "LESSTHANOREQUALTO",
+		      "29 names LESSTHANOREQUALTO");
+		Check(std::string_view(bridge::expression_type_to_string(30)) == "GREATERTHANOREQUALTO",
+		      "30 names GREATERTHANOREQUALTO");
+		Check(std::string_view(bridge::expression_type_to_string(37)) == "DISTINCT_FROM", "37 names DISTINCT_FROM");
+		Check(std::string_view(bridge::expression_type_to_string(40)) == "NOT_DISTINCT_FROM",
+		      "40 names NOT_DISTINCT_FROM");
+
+		// `year` and its aliases all name the first specifier.
+		for (const char *alias : {"year", "yr", "y", "years", "yrs"}) {
+			Check(bridge::try_date_part_specifier(as_slice(alias)) == 0, "year aliases name the year specifier");
+		}
+		Check(bridge::try_date_part_specifier(as_slice("month")) == 1, "month names the month specifier");
+		Check(bridge::try_date_part_specifier(as_slice("nonsense")) == -1, "an unknown specifier is refused");
+
+		// The catalog type round trip, including INVALID, which C++ names too.
+		Check(bridge::catalog_type_from_string(as_slice("INVALID")) == 0, "INVALID names the invalid catalog type");
+		Check(bridge::catalog_type_from_string(as_slice("Table")) == 1, "Table names the table catalog type");
+		Check(bridge::catalog_type_from_string(as_slice("nonsense")) == -1,
 		      "an unknown catalog name yields the -1 sentinel");
+
+		// The optimizer table: count, name by index, name by discriminant, and
+		// discriminant by name, the last of which the C++ shell calls once.
+		Check(bridge::optimizer_count() == 45, "the optimizer table has 45 entries");
+		Check(std::string_view(bridge::optimizer_name(0)) == "expression_rewriter",
+		      "optimizer index 0 is the expression rewriter");
+		Check(std::string_view(bridge::optimizer_name_for_discriminant(1)) == "expression_rewriter",
+		      "optimizer discriminant 1 is the expression rewriter");
+		Check(bridge::optimizer_discriminant_of_name(as_slice("expression_rewriter")) == 1,
+		      "the expression rewriter names discriminant 1");
+		Check(bridge::optimizer_discriminant_of_name(as_slice("nonsense")) == -1,
+		      "an unknown optimizer name yields the -1 sentinel");
 	}
 
 	if (failures == 0) {

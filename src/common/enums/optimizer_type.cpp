@@ -19,23 +19,28 @@ string OptimizerTypeToString(OptimizerType type) {
 
 vector<string> ListAllOptimizers() {
 	vector<string> result;
-	for (idx_t i = 0; i < EnumsRustBridge::OptimizerCount(); i++) {
+	auto count = EnumsRustBridge::OptimizerCount();
+	result.reserve(count);
+	for (idx_t i = 0; i < count; i++) {
 		result.push_back(EnumsRustBridge::OptimizerName(i));
 	}
 	return result;
 }
 
 OptimizerType OptimizerTypeFromString(const string &str) {
-	auto idx = EnumsRustBridge::OptimizerIndexOfName(str);
-	if (idx < 0) {
+	auto discriminant = EnumsRustBridge::OptimizerDiscriminantOfName(str);
+	if (discriminant < 0) {
+		// optimizer not found, construct candidate list
+		auto count = EnumsRustBridge::OptimizerCount();
 		vector<string> optimizer_names;
-		for (idx_t i = 0; i < EnumsRustBridge::OptimizerCount(); i++) {
+		optimizer_names.reserve(count);
+		for (idx_t i = 0; i < count; i++) {
 			optimizer_names.emplace_back(EnumsRustBridge::OptimizerName(i));
 		}
 		throw ParserException("Optimizer type \"%s\" not recognized\n%s", str,
 		                      StringUtil::CandidatesErrorMessage(optimizer_names, str, "Candidate optimizers"));
 	}
-	return static_cast<OptimizerType>(EnumsRustBridge::OptimizerDiscriminant(static_cast<idx_t>(idx)));
+	return static_cast<OptimizerType>(discriminant);
 }
 
 } // namespace duckdb

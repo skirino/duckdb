@@ -146,17 +146,13 @@ string EnumsRustBridge::OptimizerName(idx_t idx) {
 	return string(ref.data(), ref.size());
 }
 
-uint32_t EnumsRustBridge::OptimizerDiscriminant(idx_t idx) {
-	return ahirudb::enums::bridge::optimizer_discriminant(idx);
-}
-
 string EnumsRustBridge::OptimizerNameForDiscriminant(uint32_t type) {
 	auto ref = ahirudb::enums::bridge::optimizer_name_for_discriminant(type);
 	return string(ref.data(), ref.size());
 }
 
-int64_t EnumsRustBridge::OptimizerIndexOfName(const string &str) {
-	return ahirudb::enums::bridge::optimizer_index_of_name(AsSlice(str));
+int64_t EnumsRustBridge::OptimizerDiscriminantOfName(const string &str) {
+	return ahirudb::enums::bridge::optimizer_discriminant_of_name(AsSlice(str));
 }
 
 string EnumsRustBridge::PhysicalOperatorToString(PhysicalOperatorType type) {

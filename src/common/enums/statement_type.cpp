@@ -25,8 +25,10 @@ void StatementProperties::RegisterDBModify(Catalog &catalog, ClientContext &cont
 	auto catalog_identity = CatalogIdentity {catalog.GetOid(), catalog.GetCatalogVersion(context)};
 	auto entry = modified_databases.insert(make_pair(catalog.GetName(), ModificationInfo()));
 	if (entry.second) {
+		// new entry - set the identity
 		entry.first->second.identity = catalog_identity;
 	} else {
+		// existing entry - verify this has the same identity
 		D_ASSERT(entry.first->second.identity == catalog_identity);
 	}
 	entry.first->second.modifications |= modification;
