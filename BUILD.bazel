@@ -162,6 +162,8 @@ duckdb_library(
             "src/common/enums/**/*.cpp",
             # src/common/multi_file has a target of its own, below.
             "src/common/multi_file/**/*.cpp",
+            # src/common/row_operations has a target of its own.
+            "src/common/row_operations/**/*.cpp",
             "src/function/table/version/pragma_version.cpp",
             "src/main/extension/extension_alias.cpp",
             "src/main/extension/extension_helper.cpp",
@@ -177,7 +179,7 @@ duckdb_library(
         ],
     ),
     # duckdb_library's `deps` replaces the default rather than extending it.
-    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_enums"],
+    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_enums", ":duckdb_row_operations"],
 )
 
 # src/logging is a library of its own because it is the one that calls into the ahirudb crate: log_rust_bridge.cpp
@@ -245,6 +247,14 @@ duckdb_rust_bridge_library(
     include_root = "src/common/multi_file",
 )
 
+# src/common/row_operations is a library of its own for the same reason as src/logging: row_operations_rust_bridge.cpp
+# includes crubit/ahirudb.h and calls the Rust row_operations implementation through it.
+duckdb_rust_bridge_library(
+    name = "duckdb_row_operations",
+    srcs = glob(["src/common/row_operations/**/*.cpp"]),
+    hdrs = ["src/common/row_operations/row_operations_rust_bridge.hpp"],
+    include_root = "src/common/row_operations",
+)
 
 duckdb_library(
     name = "core_functions_extension_init",
