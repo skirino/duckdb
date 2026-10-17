@@ -561,3 +561,10 @@ The generator compiles against rustc internals, which upstream renames between
 Rust releases, so the nightly it is built with is pinned (`nightly-2026-09-29`,
 the version Crubit pins as its own `rust_version`) rather than tracking
 `nightly`.
+
+## Git operations
+
+- Git write operations (git commit, reset, etc.) should not be done.
+  - There have been cases where previous meaningful commits are lost due to
+    agent activities.
+  - Perform these git operations only when explicitly required.
