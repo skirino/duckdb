@@ -154,6 +154,9 @@ duckdb_library(
         ],
         exclude = [
             "src/common/allocator/allocator.cpp",
+            # The bridge includes crubit/ahirudb.h, which needs C++20; it belongs
+            # to //:duckdb_allocator, which compiles with crubit_copts().
+            "src/common/allocator/allocator_rust_bridge.cpp",
             "src/common/allocator/allocator_jemalloc.cpp",
             "src/common/allocator/allocator_standard.cpp",
             # src/common/vector has a target of its own, below.

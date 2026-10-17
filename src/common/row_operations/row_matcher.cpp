@@ -1,5 +1,6 @@
 #include "row_operations_rust_bridge.hpp"
 
+#include "duckdb/common/row_operations/row_matcher.hpp"
 #include "duckdb/common/types/data_chunk.hpp"
 #include "duckdb/common/types/row/tuple_data_states.hpp"
 
@@ -42,7 +43,7 @@ void RowMatcher::Initialize(const bool no_match_sel, const TupleDataLayout &layo
 	}
 	matcher_handle = row_ops_bridge::ThrowOnRowError(row_ops_bridge::CallIntoRust([&]() {
 		return ahirudb::row_operations::row_matcher::matcher_initialize(
-		    *row_ops_bridge::MatcherOpsTable(), no_match_sel, &layout,
+		    row_ops_bridge::MatcherOpsTable(), no_match_sel, &layout,
 		    rs_std::SliceRef<const uint8_t>(predicate_bytes.data(), predicate_bytes.size()),
 		    rs_std::SliceRef<const uint64_t>(column_indices.data(), column_indices.size()));
 	}));

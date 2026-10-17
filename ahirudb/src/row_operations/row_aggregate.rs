@@ -2,11 +2,11 @@
 //! `src/common/row_operations/row_aggregate.cpp`.
 //!
 //! Every loop here walks a `TupleDataLayout`'s aggregate slots and advances a
-//! `Vector` of row addresses from one aggregate state to the next. The layout is
-//! projected into plain data ([`AggregateSlot`]s plus its offset array) by the
-//! bridge, and the state-vector arithmetic is done with the dereferenced
-//! addresses handed over as a slice. Everything that needs a DuckDB object - the
-//! aggregate callbacks, `VectorOperations::AddInPlace`/`Copy`, the filtered
+//! `Vector` of row addresses from one aggregate state to the next. The layout
+//! is projected into plain data ([`AggregateSlot`]s plus its offset array) by
+//! the bridge, and the state-vector arithmetic is done with the dereferenced
+//! addresses handed over as a slice. Everything that needs a DuckDB object -
+//! the aggregate callbacks, `VectorOperations::AddInPlace`/`Copy`, the filtered
 //! address vector - goes through [`AggregateOps`].
 //!
 //! # Errors
@@ -27,7 +27,8 @@ pub type InitStateFn = extern "C" fn(aggr: *mut c_void, state_ptr: usize);
 /// `GetStateDestructorCallback()(addresses, aggr_input_data, count)`.
 pub type DestroyStatesFn =
     extern "C" fn(ctx: *mut c_void, aggr: *mut c_void, addresses: *mut c_void, count: usize);
-/// `GetStateUpdateCallback()(inputs, aggr_input_data, input_count, addresses, count)`.
+/// `GetStateUpdateCallback()(inputs, aggr_input_data, input_count, addresses,
+/// count)`.
 pub type UpdateFn = extern "C" fn(
     ctx: *mut c_void,
     aggr: *mut c_void,
@@ -36,7 +37,8 @@ pub type UpdateFn = extern "C" fn(
     addresses: *mut c_void,
     count: usize,
 );
-/// `GetStateClusterUpdateCallback()(inputs, aggr_input_data, input_count, *clustered, count)`.
+/// `GetStateClusterUpdateCallback()(inputs, aggr_input_data, input_count,
+/// *clustered, count)`.
 pub type ClusterUpdateFn = extern "C" fn(
     ctx: *mut c_void,
     aggr: *mut c_void,
@@ -53,7 +55,8 @@ pub type CombineFn = extern "C" fn(
     targets: *mut c_void,
     count: usize,
 );
-/// `GetStateFinalizeCallback()(addresses, finalize_input_data, target, count, offset)`.
+/// `GetStateFinalizeCallback()(addresses, finalize_input_data, target, count,
+/// offset)`.
 pub type FinalizeFn = extern "C" fn(
     ctx: *mut c_void,
     aggr: *mut c_void,
@@ -75,12 +78,14 @@ pub type VectorSizeFn = extern "C" fn(vector: *mut c_void) -> usize;
 pub type GetOrCreateAddressesFn = extern "C" fn(ctx: *mut c_void) -> *mut c_void;
 /// `filter_data.ApplyFilter(payload)`.
 pub type ApplyFilterFn = extern "C" fn(filter_data: *mut c_void, payload: *mut c_void) -> usize;
-/// Builds `Vector(addresses, filter_data.true_sel, count)`, flattened, on the heap.
+/// Builds `Vector(addresses, filter_data.true_sel, count)`, flattened, on the
+/// heap.
 pub type MakeFilteredAddressesFn =
     extern "C" fn(addresses: *mut c_void, filter_data: *mut c_void, count: usize) -> *mut c_void;
 /// `&filter_data.filtered_payload`.
 pub type FilteredPayloadFn = extern "C" fn(filter_data: *mut c_void) -> *mut c_void;
-/// Frees a vector the table allocated (currently only the filtered-address vector).
+/// Frees a vector the table allocated (currently only the filtered-address
+/// vector).
 pub type FreeVectorFn = extern "C" fn(vector: *mut c_void);
 /// `filter_set->GetFilterData(aggr_idx)`.
 pub type GetFilterDataFn = extern "C" fn(filter_set: *mut c_void, aggr_idx: usize) -> *mut c_void;
@@ -188,8 +193,9 @@ impl AggregateOps {
 
 /// One entry of `TupleDataLayout::GetAggregates()`, projected into plain data.
 ///
-/// `aggr` is the address of the live C++ `AggregateObject`, which every callback
-/// trampoline needs; the flags are the only properties the loops branch on.
+/// `aggr` is the address of the live C++ `AggregateObject`, which every
+/// callback trampoline needs; the flags are the only properties the loops
+/// branch on.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AggregateSlot {
@@ -231,18 +237,25 @@ pub fn initialize_states(
     sel: &[u32],
     count: usize,
 ) {
-    if count == 0 {
+    if count == 0
+    {
         return;
     }
-    for (aggregate_idx, aggr) in aggregates.iter().enumerate() {
+    for (aggregate_idx, aggr) in aggregates.iter().enumerate()
+    {
         let aggr_offset = offsets[column_count + aggregate_idx];
-        if sel.is_empty() {
-            for row in 0..count {
+        if sel.is_empty()
+        {
+            for row in 0..count
+            {
                 let state_ptr = addresses_data[row] as usize + aggr_offset;
                 (ops.init_state)(aggr.aggr, state_ptr);
             }
-        } else {
-            for row in 0..count {
+        }
+        else
+        {
+            for row in 0..count
+            {
                 let address_idx = sel[row] as usize;
                 let state_ptr = addresses_data[address_idx] as usize + aggr_offset;
                 (ops.init_state)(aggr.aggr, state_ptr);
@@ -260,12 +273,15 @@ pub fn destroy_states(
     addresses: *mut c_void,
 ) {
     let count = (ops.vector_size)(addresses);
-    if count == 0 {
+    if count == 0
+    {
         return;
     }
     (ops.add_in_place)(addresses, aggr_offset as i64);
-    for aggr in aggregates {
-        if aggr.has_destructor {
+    for aggr in aggregates
+    {
+        if aggr.has_destructor
+        {
             (ops.destroy_states)(ctx, aggr.aggr, addresses, count);
         }
         (ops.add_in_place)(addresses, aggr.payload_size as i64);
@@ -283,14 +299,20 @@ pub fn update_states(
     clustered: *const c_void,
 ) {
     let count = (ops.vector_size)(addresses);
-    let inputs = if aggr.child_count != 0 {
+    let inputs = if aggr.child_count != 0
+    {
         (ops.chunk_child_vector)(payload, arg_idx)
-    } else {
+    }
+    else
+    {
         std::ptr::null_mut()
     };
-    if !clustered.is_null() && aggr.has_cluster_update {
+    if !clustered.is_null() && aggr.has_cluster_update
+    {
         (ops.cluster_update)(ctx, aggr.aggr, inputs, aggr.child_count, clustered, count);
-    } else {
+    }
+    else
+    {
         (ops.update)(ctx, aggr.aggr, inputs, aggr.child_count, addresses, count);
     }
 }
@@ -306,18 +328,23 @@ pub fn update_filtered_states(
     arg_idx: usize,
 ) {
     let count = (ops.apply_filter)(filter_data, payload);
-    if count == 0 {
+    if count == 0
+    {
         return;
     }
     let filtered = (ops.make_filtered_addresses)(addresses, filter_data, count);
-    if filtered.is_null() {
+    if filtered.is_null()
+    {
         // The trampoline caught a C++ exception; the boundary rethrows it.
         return;
     }
     let filtered_payload = (ops.filtered_payload)(filter_data);
-    let inputs = if aggr.child_count != 0 {
+    let inputs = if aggr.child_count != 0
+    {
         (ops.chunk_child_vector)(filtered_payload, arg_idx)
-    } else {
+    }
+    else
+    {
         std::ptr::null_mut()
     };
     (ops.update)(ctx, aggr.aggr, inputs, aggr.child_count, filtered, count);
@@ -343,31 +370,39 @@ pub fn update_states_clustered(
 ) {
     let mut filter_idx = 0usize;
     let mut payload_idx = 0usize;
-    for (aggr_idx, aggr) in aggregates.iter().enumerate() {
-        if has_filter && (filter_idx >= filter.len() || aggr_idx < filter[filter_idx] as usize) {
+    for (aggr_idx, aggr) in aggregates.iter().enumerate()
+    {
+        if has_filter && (filter_idx >= filter.len() || aggr_idx < filter[filter_idx] as usize)
+        {
             // Skip all the aggregates that are not in the filter
             payload_idx += aggr.child_count;
-            if !skip_addresses {
+            if !skip_addresses
+            {
                 (ops.add_in_place)(addresses, aggr.payload_size as i64);
             }
             (ops.clustered_advance)(clustered, aggr.payload_size);
             continue;
         }
 
-        if !aggr.is_distinct && aggr.has_filter {
+        if !aggr.is_distinct && aggr.has_filter
+        {
             let filter_data = (ops.get_filter_data)(filter_set, aggr_idx);
             update_filtered_states(ops, ctx, filter_data, aggr, addresses, payload, payload_idx);
-        } else {
+        }
+        else
+        {
             update_states(ops, ctx, aggr, addresses, payload, payload_idx, clustered);
         }
 
         // Move to the next aggregate
         payload_idx += aggr.child_count;
-        if !skip_addresses {
+        if !skip_addresses
+        {
             (ops.add_in_place)(addresses, aggr.payload_size as i64);
         }
         (ops.clustered_advance)(clustered, aggr.payload_size);
-        if has_filter {
+        if has_filter
+        {
             filter_idx += 1;
         }
     }
@@ -383,7 +418,8 @@ pub fn combine_states(
     targets: *mut c_void,
 ) {
     let count = (ops.vector_size)(sources);
-    if count == 0 {
+    if count == 0
+    {
         return;
     }
 
@@ -392,7 +428,8 @@ pub fn combine_states(
     (ops.add_in_place)(targets, aggr_offset as i64);
 
     let mut offset = aggr_offset;
-    for aggr in aggregates {
+    for aggr in aggregates
+    {
         (ops.combine)(ctx, aggr.aggr, sources, targets, count);
         (ops.add_in_place)(sources, aggr.payload_size as i64);
         (ops.add_in_place)(targets, aggr.payload_size as i64);
@@ -415,7 +452,8 @@ pub fn finalize_states(
     aggr_idx: usize,
 ) {
     let addresses_copy = (ops.get_or_create_addresses)(ctx);
-    if addresses_copy.is_null() {
+    if addresses_copy.is_null()
+    {
         // The trampoline caught a C++ exception; the boundary rethrows it.
         return;
     }
@@ -424,17 +462,22 @@ pub fn finalize_states(
     (ops.set_vector_size)(addresses_copy, result_size);
     (ops.add_in_place)(addresses_copy, aggr_offset as i64);
 
-    // Initialize the finalize local states once; they are re-used across finalize calls
-    if (ops.local_state_count)(ctx) < aggregates.len() {
+    // Initialize the finalize local states once; they are re-used across finalize
+    // calls
+    if (ops.local_state_count)(ctx) < aggregates.len()
+    {
         (ops.resize_local_states)(ctx, aggregates.len());
-        for (idx, aggr) in aggregates.iter().enumerate() {
-            if aggr.has_init_local_state {
+        for (idx, aggr) in aggregates.iter().enumerate()
+        {
+            if aggr.has_init_local_state
+            {
                 (ops.init_local_state)(ctx, aggr.aggr, idx);
             }
         }
     }
 
-    for (idx, aggr) in aggregates.iter().enumerate() {
+    for (idx, aggr) in aggregates.iter().enumerate()
+    {
         let target = (ops.chunk_child_vector)(result, aggr_idx + idx);
         let local_state = (ops.local_state_ptr)(ctx, idx);
         (ops.finalize)(ctx, aggr.aggr, addresses_copy, local_state, target, result_size, 0);
@@ -445,8 +488,9 @@ pub fn finalize_states(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::cell::RefCell;
+
+    use super::*;
 
     // A recording table: every trampoline pushes onto a shared log instead of
     // touching DuckDB, so the loops' arithmetic can be checked on its own. The
@@ -455,13 +499,9 @@ mod tests {
         static LOG: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     }
 
-    fn record(entry: String) {
-        LOG.with(|log| log.borrow_mut().push(entry));
-    }
+    fn record(entry: String) { LOG.with(|log| log.borrow_mut().push(entry)); }
 
-    fn take_log() -> Vec<String> {
-        LOG.with(|log| std::mem::take(&mut *log.borrow_mut()))
-    }
+    fn take_log() -> Vec<String> { LOG.with(|log| std::mem::take(&mut *log.borrow_mut())) }
 
     extern "C" fn init_state(aggr: *mut c_void, state_ptr: usize) {
         record(format!("init:{:p}:{}", aggr, state_ptr));
@@ -514,9 +554,7 @@ mod tests {
     ) {
         record(format!("finalize:{:p}:{:p}:{count}:{offset}", aggr, local_state));
     }
-    extern "C" fn add_in_place(_vector: *mut c_void, delta: i64) {
-        record(format!("add:{delta}"));
-    }
+    extern "C" fn add_in_place(_vector: *mut c_void, delta: i64) { record(format!("add:{delta}")); }
     extern "C" fn vector_copy(_source: *mut c_void, _target: *mut c_void, count: usize) {
         record(format!("copy:{count}"));
     }
@@ -546,9 +584,7 @@ mod tests {
     extern "C" fn filtered_payload(_filter_data: *mut c_void) -> *mut c_void {
         0x2000 as *mut c_void
     }
-    extern "C" fn free_vector(_vector: *mut c_void) {
-        record("free".to_string());
-    }
+    extern "C" fn free_vector(_vector: *mut c_void) { record("free".to_string()); }
     extern "C" fn get_filter_data(_filter_set: *mut c_void, aggr_idx: usize) -> *mut c_void {
         record(format!("get_filter_data:{aggr_idx}"));
         0x3000 as *mut c_void
@@ -559,12 +595,8 @@ mod tests {
     extern "C" fn chunk_child_vector(_chunk: *mut c_void, idx: usize) -> *mut c_void {
         (0x4000 + idx) as *mut c_void
     }
-    extern "C" fn chunk_size(chunk: *mut c_void) -> usize {
-        chunk as usize
-    }
-    extern "C" fn local_state_count(_ctx: *mut c_void) -> usize {
-        0
-    }
+    extern "C" fn chunk_size(chunk: *mut c_void) -> usize { chunk as usize }
+    extern "C" fn local_state_count(_ctx: *mut c_void) -> usize { 0 }
     extern "C" fn resize_local_states(_ctx: *mut c_void, n: usize) {
         record(format!("resize:{n}"));
     }
@@ -685,7 +717,15 @@ mod tests {
         let ops = ops();
         let mut aggr = slot(0x10, 8, 2);
         aggr.has_cluster_update = true;
-        update_states(ops, std::ptr::null_mut(), &aggr, 0x2 as *mut c_void, 0x9 as *mut c_void, 0, 0x7 as *const c_void);
+        update_states(
+            ops,
+            std::ptr::null_mut(),
+            &aggr,
+            0x2 as *mut c_void,
+            0x9 as *mut c_void,
+            0,
+            0x7 as *const c_void,
+        );
         let log = take_log();
         assert_eq!(
             log,
@@ -698,7 +738,15 @@ mod tests {
         let _ = take_log();
         let ops = ops();
         let aggr = slot(0x10, 8, 0);
-        update_states(ops, std::ptr::null_mut(), &aggr, 0x2 as *mut c_void, 0x9 as *mut c_void, 0, std::ptr::null());
+        update_states(
+            ops,
+            std::ptr::null_mut(),
+            &aggr,
+            0x2 as *mut c_void,
+            0x9 as *mut c_void,
+            0,
+            std::ptr::null(),
+        );
         let log = take_log();
         assert_eq!(log, vec![format!("update:{:p}:0:2", 0x10 as *mut c_void)]);
     }
@@ -708,7 +756,14 @@ mod tests {
         let _ = take_log();
         let ops = ops();
         let aggregates = [slot(0x10, 8, 1), slot(0x20, 16, 1)];
-        combine_states(ops, std::ptr::null_mut(), 4, &aggregates, 0x2 as *mut c_void, 0x2 as *mut c_void);
+        combine_states(
+            ops,
+            std::ptr::null_mut(),
+            4,
+            &aggregates,
+            0x2 as *mut c_void,
+            0x2 as *mut c_void,
+        );
         let log = take_log();
         // add aggr_offset, then per aggregate +payload, then -total
         assert_eq!(

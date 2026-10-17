@@ -29,7 +29,7 @@
 
 namespace duckdb {
 
-void ThrowRowError(const ::rs::alloc::string::String &error) {
+void row_ops_bridge::ThrowRowError(const ::rs::alloc::string::String &error) {
 	throw InternalException("%s", string(std::string_view(error.as_str())).c_str());
 }
 
@@ -81,15 +81,16 @@ bool CatchRowException(F &&fn) {
 
 } // namespace
 
-CallScope::CallScope() : index(++CallScopeStates().next_call_scope), previous(CallScopeStates().active_call_scope) {
+row_ops_bridge::CallScope::CallScope()
+    : index(++CallScopeStates().next_call_scope), previous(CallScopeStates().active_call_scope) {
 	CallScopeStates().active_call_scope = index;
 }
 
-CallScope::~CallScope() {
+row_ops_bridge::CallScope::~CallScope() {
 	CallScopeStates().active_call_scope = previous;
 }
 
-void RethrowPendingError(const CallScope &call_scope) {
+void row_ops_bridge::RethrowPendingError(const CallScope &call_scope) {
 	auto &slot = PendingRowErrorSlot();
 	if (!slot.error) {
 		return;
@@ -105,17 +106,15 @@ void RethrowPendingError(const CallScope &call_scope) {
 	std::rethrow_exception(error);
 }
 
-void ClearPendingError() {
+void row_ops_bridge::ClearPendingError() {
 	PendingRowErrorSlot() = PendingRowError();
 }
 
 //===--------------------------------------------------------------------===//
 // The layout projection
 //===--------------------------------------------------------------------===//
-namespace {
-
 vector<ahirudb::row_operations::row_aggregate::AggregateSlot>
-MakeAggregateSlots(const vector<AggregateObject> &aggregates) {
+row_ops_bridge::MakeAggregateSlots(const vector<AggregateObject> &aggregates) {
 	vector<ahirudb::row_operations::row_aggregate::AggregateSlot> result;
 	result.reserve(aggregates.size());
 	for (const auto &aggr : aggregates) {
@@ -133,8 +132,6 @@ MakeAggregateSlots(const vector<AggregateObject> &aggregates) {
 	}
 	return result;
 }
-
-} // namespace
 
 vector<ahirudb::row_operations::row_aggregate::AggregateSlot>
 row_ops_bridge::MakeAggregateSlots(const TupleDataLayout &layout) {
@@ -519,7 +516,7 @@ bool CompareRowTramp(const void *lhs_format_ptr, uintptr_t idx, uint8_t predicat
 	const auto &format = *reinterpret_cast<const TupleDataVectorFormat *>(lhs_format_ptr);
 	bool result = false;
 	CatchRowException([&]() {
-		switch (predicate) {
+		switch (static_cast<ExpressionType>(predicate)) {
 		case ExpressionType::COMPARE_EQUAL:
 			result = CompareRowOp<Equals>(format, idx, rhs_ptr, rhs_null, lhs_all_valid,
 			                              static_cast<PhysicalType>(physical));
@@ -565,7 +562,6 @@ bool RhsRowIsNullTramp(const void *layout_ptr, uintptr_t location, uintptr_t col
 	if (!layout_ptr) {
 		return false;
 	}
-	auto &layout = *reinterpret_cast<const TupleDataLayout *>(layout_ptr);
 	idx_t entry_idx;
 	idx_t idx_in_entry;
 	ValidityBytes::GetEntryIndex(col_idx, entry_idx, idx_in_entry);
@@ -578,11 +574,12 @@ uintptr_t RhsLocationAtTramp(void *row_locations_ptr, uintptr_t idx) {
 	if (!row_locations_ptr) {
 		return 0;
 	}
-	return FlatVector::GetData<data_ptr_t>(*reinterpret_cast<Vector *>(row_locations_ptr))[idx];
+	auto locations = FlatVector::GetData<data_ptr_t>(*reinterpret_cast<Vector *>(row_locations_ptr));
+	return reinterpret_cast<uintptr_t>(locations[idx]);
 }
 
 bool StructNullKeepTramp(uint8_t predicate, bool lhs_null, bool rhs_null) {
-	switch (predicate) {
+	switch (static_cast<ExpressionType>(predicate)) {
 	case ExpressionType::COMPARE_EQUAL:
 		return ComparisonOperationWrapper<Equals>::COMPARE_NULL &&
 		       ComparisonOperationWrapper<Equals>::template Operation<uint32_t>(0, 0, lhs_null, rhs_null);
@@ -627,14 +624,14 @@ void *BuildStructRowLocationsTramp(void *row_locations_ptr, const uint32_t *sel,
 	return result;
 }
 
-const void *StructEntriesTramp(void *lhs_vector_ptr) {
+void *StructEntriesTramp(void *lhs_vector_ptr) {
 	if (!lhs_vector_ptr) {
 		return nullptr;
 	}
 	return &StructVector::GetEntries(*reinterpret_cast<Vector *>(lhs_vector_ptr));
 }
 
-void *StructEntryTramp(const void *entries_ptr, uintptr_t idx) {
+void *StructEntryTramp(void *entries_ptr, uintptr_t idx) {
 	if (!entries_ptr) {
 		return nullptr;
 	}
@@ -648,7 +645,7 @@ void *StructEntryTramp(const void *entries_ptr, uintptr_t idx) {
 //! `SelectComparison`'s operand mapping, mirroring the C++ template specializations
 uintptr_t SelectComparisonTramp(uint8_t predicate, const Vector &left, const Vector &right, const SelectionVector &sel,
                                 idx_t count, SelectionVector *true_sel, SelectionVector *false_sel) {
-	switch (predicate) {
+	switch (static_cast<ExpressionType>(predicate)) {
 	case ExpressionType::COMPARE_EQUAL:
 		return VectorOperations::Equals(left, right, &sel, count, true_sel, false_sel);
 	case ExpressionType::COMPARE_NOTEQUAL:
@@ -687,7 +684,7 @@ uintptr_t GenericNestedMatchTramp(uint8_t predicate, const void *rhs_layout_ptr,
 		Vector key(type);
 		const auto gather_function = TupleDataCollection::GetGatherFunction(type);
 		SelectionVector sel_view(sel, count);
-		gather_function.Gather(rhs_row_locations, rhs_layout, col_idx, sel_view, count, key,
+		gather_function.Gather(rhs_layout, rhs_row_locations, col_idx, sel_view, count, key,
 		                       *FlatVector::IncrementalSelectionVector(), nullptr);
 		key.Verify();
 

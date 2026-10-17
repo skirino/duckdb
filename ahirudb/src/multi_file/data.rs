@@ -13,17 +13,18 @@
 //! # What is here and what is not
 //!
 //! The rules the C++ index types enforce - that an invalid index cannot be
-//! unwrapped, that a filter entry is either a column or a constant and never both,
-//! that a projection position is inside the list it indexes - are here, as
-//! functions over the values the C++ structs hold. Their *storage* stays in C++:
-//! `multi_file_data.hpp` is a public header that every reader extension includes,
-//! and a public header cannot include `crubit/ahirudb.h` (only the sources in this
-//! directory may, which is why `multi_file_rust_bridge.hpp` is private to them).
-//! So the C++ structs keep their `idx_t` members, and what they no longer keep is
-//! the arithmetic.
+//! unwrapped, that a filter entry is either a column or a constant and never
+//! both, that a projection position is inside the list it indexes - are here,
+//! as functions over the values the C++ structs hold. Their *storage* stays in
+//! C++: `multi_file_data.hpp` is a public header that every reader extension
+//! includes, and a public header cannot include `crubit/ahirudb.h` (only the
+//! sources in this directory may, which is why `multi_file_rust_bridge.hpp` is
+//! private to them). So the C++ structs keep their `idx_t` members, and what
+//! they no longer keep is the arithmetic.
 //!
 //! Nothing here panics: an index that is invalid or out of range is an `Err`,
-//! and the bridge turns it into the `InternalException` the original code threw.
+//! and the bridge turns it into the `InternalException` the original code
+//! threw.
 
 // The C++ spellings are kept, so `idx_t` and `INVALID_INDEX` read the same on both sides.
 #![allow(nonstandard_style)]
@@ -51,23 +52,18 @@ pub struct MultiFileFilterEntryLayout {
 }
 
 /// Why [`Default`] here is written out rather than derived: the default is a
-/// default-constructed `MultiFileFilterEntry`, whose `index` is `INVALID_INDEX`.
-/// A derived `Default` would give `0`, which is a position.
+/// default-constructed `MultiFileFilterEntry`, whose `index` is
+/// `INVALID_INDEX`. A derived `Default` would give `0`, which is a position.
 impl Default for MultiFileFilterEntryLayout {
-    fn default() -> Self {
-        Self::new(false, false, INVALID_INDEX)
-    }
+    fn default() -> Self { Self::new(false, false, INVALID_INDEX) }
 }
 
 impl MultiFileFilterEntryLayout {
-    /// An entry of either kind: `is_set` says whether it was resolved at all, `is_constant` which of the two kinds it
-    /// is, and `index` is then the constant-map index or the local index.
+    /// An entry of either kind: `is_set` says whether it was resolved at all,
+    /// `is_constant` which of the two kinds it is, and `index` is then the
+    /// constant-map index or the local index.
     pub fn new(is_set: bool, is_constant: bool, index: idx_t) -> Self {
-        Self {
-            is_set,
-            is_constant,
-            index,
-        }
+        Self { is_set, is_constant, index }
     }
 }
 
@@ -76,17 +72,16 @@ impl MultiFileFilterEntryLayout {
 //===--------------------------------------------------------------------===//
 
 /// Whether `index` names a position, i.e. whether it is not `INVALID_INDEX`.
-pub fn local_index_is_valid(index: idx_t) -> bool {
-    index != INVALID_INDEX
-}
+pub fn local_index_is_valid(index: idx_t) -> bool { index != INVALID_INDEX }
 
 /// The position `index` names.
 ///
-/// The C++ `MultiFileLocalIndex::GetIndex` threw when it did not name one, which
-/// is what a mapper that failed to find a column turns into. A throw cannot
-/// cross the boundary, so this is an error value and the bridge throws.
+/// The C++ `MultiFileLocalIndex::GetIndex` threw when it did not name one,
+/// which is what a mapper that failed to find a column turns into. A throw
+/// cannot cross the boundary, so this is an error value and the bridge throws.
 pub fn local_index_get_index(index: idx_t) -> Result<idx_t, String> {
-    if !local_index_is_valid(index) {
+    if !local_index_is_valid(index)
+    {
         return Err("MultiFileLocalIndex::GetIndex called on invalid index".to_string());
     }
     Ok(index)
@@ -101,7 +96,8 @@ pub fn local_index_get_index(index: idx_t) -> Result<idx_t, String> {
 /// came back. The return value is the position to index into the column list.
 pub fn local_column_ids_get(size: idx_t, index: idx_t) -> Result<idx_t, String> {
     let index = local_index_get_index(index)?;
-    if index >= size {
+    if index >= size
+    {
         return Err(format!("MultiFileLocalColumnIds index {index} out of range"));
     }
     Ok(index)
@@ -126,17 +122,17 @@ pub fn filter_entry_set_local(local_index: idx_t) -> MultiFileFilterEntryLayout 
 /// The C++ asserted that it was set at all before answering; an unset entry has
 /// neither kind, so this is the error.
 pub fn filter_entry_is_constant(entry: MultiFileFilterEntryLayout) -> Result<bool, String> {
-    if !entry.is_set {
+    if !entry.is_set
+    {
         return Err("MultiFileFilterEntry::IsConstant called on an unset entry".to_string());
     }
     Ok(entry.is_constant)
 }
 
 /// The constant-map index of an entry that is a constant.
-pub fn filter_entry_get_constant_index(
-    entry: MultiFileFilterEntryLayout,
-) -> Result<idx_t, String> {
-    if !filter_entry_is_constant(entry)? {
+pub fn filter_entry_get_constant_index(entry: MultiFileFilterEntryLayout) -> Result<idx_t, String> {
+    if !filter_entry_is_constant(entry)?
+    {
         return Err("MultiFileFilterEntry::GetConstantIndex called on a local entry".to_string());
     }
     Ok(entry.index)
@@ -144,7 +140,8 @@ pub fn filter_entry_get_constant_index(
 
 /// The local index of an entry that is a column of this file.
 pub fn filter_entry_get_local_index(entry: MultiFileFilterEntryLayout) -> Result<idx_t, String> {
-    if !filter_entry_is_constant(entry)? {
+    if !filter_entry_is_constant(entry)?
+    {
         return Ok(entry.index);
     }
     Err("MultiFileFilterEntry::GetLocalIndex called on a constant entry".to_string())
@@ -153,10 +150,12 @@ pub fn filter_entry_get_local_index(entry: MultiFileFilterEntryLayout) -> Result
 /// The position of a filter-map entry, or the error for a global index the map
 /// does not cover.
 ///
-/// The C++ `MultiFileFilterMap::operator[]` indexed its `vector` with the global
-/// index directly. The return value is the index of the filter map entry to use.
+/// The C++ `MultiFileFilterMap::operator[]` indexed its `vector` with the
+/// global index directly. The return value is the index of the filter map entry
+/// to use.
 pub fn filter_map_get(size: idx_t, global_index: idx_t) -> Result<idx_t, String> {
-    if global_index >= size {
+    if global_index >= size
+    {
         return Err(format!("MultiFileFilterMap index {global_index} out of range"));
     }
     Ok(global_index)
@@ -168,7 +167,8 @@ pub fn filter_map_get(size: idx_t, global_index: idx_t) -> Result<idx_t, String>
 /// The C++ `MultiFileConstantMap::operator[]` indexed its `vector` with the
 /// constant-map index directly.
 pub fn constant_map_get(size: idx_t, constant_index: idx_t) -> Result<idx_t, String> {
-    if constant_index >= size {
+    if constant_index >= size
+    {
         return Err(format!("MultiFileConstantMap index {constant_index} out of range"));
     }
     Ok(constant_index)
@@ -199,7 +199,10 @@ mod tests {
             local_column_ids_get(2, 2).unwrap_err(),
             "MultiFileLocalColumnIds index 2 out of range"
         );
-        assert_eq!(local_column_ids_get(0, 0).unwrap_err(), "MultiFileLocalColumnIds index 0 out of range");
+        assert_eq!(
+            local_column_ids_get(0, 0).unwrap_err(),
+            "MultiFileLocalColumnIds index 0 out of range"
+        );
         // an invalid position is refused before it is used as one
         assert_eq!(
             local_column_ids_get(2, INVALID_INDEX).unwrap_err(),
@@ -247,14 +250,8 @@ mod tests {
     fn a_filter_map_refuses_a_global_column_it_does_not_cover() {
         assert_eq!(filter_map_get(2, 0), Ok(0));
         assert_eq!(filter_map_get(2, 1), Ok(1));
-        assert_eq!(
-            filter_map_get(2, 2).unwrap_err(),
-            "MultiFileFilterMap index 2 out of range"
-        );
-        assert_eq!(
-            filter_map_get(0, 0).unwrap_err(),
-            "MultiFileFilterMap index 0 out of range"
-        );
+        assert_eq!(filter_map_get(2, 2).unwrap_err(), "MultiFileFilterMap index 2 out of range");
+        assert_eq!(filter_map_get(0, 0).unwrap_err(), "MultiFileFilterMap index 0 out of range");
     }
 
     #[test]
