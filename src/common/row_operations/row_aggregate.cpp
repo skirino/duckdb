@@ -9,10 +9,14 @@ void RowOperations::InitializeStates(TupleDataLayout &layout, Vector &addresses,
 	auto pointers = FlatVector::GetData<data_ptr_t>(addresses);
 	auto offsets = layout.GetOffsets();
 	auto aggregates = row_ops_bridge::MakeAggregateSlots(layout);
+	// The address vector is not always sized (the perfect hash table fills it without
+	// `SetSize`), so the identity selection's `count` rows are what the kernel reads;
+	// a real selection indexes the vector, whose size then has to be trusted.
+	const idx_t address_count = sel.IsSet() ? addresses.size() : count;
 	row_ops_bridge::CallIntoRust([&]() {
 		ahirudb::row_operations::row_aggregate::initialize_states(
 		    row_ops_bridge::AggregateOpsTable(),
-		    rs_std::SliceRef<const uint64_t>(reinterpret_cast<const uint64_t *>(pointers), addresses.size()),
+		    rs_std::SliceRef<const uint64_t>(reinterpret_cast<const uint64_t *>(pointers), address_count),
 		    rs_std::SliceRef<const uintptr_t>(reinterpret_cast<const uintptr_t *>(offsets.data()), offsets.size()),
 		    layout.ColumnCount(),
 		    rs_std::SliceRef<const ahirudb::row_operations::row_aggregate::AggregateSlot>(aggregates.data(),

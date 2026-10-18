@@ -225,9 +225,9 @@ pub struct AggregateSlot {
 
 /// `RowOperations::InitializeStates`.
 ///
-/// `addresses_data` holds the `data_ptr_t` values of the address vector (its
-/// full size); `sel` is the selection vector's entries, or empty for the
-/// identity selection.
+/// `addresses_data` holds the `data_ptr_t` values the loops read: the first
+/// `count` entries under the identity selection, or the address vector that
+/// `sel` indexes (empty `sel` means the identity selection).
 pub fn initialize_states(
     ops: AggregateOps,
     addresses_data: &[u64],

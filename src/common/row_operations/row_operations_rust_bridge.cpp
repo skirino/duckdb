@@ -113,22 +113,26 @@ void row_ops_bridge::ClearPendingError() {
 //===--------------------------------------------------------------------===//
 // The layout projection
 //===--------------------------------------------------------------------===//
+static ahirudb::row_operations::row_aggregate::AggregateSlot MakeAggregateSlotFrom(const AggregateObject &aggr) {
+	ahirudb::row_operations::row_aggregate::AggregateSlot slot;
+	slot.aggr = const_cast<AggregateObject *>(&aggr);
+	slot.payload_size = aggr.payload_size;
+	slot.child_count = aggr.child_count;
+	slot.has_destructor = aggr.function.HasStateDestructorCallback();
+	slot.has_cluster_update = aggr.function.GetStateClusterUpdateCallback() != nullptr;
+	slot.is_distinct = aggr.aggr_type == AggregateType::DISTINCT;
+	slot.has_filter = aggr.filter != nullptr;
+	slot.has_combine = aggr.function.HasStateCombineCallback();
+	slot.has_init_local_state = aggr.function.GetCallbacks().HasInitLocalStateFinalizeCallback();
+	return slot;
+}
+
 vector<ahirudb::row_operations::row_aggregate::AggregateSlot>
 row_ops_bridge::MakeAggregateSlots(const vector<AggregateObject> &aggregates) {
 	vector<ahirudb::row_operations::row_aggregate::AggregateSlot> result;
 	result.reserve(aggregates.size());
 	for (const auto &aggr : aggregates) {
-		ahirudb::row_operations::row_aggregate::AggregateSlot slot;
-		slot.aggr = const_cast<AggregateObject *>(&aggr);
-		slot.payload_size = aggr.payload_size;
-		slot.child_count = aggr.child_count;
-		slot.has_destructor = aggr.function.HasStateDestructorCallback();
-		slot.has_cluster_update = aggr.function.GetStateClusterUpdateCallback() != nullptr;
-		slot.is_distinct = aggr.aggr_type == AggregateType::DISTINCT;
-		slot.has_filter = aggr.filter != nullptr;
-		slot.has_combine = aggr.function.HasStateCombineCallback();
-		slot.has_init_local_state = aggr.function.GetCallbacks().HasInitLocalStateFinalizeCallback();
-		result.push_back(slot);
+		result.push_back(MakeAggregateSlotFrom(aggr));
 	}
 	return result;
 }
@@ -139,9 +143,9 @@ row_ops_bridge::MakeAggregateSlots(const TupleDataLayout &layout) {
 }
 
 ahirudb::row_operations::row_aggregate::AggregateSlot row_ops_bridge::MakeAggregateSlot(const AggregateObject &aggr) {
-	vector<AggregateObject> aggregates {aggr};
-	auto slots = MakeAggregateSlots(aggregates);
-	return slots[0];
+	// The slot must point at `aggr` itself: the Rust callbacks dereference it after
+	// this returns, so a copy here would dangle.
+	return MakeAggregateSlotFrom(aggr);
 }
 
 //===--------------------------------------------------------------------===//
