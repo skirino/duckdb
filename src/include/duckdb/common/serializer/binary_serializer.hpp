@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include "duckdb/common/pair.hpp"
-#include "duckdb/common/serializer/encoding_util.hpp"
 #include "duckdb/common/serializer/serialization_data.hpp"
 #include "duckdb/common/serializer/serializer.hpp"
 #include "duckdb/common/serializer/write_stream.hpp"
@@ -18,42 +16,9 @@ namespace duckdb {
 
 class BinarySerializer : public Serializer {
 public:
-	explicit BinarySerializer(WriteStream &stream, SerializationOptions options_p = SerializationOptions())
-	    : stream(stream) {
-		options = std::move(options_p);
-		// Override the value set by the passed in SerializationOptions
-		options.serialize_enum_as_string = false;
-	}
+	explicit BinarySerializer(WriteStream &stream, SerializationOptions options_p = SerializationOptions());
+	~BinarySerializer();
 
-private:
-	struct DebugState {
-		unordered_set<const char *> seen_field_tags;
-		unordered_set<field_id_t> seen_field_ids;
-		vector<pair<const char *, field_id_t>> seen_fields;
-	};
-
-	void WriteData(const_data_ptr_t buffer, idx_t write_size) {
-		stream.WriteData(buffer, write_size);
-	}
-
-	template <class T>
-	void Write(T element) {
-		static_assert(std::is_trivially_destructible<T>(), "Write element must be trivially destructible");
-		WriteData(const_data_ptr_cast(&element), sizeof(T));
-	}
-	void WriteData(const char *ptr, idx_t write_size) {
-		WriteData(const_data_ptr_cast(ptr), write_size);
-	}
-
-	template <class T>
-	void VarIntEncode(T value) {
-		uint8_t buffer[16] = {};
-		auto write_size = EncodingUtil::EncodeLEB128<T>(buffer, value);
-		D_ASSERT(write_size <= sizeof(buffer));
-		WriteData(buffer, write_size);
-	}
-
-public:
 	template <class T>
 	static void Serialize(const T &value, WriteStream &stream, SerializationOptions options = SerializationOptions()) {
 		BinarySerializer serializer(stream, std::move(options));
@@ -70,10 +35,6 @@ public:
 	}
 
 protected:
-	//-------------------------------------------------------------------------
-	// Nested Type Hooks
-	//-------------------------------------------------------------------------
-	// We serialize optional values as a message with a "present" flag, followed by the value.
 	void OnPropertyBegin(const field_id_t field_id, const char *tag) final;
 	void OnPropertyEnd() final;
 	void OnOptionalPropertyBegin(const field_id_t field_id, const char *tag, bool present) final;
@@ -85,9 +46,6 @@ protected:
 	void OnNullableBegin(bool present) final;
 	void OnNullableEnd() final;
 
-	//-------------------------------------------------------------------------
-	// Primitive Types
-	//-------------------------------------------------------------------------
 	void WriteNull() final;
 	void WriteValue(char value) final;
 	void WriteValue(uint8_t value) final;
@@ -109,11 +67,8 @@ protected:
 	void WriteDataPtr(const_data_ptr_t ptr, idx_t count) final;
 
 private:
-	vector<DebugState> debug_stack;
 	WriteStream &stream;
-
-protected:
-	duckdb::SerializationData data;
+	void *rust_;
 };
 
 } // namespace duckdb

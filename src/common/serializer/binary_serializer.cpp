@@ -1,175 +1,240 @@
 #include "duckdb/common/serializer/binary_serializer.hpp"
 
-#ifdef DEBUG
+#include "crubit/ahirudb.h"
+
+#include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
-#endif
 
 namespace duckdb {
 
-void BinarySerializer::OnPropertyBegin(const field_id_t field_id, const char *tag) {
-	// Just write the field id straight up
-	Write<field_id_t>(field_id);
-#ifdef DEBUG
-	// First of check that we are inside an object
-	if (debug_stack.empty()) {
-		throw InternalException("OnPropertyBegin called outside of object");
+namespace {
+thread_local std::exception_ptr pending_stream_error;
+}
+
+extern "C" void WriteDataThunk(void *ctx, const uint8_t *buffer, uint64_t size) {
+	if (pending_stream_error) {
+		return;
 	}
+	try {
+		reinterpret_cast<WriteStream *>(ctx)->WriteData(const_data_ptr_cast(buffer), size);
+	} catch (...) {
+		pending_stream_error = std::current_exception();
+	}
+}
 
-	// Check that the tag is unique
-	auto &state = debug_stack.back();
-	auto &seen_field_ids = state.seen_field_ids;
-	auto &seen_field_tags = state.seen_field_tags;
-	auto &seen_fields = state.seen_fields;
+static void ClearPendingErrors() {
+	pending_stream_error = nullptr;
+	ahirudb::serializer::cpp_bridge::clear_pending_error();
+}
 
-	if (seen_field_ids.find(field_id) != seen_field_ids.end() || seen_field_tags.find(tag) != seen_field_tags.end()) {
-		string all_fields;
-		for (auto &field : seen_fields) {
-			all_fields += StringUtil::Format("\"%s\":%d ", field.first, field.second);
+BinarySerializer::BinarySerializer(WriteStream &stream, SerializationOptions options_p)
+    : stream(stream), rust_(reinterpret_cast<void *>(ahirudb::serializer::cpp_bridge::cpp_binary_serializer_new(
+                          reinterpret_cast<uintptr_t>(&stream),
+                          reinterpret_cast<uintptr_t>(&WriteDataThunk)))) {
+	ClearPendingErrors();
+	options = std::move(options_p);
+	options.serialize_enum_as_string = false;
+}
+
+BinarySerializer::~BinarySerializer() {
+	ClearPendingErrors();
+	delete reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_);
+	rust_ = nullptr;
+}
+
+namespace {
+void CheckPendingError() {
+	if (pending_stream_error) {
+		auto e = pending_stream_error;
+		pending_stream_error = nullptr;
+		std::rethrow_exception(e);
+	}
+	if (ahirudb::serializer::cpp_bridge::has_pending_error()) {
+		auto len = ahirudb::serializer::cpp_bridge::pending_error_len();
+		string msg(len, '\0');
+		if (len > 0) {
+			std::memcpy(msg.data(), ahirudb::serializer::cpp_bridge::pending_error_ptr(), len);
 		}
-		throw InternalException("Duplicate field id/tag in field: \"%s\":%d, other fields: %s", tag, field_id,
-		                        all_fields);
+		ahirudb::serializer::cpp_bridge::clear_pending_error();
+		throw SerializationException("%s", msg.c_str());
 	}
+}
+} // namespace
 
-	seen_field_ids.insert(field_id);
-	seen_field_tags.insert(tag);
-	seen_fields.emplace_back(tag, field_id);
-#else
-	(void)tag;
-#endif
+void BinarySerializer::OnPropertyBegin(const field_id_t field_id, const char *tag) {
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->on_property_begin(field_id,
+	                                                           reinterpret_cast<const uint8_t *>(tag));
+	CheckPendingError();
 }
 
 void BinarySerializer::OnPropertyEnd() {
-	// Nothing to do here
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->on_property_end();
+	CheckPendingError();
 }
 
 void BinarySerializer::OnOptionalPropertyBegin(const field_id_t field_id, const char *tag, bool present) {
-	// Dont write anything at all if the property is not present
-	if (present) {
-		OnPropertyBegin(field_id, tag);
-	}
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->on_optional_property_begin(field_id,
+	                                                                     reinterpret_cast<const uint8_t *>(tag), present);
+	CheckPendingError();
 }
 
 void BinarySerializer::OnOptionalPropertyEnd(bool present) {
-	// Nothing to do here
-}
-
-//-------------------------------------------------------------------------
-// Nested Type Hooks
-//-------------------------------------------------------------------------
-void BinarySerializer::OnObjectBegin() {
-#ifdef DEBUG
-	debug_stack.emplace_back();
-#endif
-}
-
-void BinarySerializer::OnObjectEnd() {
-#ifdef DEBUG
-	debug_stack.pop_back();
-#endif
-	// Write object terminator
-	Write<field_id_t>(MESSAGE_TERMINATOR_FIELD_ID);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->on_optional_property_end(present);
+	CheckPendingError();
 }
 
 void BinarySerializer::OnListBegin(idx_t count) {
-	VarIntEncode(count);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->on_list_begin(count);
+	CheckPendingError();
 }
 
 void BinarySerializer::OnListEnd() {
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->on_list_end();
+	CheckPendingError();
+}
+
+void BinarySerializer::OnObjectBegin() {
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->on_object_begin();
+	CheckPendingError();
+}
+
+void BinarySerializer::OnObjectEnd() {
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->on_object_end();
+	CheckPendingError();
 }
 
 void BinarySerializer::OnNullableBegin(bool present) {
-	WriteValue(present);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->on_nullable_begin(present);
+	CheckPendingError();
 }
 
 void BinarySerializer::OnNullableEnd() {
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->on_nullable_end();
+	CheckPendingError();
 }
 
-//-------------------------------------------------------------------------
-// Primitive Types
-//-------------------------------------------------------------------------
 void BinarySerializer::WriteNull() {
-	// This should never be called, optional writes should be handled by OnOptionalBegin
-}
-
-void BinarySerializer::WriteValue(bool value) {
-	Write<uint8_t>(value);
-}
-
-void BinarySerializer::WriteValue(uint8_t value) {
-	VarIntEncode(value);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_null();
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(char value) {
-	Write(value);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_char(static_cast<int8_t>(value));
+	CheckPendingError();
+}
+
+void BinarySerializer::WriteValue(uint8_t value) {
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_uint8(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(int8_t value) {
-	VarIntEncode(value);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_int8(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(uint16_t value) {
-	VarIntEncode(value);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_uint16(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(int16_t value) {
-	VarIntEncode(value);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_int16(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(uint32_t value) {
-	VarIntEncode(value);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_uint32(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(int32_t value) {
-	VarIntEncode(value);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_int32(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(uint64_t value) {
-	VarIntEncode(value);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_uint64(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(int64_t value) {
-	VarIntEncode(value);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_int64(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(hugeint_t value) {
-	VarIntEncode(value.upper);
-	VarIntEncode(value.lower);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_hugeint(value.upper, value.lower);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(uhugeint_t value) {
-	VarIntEncode(value.upper);
-	VarIntEncode(value.lower);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_uhugeint(value.upper, value.lower);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(float value) {
-	Write(value);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_float(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(double value) {
-	Write(value);
-}
-
-void BinarySerializer::WriteValue(const string &value) {
-	auto len = NumericCast<uint32_t>(value.length());
-	VarIntEncode(len);
-	WriteData(value.c_str(), len);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_double(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(const string_t value) {
-	auto len = NumericCast<uint32_t>(value.GetSize());
-	VarIntEncode(len);
-	WriteData(value.GetDataUnsafe(), len);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_string_t(reinterpret_cast<const uint8_t *>(value.GetDataUnsafe()), value.GetSize());
+	CheckPendingError();
+}
+
+void BinarySerializer::WriteValue(const string &value) {
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_string(reinterpret_cast<const uint8_t *>(value.c_str()), value.length());
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteValue(const char *value) {
-	auto len = NumericCast<uint32_t>(strlen(value));
-	VarIntEncode(len);
-	WriteData(value, len);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_cstr(reinterpret_cast<const uint8_t *>(value));
+	CheckPendingError();
+}
+
+void BinarySerializer::WriteValue(bool value) {
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_bool(value);
+	CheckPendingError();
 }
 
 void BinarySerializer::WriteDataPtr(const_data_ptr_t ptr, idx_t count) {
-	VarIntEncode(static_cast<uint64_t>(count));
-	WriteData(ptr, count);
+	ClearPendingErrors();
+	reinterpret_cast<ahirudb::serializer::cpp_bridge::CppBinarySerializer *>(rust_)->write_data_ptr(reinterpret_cast<const uint8_t *>(ptr), count);
+	CheckPendingError();
 }
 
 } // namespace duckdb

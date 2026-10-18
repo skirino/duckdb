@@ -170,6 +170,8 @@ duckdb_library(
             "src/common/multi_file/**/*.cpp",
             # src/common/row_operations has a target of its own.
             "src/common/row_operations/**/*.cpp",
+            # src/common/serializer has a target of its own.
+            "src/common/serializer/**/*.cpp",
             "src/function/table/version/pragma_version.cpp",
             "src/main/extension/extension_alias.cpp",
             "src/main/extension/extension_helper.cpp",
@@ -185,7 +187,7 @@ duckdb_library(
         ],
     ),
     # duckdb_library's `deps` replaces the default rather than extending it.
-    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_enums", ":duckdb_row_operations"],
+    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_enums", ":duckdb_row_operations", ":duckdb_serializer"],
 )
 
 # src/logging is a library of its own because it is the one that calls into the ahirudb crate: log_rust_bridge.cpp
@@ -260,6 +262,16 @@ duckdb_rust_bridge_library(
     srcs = glob(["src/common/row_operations/**/*.cpp"]),
     hdrs = ["src/common/row_operations/row_operations_rust_bridge.hpp"],
     include_root = "src/common/row_operations",
+)
+
+# src/common/serializer reaches the Rust serializer module in `ahirudb` for the
+# binary format (binary_serializer.cpp / binary_deserializer.cpp now forward
+# every virtual to the Rust implementation).
+duckdb_rust_bridge_library(
+    name = "duckdb_serializer",
+    srcs = glob(["src/common/serializer/**/*.cpp"]),
+    hdrs = [],
+    include_root = "src/common/serializer",
 )
 
 duckdb_library(

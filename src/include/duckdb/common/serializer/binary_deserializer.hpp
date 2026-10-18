@@ -9,7 +9,6 @@
 #pragma once
 
 #include "duckdb/common/serializer/deserializer.hpp"
-#include "duckdb/common/serializer/encoding_util.hpp"
 #include "duckdb/common/serializer/read_stream.hpp"
 
 namespace duckdb {
@@ -17,9 +16,8 @@ class ClientContext;
 
 class BinaryDeserializer : public Deserializer {
 public:
-	explicit BinaryDeserializer(ReadStream &stream) : stream(stream) {
-		deserialize_enum_from_string = false;
-	}
+	explicit BinaryDeserializer(ReadStream &stream);
+	~BinaryDeserializer();
 
 	template <class T>
 	unique_ptr<T> Deserialize() {
@@ -60,68 +58,9 @@ public:
 private:
 	ReadStream &stream;
 	idx_t nesting_level = 0;
+	void *rust_;
 
-	// Allow peeking 1 field ahead
-	bool has_buffered_field = false;
-	field_id_t buffered_field = 0;
-
-private:
-	field_id_t PeekField() {
-		if (!has_buffered_field) {
-			buffered_field = ReadPrimitive<field_id_t>();
-			has_buffered_field = true;
-		}
-		return buffered_field;
-	}
-	void ConsumeField() {
-		if (!has_buffered_field) {
-			buffered_field = ReadPrimitive<field_id_t>();
-		} else {
-			has_buffered_field = false;
-		}
-	}
-	field_id_t NextField() {
-		if (has_buffered_field) {
-			has_buffered_field = false;
-			return buffered_field;
-		}
-		return ReadPrimitive<field_id_t>();
-	}
-
-	void ReadData(data_ptr_t buffer, idx_t read_size) {
-		D_ASSERT(!has_buffered_field);
-		stream.ReadData(buffer, read_size);
-	}
-
-	template <class T>
-	T ReadPrimitive() {
-		T value;
-		ReadData(data_ptr_cast(&value), sizeof(T));
-		return value;
-	}
-
-	template <class T>
-	T VarIntDecode() {
-		// FIXME: maybe we should pass a source to EncodingUtil instead
-		uint8_t buffer[16] = {};
-		idx_t varint_size;
-		for (varint_size = 0; varint_size < 16; varint_size++) {
-			ReadData(buffer + varint_size, 1);
-			if (!(buffer[varint_size] & 0x80)) {
-				varint_size++;
-				break;
-			}
-		}
-		T value;
-		auto read_size = EncodingUtil::DecodeLEB128<T>(buffer, value);
-		D_ASSERT(read_size == varint_size);
-		(void)read_size;
-		return value;
-	}
-
-	//===--------------------------------------------------------------------===//
-	// Nested Types Hooks
-	//===--------------------------------------------------------------------===//
+protected:
 	void OnPropertyBegin(const field_id_t field_id, const char *tag) final;
 	void OnPropertyEnd() final;
 	bool OnOptionalPropertyBegin(const field_id_t field_id, const char *tag) final;
@@ -135,9 +74,6 @@ private:
 
 	bool CanDeserializeProperty(const field_id_t field_id, const char *tag) final;
 
-	//===--------------------------------------------------------------------===//
-	// Primitive Types
-	//===--------------------------------------------------------------------===//
 	bool ReadBool() final;
 	char ReadChar() final;
 	int8_t ReadSignedInt8() final;
