@@ -25,6 +25,13 @@ TupleDataLayout TupleDataLayout::Copy() const {
 	result.heap_size_offset = this->heap_size_offset;
 	result.aggr_destructor_idxs = this->aggr_destructor_idxs;
 	result.validity_type = this->validity_type;
+	// Copy struct layouts (they are lazily computed, so we need to copy the cached layouts)
+	result.struct_layouts.resize(struct_layouts.size());
+	for (idx_t i = 0; i < struct_layouts.size(); i++) {
+		if (struct_layouts[i]) {
+			result.struct_layouts[i] = make_shared_ptr<TupleDataLayout>(struct_layouts[i]->Copy());
+		}
+	}
 	return result;
 }
 
@@ -40,8 +47,16 @@ void TupleDataLayout::Initialize(vector<LogicalType> types_p, Aggregates aggrega
 
 	validity_type = validity_type_p;
 
-	// Initialize struct_layouts to match the number of columns
+	// Resize struct_layouts to match number of columns (for vector-based access)
 	struct_layouts.resize(types.size());
+
+	// Pre-compute all struct layouts recursively before calling Rust bridge
+	// This ensures struct_size values are available for compute_layout()
+	for (idx_t col_idx = 0; col_idx < types.size(); col_idx++) {
+		if (types[col_idx].InternalType() == PhysicalType::STRUCT) {
+			GetStructLayout(col_idx);
+		}
+	}
 
 	// Aggregates.
 	std::vector<idx_t> aggr_payload_sizes(aggregates_p.size());
@@ -75,13 +90,18 @@ void TupleDataLayout::Initialize(vector<LogicalType> types_p, Aggregates aggrega
 		bool is_struct = (type.InternalType() == PhysicalType::STRUCT);
 		bool is_const = true;
 		if (is_struct) {
-			is_const = false;
+			// struct_size was computed by GetStructLayout() pre-compute loop above
+			auto struct_layout = GetStructLayout(col_idx);
+			columns[col_idx].struct_size = struct_layout ? struct_layout->GetRowWidth() : 0;
+			is_const = struct_layout && struct_layout->AllConstant();
 		} else if (!TypeIsConstantSize(type.InternalType())) {
 			is_const = false;
+			columns[col_idx].struct_size = 0;
+		} else {
+			columns[col_idx].struct_size = 0;
 		}
 		columns[col_idx].physical_type = static_cast<uint8_t>(type.InternalType());
 		columns[col_idx].is_struct = is_struct ? 1 : 0;
-		columns[col_idx].struct_size = 0;
 		// Note: is_constant=1 means constant size, is_constant=0 means variable
 		// This naming is inverted from the Rust side where is_constant==0 means variable
 		columns[col_idx].is_constant = is_const ? 1 : 0;
@@ -245,7 +265,9 @@ const TupleDataLayout *TupleDataLayout::GetStructLayout(idx_t col_idx) const {
 	for (const auto &child : child_types) {
 		child_type_list.push_back(child.second);
 	}
-	nested_layout->Initialize(child_type_list, validity_type, TupleDataNestednessType::NESTED_STRUCT_LAYOUT);
+	// Struct fields can always be NULL, regardless of the parent's validity
+	nested_layout->Initialize(child_type_list, TupleDataValidityType::CAN_HAVE_NULL_VALUES,
+	                          TupleDataNestednessType::NESTED_STRUCT_LAYOUT);
 	struct_layouts[col_idx] = nested_layout;
 	return nested_layout.get();
 }

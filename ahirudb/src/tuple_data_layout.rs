@@ -739,17 +739,21 @@ fn type_is_constant_size_cpp(physical_type: u8) -> bool {
 }
 
 fn get_type_id_size_cpp(physical_type: u8) -> usize {
+    // C++ PhysicalType enum values (from src/include/duckdb/common/types.hpp):
+    // BOOL=1, UINT8=2, INT8=3, UINT16=4, INT16=5, UINT32=6, INT32=7,
+    // UINT64=8, INT64=9, FLOAT=11, DOUBLE=12, INTERVAL=21, LIST=23, STRUCT=24,
+    // VARCHAR=200, UINT128=203, INT128=204
     match physical_type
     {
-        1..=3 => 1,
-        4 | 5 => 2,
-        6 | 7 => 4,
-        8 | 9 => 8,
-        203 | 204 => 16,
-        11 => 4,
-        12 => 8,
-        200 => 16,
-        21 => 16,
+        1..=3 => 1,      // BOOL, UINT8, INT8
+        4 | 5 => 2,      // UINT16, INT16
+        6 | 7 => 4,      // UINT32, INT32
+        8 | 9 => 8,      // UINT64, INT64
+        11 => 4,         // FLOAT
+        12 => 8,         // DOUBLE
+        21 => 16,        // INTERVAL
+        200 => 16,       // VARCHAR (string_t)
+        203 | 204 => 16, // UINT128, INT128
         _ => 0,
     }
 }

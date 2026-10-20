@@ -903,6 +903,11 @@ static void TupleDataStructScatter(const Vector &source, const TupleDataVectorFo
 
 	const auto &struct_layout = layout.GetStructLayout(col_idx);
 	auto &struct_sources = StructVector::GetEntries(source);
+	if (!struct_layout) {
+		// Empty struct: no fields to scatter
+		D_ASSERT(struct_sources.empty());
+		return;
+	}
 	D_ASSERT(struct_layout->ColumnCount() == struct_sources.size());
 
 	// Set the validity of the entries within the STRUCTs
@@ -1510,6 +1515,11 @@ static void TupleDataStructGather(const TupleDataLayout &layout, Vector &row_loc
 	// Get the struct layout and struct entries
 	const auto &struct_layout = layout.GetStructLayout(col_idx);
 	auto &struct_targets = StructVector::GetEntries(target);
+	if (!struct_layout) {
+		// Empty struct: no fields to gather
+		D_ASSERT(struct_targets.empty());
+		return;
+	}
 	D_ASSERT(struct_layout->ColumnCount() == struct_targets.size());
 
 	// Recurse through the struct children
