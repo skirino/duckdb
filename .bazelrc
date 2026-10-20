@@ -1,3 +1,6 @@
+# Control console output
+test --test_output=errors
+
 # The flags a plain `bazel build //...` gets, which is the configuration
 # `bazel test //...` runs the suite in. The build types the Makefile exposes are
 # configs below: `make release` is this one, and `make relassert`, `make reldebug`
