@@ -41,3 +41,23 @@ crubit_toolchain(
 )
 
 register_toolchains("@rust_toolchains//:all")
+
+# crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+# # Cargo.toml と Cargo.lock をソースにする
+# crate.from_cargo(
+#     name = "crates",
+#     manifests = ["//ahirudb:Cargo.toml"],
+#     cargo_lockfile = "//ahirudb:Cargo.lock",
+# )
+# crate.annotation(
+#     crate = "kani-verifier",
+#     gen_binaries = ["kani"],
+# )
+# use_repo(crate, "crates")
+
+# # 1. 独自定義したモジュール拡張をロード
+# kani_ext = use_extension("//bazel:kani_ext.bzl", "kani_dependency")
+# # 2. 欲しいバージョンを渡して、内部リポジトリとして登録を要求
+# kani_ext.install(version = "0.68.0")
+# # 3. 拡張によって生成されたリポジトリを使えるようにする
+# use_repo(kani_ext, "kani_binaries")

@@ -1,6 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library", "cc_test")
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test", "rustfmt_test")
 load("//bazel:crubit_bindings.bzl", "CRUBIT_TARGET_TRIPLE", "crubit_bindings", "crubit_copts")
+# load("//bazel:kani.bzl", "rust_kani_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -82,3 +83,8 @@ rustfmt_test(
         ":integration_test",
     ],
 )
+
+# rust_kani_test(
+#     name = "kani",
+#     target = "ahirudb",
+# )
