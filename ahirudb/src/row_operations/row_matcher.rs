@@ -742,7 +742,7 @@ fn match_generic(
     {
         (no_match_sel[*no_match_count..].as_mut_ptr(), no_match_sel.len() - *no_match_count)
     };
-    let match_count = (ops.generic_nested_match)(
+    (ops.generic_nested_match)(
         predicate,
         rhs_layout,
         col_idx,
@@ -753,8 +753,7 @@ fn match_generic(
         no_match_ptr,
         no_match_capacity,
         no_match_count,
-    );
-    match_count
+    )
 }
 
 #[cfg(test)]

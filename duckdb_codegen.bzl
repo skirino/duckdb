@@ -1,1 +1,0 @@
-"""Moved to bazel/duckdb_codegen.bzl - do not edit directly."""

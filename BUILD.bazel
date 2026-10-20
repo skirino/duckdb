@@ -21,7 +21,10 @@ load("//bazel:duckdb_test.bzl", "FIXTURE_TREES", "TEST_DATA_GLOBS",
       "TEST_DATA_GLOBS_WITHOUT_FIXTURES", "subdirectory_test",
       "sql_logic_test_list")
 
-exports_files(["rustfmt.toml"])
+exports_files([
+    "rustfmt.toml",
+    "clippy.toml",
+])
 
 # --- configure_file() equivalents -------------------------------------------
 

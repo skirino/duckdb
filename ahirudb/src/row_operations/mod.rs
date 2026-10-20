@@ -12,13 +12,14 @@
 //!
 //! # The boundary
 //!
-//! Everything these loops operate on - `TupleDataLayout`, `Vector`,
-//! `DataChunk`, `AggregateObject`, the aggregate callbacks, `VectorOperations`
-//! - lives in C++ that is not ported yet. The loops therefore reach back into
-//! C++ through two hand-written `extern "C"` function tables,
-//! [`row_aggregate::AggregateOps`] and [`row_matcher::MatcherOps`], filled once
-//! by the bridge in `src/common/row_operations/row_operations_rust_bridge.cpp`.
-//! That is the same shape `src/logging` uses for `CLogStorage`.
+//! Everything these loops operate on
+//! (`TupleDataLayout`, `Vector`, `DataChunk`, `AggregateObject`, the aggregate
+//! callbacks, `VectorOperations`) lives in C++ that is not ported yet. The
+//! loops therefore reach back into C++ through two hand-written `extern "C"`
+//! function tables, [`row_aggregate::AggregateOps`] and
+//! [`row_matcher::MatcherOps`], filled once by the bridge in
+//! `src/common/row_operations/row_operations_rust_bridge.cpp`. That is the same
+//! shape `src/logging` uses for `CLogStorage`.
 //!
 //! The tables keep the Rust side free of raw pointer arithmetic: an opaque C++
 //! object crosses as a `*mut c_void` handle, and the bridge dereferences it.

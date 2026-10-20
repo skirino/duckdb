@@ -246,17 +246,17 @@ pub fn initialize_states(
         let aggr_offset = offsets[column_count + aggregate_idx];
         if sel.is_empty()
         {
-            for row in 0..count
+            for addr in addresses_data.iter().take(count)
             {
-                let state_ptr = addresses_data[row] as usize + aggr_offset;
+                let state_ptr = *addr as usize + aggr_offset;
                 (ops.init_state)(aggr.aggr, state_ptr);
             }
         }
         else
         {
-            for row in 0..count
+            for addr in sel.iter().take(count)
             {
-                let address_idx = sel[row] as usize;
+                let address_idx = *addr as usize;
                 let state_ptr = addresses_data[address_idx] as usize + aggr_offset;
                 (ops.init_state)(aggr.aggr, state_ptr);
             }
