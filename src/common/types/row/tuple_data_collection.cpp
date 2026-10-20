@@ -195,11 +195,11 @@ void VerifyAppendColumns(const TupleDataLayout &layout, const vector<column_t> &
 		if (physical_type == PhysicalType::STRUCT) {
 			const auto &struct_layout = layout.GetStructLayout(col_idx);
 			vector<column_t> struct_column_ids;
-			struct_column_ids.reserve(struct_layout.ColumnCount());
-			for (idx_t struct_col_idx = 0; struct_col_idx < struct_layout.ColumnCount(); struct_col_idx++) {
+			struct_column_ids.reserve(struct_layout->ColumnCount());
+			for (idx_t struct_col_idx = 0; struct_col_idx < struct_layout->ColumnCount(); struct_col_idx++) {
 				struct_column_ids.emplace_back(struct_col_idx);
 			}
-			VerifyAppendColumns(struct_layout, struct_column_ids);
+			VerifyAppendColumns(*struct_layout, struct_column_ids);
 		}
 	}
 #endif

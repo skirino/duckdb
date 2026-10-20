@@ -175,6 +175,8 @@ duckdb_library(
             "src/common/row_operations/**/*.cpp",
             # src/common/serializer has a target of its own.
             "src/common/serializer/**/*.cpp",
+            # src/common/types/row has a target of its own.
+            "src/common/types/row/**/*.cpp",
             "src/function/table/version/pragma_version.cpp",
             "src/main/extension/extension_alias.cpp",
             "src/main/extension/extension_helper.cpp",
@@ -265,6 +267,15 @@ duckdb_rust_bridge_library(
     srcs = glob(["src/common/row_operations/**/*.cpp"]),
     hdrs = ["src/common/row_operations/row_operations_rust_bridge.hpp"],
     include_root = "src/common/row_operations",
+)
+
+# src/common/types/row: tuple_data_layout.cpp now reaches the Rust tuple_data_layout module through
+# tuple_data_layout_rust_bridge.cpp, so it needs crubit copts.
+duckdb_rust_bridge_library(
+    name = "duckdb_types_row",
+    srcs = glob(["src/common/types/row/**/*.cpp"]),
+    hdrs = ["src/common/types/row/tuple_data_layout_rust_bridge.hpp"],
+    include_root = "src/common/types/row",
 )
 
 # src/common/serializer reaches the Rust serializer module in `ahirudb` for the
@@ -582,6 +593,7 @@ cc_library(
         ":duckdb_multi_file",
         ":duckdb_exception",
         ":duckdb_allocator",
+        ":duckdb_types_row",
         ":core_functions_extension_init",
         ":core_functions",
         ":parquet_extension_init",

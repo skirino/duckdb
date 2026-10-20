@@ -903,18 +903,18 @@ static void TupleDataStructScatter(const Vector &source, const TupleDataVectorFo
 
 	const auto &struct_layout = layout.GetStructLayout(col_idx);
 	auto &struct_sources = StructVector::GetEntries(source);
-	D_ASSERT(struct_layout.ColumnCount() == struct_sources.size());
+	D_ASSERT(struct_layout->ColumnCount() == struct_sources.size());
 
 	// Set the validity of the entries within the STRUCTs
 	InitializeValidityMask(struct_target_locations, append_count,
-	                       ValidityBytes::SizeInBytes(struct_layout.ColumnCount()));
+	                       ValidityBytes::SizeInBytes(struct_layout->ColumnCount()));
 
 	// Recurse through the struct children
-	for (idx_t struct_col_idx = 0; struct_col_idx < struct_layout.ColumnCount(); struct_col_idx++) {
+	for (idx_t struct_col_idx = 0; struct_col_idx < struct_layout->ColumnCount(); struct_col_idx++) {
 		auto &struct_source = struct_sources[struct_col_idx];
 		const auto &struct_source_format = source_format.children[struct_col_idx];
 		const auto &struct_scatter_function = child_functions[struct_col_idx];
-		struct_scatter_function.function(struct_source, struct_source_format, append_sel, append_count, struct_layout,
+		struct_scatter_function.function(struct_source, struct_source_format, append_sel, append_count, *struct_layout,
 		                                 struct_row_locations, heap_locations, struct_col_idx, dummy_arg,
 		                                 struct_scatter_function.child_functions);
 	}
@@ -1510,13 +1510,13 @@ static void TupleDataStructGather(const TupleDataLayout &layout, Vector &row_loc
 	// Get the struct layout and struct entries
 	const auto &struct_layout = layout.GetStructLayout(col_idx);
 	auto &struct_targets = StructVector::GetEntries(target);
-	D_ASSERT(struct_layout.ColumnCount() == struct_targets.size());
+	D_ASSERT(struct_layout->ColumnCount() == struct_targets.size());
 
 	// Recurse through the struct children
-	for (idx_t struct_col_idx = 0; struct_col_idx < struct_layout.ColumnCount(); struct_col_idx++) {
+	for (idx_t struct_col_idx = 0; struct_col_idx < struct_layout->ColumnCount(); struct_col_idx++) {
 		auto &struct_target = struct_targets[struct_col_idx];
 		const auto &struct_gather_function = child_functions[struct_col_idx];
-		struct_gather_function.Gather(struct_layout, struct_row_locations, struct_col_idx, scan_sel, scan_count,
+		struct_gather_function.Gather(*struct_layout, struct_row_locations, struct_col_idx, scan_sel, scan_count,
 		                              struct_target, target_sel, dummy_vector);
 	}
 }

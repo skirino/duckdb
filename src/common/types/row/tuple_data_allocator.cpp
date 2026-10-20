@@ -626,9 +626,9 @@ void TupleDataAllocator::RecomputeHeapPointers(Vector &old_heap_ptrs, const Sele
 		}
 		case PhysicalType::STRUCT: {
 			const auto &struct_layout = layout.GetStructLayout(col_idx);
-			if (!struct_layout.AllConstant()) {
+			if (!struct_layout->AllConstant()) {
 				RecomputeHeapPointers(old_heap_ptrs, old_heap_sel, row_locations, new_heap_ptrs, offset, count,
-				                      struct_layout, base_col_offset + col_offset);
+				                      *struct_layout, base_col_offset + col_offset);
 			}
 			break;
 		}
@@ -713,8 +713,8 @@ void TupleDataAllocator::FindHeapPointers(TupleDataChunkState &chunk_state, Sele
 		}
 		case PhysicalType::STRUCT: {
 			const auto &struct_layout = layout.GetStructLayout(col_idx);
-			if (!struct_layout.AllConstant()) {
-				FindHeapPointers(chunk_state, not_found, not_found_count, struct_layout, base_col_offset + col_offset);
+			if (!struct_layout->AllConstant()) {
+				FindHeapPointers(chunk_state, not_found, not_found_count, *struct_layout, base_col_offset + col_offset);
 			}
 			break;
 		}

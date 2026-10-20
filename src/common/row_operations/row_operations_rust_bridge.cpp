@@ -384,7 +384,7 @@ const void *LayoutStructTramp(const void *layout_ptr, uintptr_t col_idx) {
 	}
 	auto &layout = *reinterpret_cast<const TupleDataLayout *>(layout_ptr);
 	const TupleDataLayout *result = nullptr;
-	CatchRowException([&]() { result = &layout.GetStructLayout(col_idx); });
+	CatchRowException([&]() { result = layout.GetStructLayout(col_idx); });
 	return result;
 }
 

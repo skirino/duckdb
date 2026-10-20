@@ -1,7 +1,6 @@
 #include "duckdb/common/types/row/tuple_data_layout.hpp"
 
-#include "duckdb/common/smaller_binary.hpp"
-#include "duckdb/common/sorting/sort_key.hpp"
+#include "tuple_data_layout_rust_bridge.hpp"
 
 namespace duckdb {
 
@@ -15,12 +14,6 @@ TupleDataLayout TupleDataLayout::Copy() const {
 	result.types = this->types;
 	result.aggregates = this->aggregates;
 	result.sort_key_type = this->sort_key_type;
-	if (this->struct_layouts) {
-		result.struct_layouts = make_uniq<unordered_map<idx_t, TupleDataLayout>>();
-		for (const auto &entry : *this->struct_layouts) {
-			result.struct_layouts->emplace(entry.first, entry.second.Copy());
-		}
-	}
 	result.flag_width = this->flag_width;
 	result.data_width = this->data_width;
 	result.aggr_width = this->aggr_width;
@@ -45,96 +38,77 @@ void TupleDataLayout::Initialize(vector<LogicalType> types_p, Aggregates aggrega
 	sort_skippable_bytes.clear();
 	variable_columns.clear();
 
-	// Null mask at the front - 1 bit per value.
 	validity_type = validity_type_p;
-	flag_width = ValidityBytes::ValidityMaskSize(CannotHaveNull() ? 0 : types.size());
-	row_width = flag_width;
 
-	// Whether all columns are constant size.
+	// Initialize struct_layouts to match the number of columns
+	struct_layouts.resize(types.size());
+
+	// Aggregates.
+	std::vector<idx_t> aggr_payload_sizes(aggregates_p.size());
+	std::vector<uint8_t> aggr_has_destructor(aggregates_p.size());
+	for (idx_t i = 0; i < aggregates_p.size(); i++) {
+		aggr_payload_sizes[i] = aggregates_p[i].payload_size;
+		aggr_has_destructor[i] = aggregates_p[i].function.HasStateDestructorCallback() ? 1 : 0;
+	}
+
+	bool is_top_level = (nestedness_type == TupleDataNestednessType::TOP_LEVEL_LAYOUT);
+
+	idx_t total_columns = types.size() + aggregates_p.size();
+	std::vector<idx_t> offsets_buf(total_columns);
+	std::vector<idx_t> variable_columns_buf(types.size());
+	std::vector<idx_t> destructor_idxs_buf(aggregates_p.size());
+
+	// Validate buffer sizes before calling Rust bridge
+	D_ASSERT(offsets_buf.size() >= total_columns);
+	D_ASSERT(variable_columns_buf.size() >= types.size());
+	D_ASSERT(destructor_idxs_buf.size() >= aggregates_p.size());
+
+	// Ensure buffers are properly initialized - empty vectors have valid data() but values may be uninitialized
+	// Size is already set above; values will be overwritten by Rust compute_layout
+	(void)offsets_buf.data();
+	(void)variable_columns_buf.data();
+	(void)destructor_idxs_buf.data();
+
+	std::vector<rust::ColumnDesc> columns(types.size());
 	for (idx_t col_idx = 0; col_idx < types.size(); col_idx++) {
 		const auto &type = types[col_idx];
-		if (type.InternalType() == PhysicalType::STRUCT) {
-			// structs are recursively stored as a TupleDataLayout again
-			const auto &child_types = StructType::GetChildTypes(type);
-			vector<LogicalType> child_type_vector;
-			child_type_vector.reserve(child_types.size());
-			for (auto &ct : child_types) {
-				child_type_vector.emplace_back(ct.second);
-			}
-			if (!struct_layouts) {
-				struct_layouts = make_uniq<unordered_map<idx_t, TupleDataLayout>>();
-			}
-			auto struct_entry = struct_layouts->emplace(col_idx, TupleDataLayout());
-			struct_entry.first->second.Initialize(std::move(child_type_vector),
-			                                      TupleDataValidityType::CAN_HAVE_NULL_VALUES,
-			                                      TupleDataNestednessType::NESTED_STRUCT_LAYOUT);
-
-			if (!struct_entry.first->second.AllConstant()) {
-				all_constant = false;
-				variable_columns.push_back(col_idx);
-			}
+		bool is_struct = (type.InternalType() == PhysicalType::STRUCT);
+		bool is_const = true;
+		if (is_struct) {
+			is_const = false;
 		} else if (!TypeIsConstantSize(type.InternalType())) {
-			all_constant = false;
-			variable_columns.push_back(col_idx);
+			is_const = false;
 		}
+		columns[col_idx].physical_type = static_cast<uint8_t>(type.InternalType());
+		columns[col_idx].is_struct = is_struct ? 1 : 0;
+		columns[col_idx].struct_size = 0;
+		// Note: is_constant=1 means constant size, is_constant=0 means variable
+		// This naming is inverted from the Rust side where is_constant==0 means variable
+		columns[col_idx].is_constant = is_const ? 1 : 0;
 	}
 
-	// This enables pointer recomputation for out-of-core.
-	if (nestedness_type == TupleDataNestednessType::TOP_LEVEL_LAYOUT && !all_constant) {
-		heap_size_offset = row_width;
-		row_width += sizeof(idx_t);
-	}
+	rust::LayoutResult result = rust::compute_layout(
+	    rs_std::SliceRef<const rust::ColumnDesc>(columns.data(), columns.size()),
+	    rs_std::SliceRef<const uintptr_t>(reinterpret_cast<const uintptr_t *>(aggr_payload_sizes.data()), aggr_payload_sizes.size()),
+	    rs_std::SliceRef<const uint8_t>(aggr_has_destructor.data(), aggr_has_destructor.size()),
+	    validity_type == TupleDataValidityType::CANNOT_HAVE_NULL_VALUES ? 1 : 0,
+	    is_top_level ? 1 : 0,
+	    rs_std::SliceRef<uintptr_t>(reinterpret_cast<uintptr_t *>(offsets_buf.data()), offsets_buf.size()),
+	    rs_std::SliceRef<uintptr_t>(reinterpret_cast<uintptr_t *>(variable_columns_buf.data()), variable_columns_buf.size()),
+	    rs_std::SliceRef<uintptr_t>(reinterpret_cast<uintptr_t *>(destructor_idxs_buf.data()), destructor_idxs_buf.size()));
 
-	// Data columns. No alignment required.
-	for (idx_t col_idx = 0; col_idx < types.size(); col_idx++) {
-		const auto &type = types[col_idx];
-		offsets.push_back(row_width);
-		const auto physical_type = type.InternalType();
-		if (TypeIsConstantSize(physical_type) || physical_type == PhysicalType::VARCHAR) {
-			row_width += GetTypeIdSize(physical_type);
-		} else if (physical_type == PhysicalType::STRUCT) {
-			// Just get the size of the TupleDataLayout of the struct
-			row_width += GetStructLayout(col_idx).GetRowWidth();
-		} else {
-			// Variable size types use pointers to the actual data (can be swizzled).
-			// Again, we would use sizeof(data_ptr_t), but this is not guaranteed to be equal to sizeof(idx_t).
-			row_width += sizeof(idx_t);
-		}
-	}
+	flag_width = result.flag_width;
+	row_width = result.row_width;
+	data_width = result.data_width;
+	aggr_width = result.aggr_width;
+	heap_size_offset = result.heap_size_offset;
+	all_constant = (result.all_constant != 0);
 
-	// Alignment padding for aggregates
-	const auto align = !aggregates_p.empty();
-#ifndef DUCKDB_ALLOW_UNDEFINED
-	if (align) {
-		row_width = AlignValue(row_width);
-	}
-#endif
-	data_width = row_width - flag_width;
+	offsets.assign(offsets_buf.begin(), offsets_buf.begin() + result.num_offsets);
+	variable_columns.assign(variable_columns_buf.begin(), variable_columns_buf.begin() + result.num_variable_columns);
+	aggr_destructor_idxs.assign(destructor_idxs_buf.begin(), destructor_idxs_buf.begin() + result.num_aggr_destructor_idxs);
 
-	// Aggregate fields.
 	aggregates = std::move(aggregates_p);
-	for (auto &aggregate : aggregates) {
-		offsets.push_back(row_width);
-		row_width += aggregate.payload_size;
-#ifndef DUCKDB_ALLOW_UNDEFINED
-		D_ASSERT(aggregate.payload_size == AlignValue(aggregate.payload_size));
-#endif
-	}
-	aggr_width = row_width - data_width - flag_width;
-
-	// Alignment padding for the next row
-#ifndef DUCKDB_ALLOW_UNDEFINED
-	if (align) {
-		row_width = AlignValue(row_width);
-	}
-#endif
-
-	for (idx_t aggr_idx = 0; aggr_idx < aggregates.size(); aggr_idx++) {
-		const auto &aggr = aggregates[aggr_idx];
-		if (aggr.function.HasStateDestructorCallback()) {
-			aggr_destructor_idxs.push_back(aggr_idx);
-		}
-	}
 }
 
 void TupleDataLayout::Initialize(vector<LogicalType> types_p, TupleDataValidityType validity_type,
@@ -151,7 +125,6 @@ void TupleDataLayout::Initialize(const vector<BoundOrderByNode> &orders, const L
 	// Reset state
 	types.clear();
 	aggregates.clear();
-	struct_layouts.reset();
 	flag_width = DConstants::INVALID_INDEX;
 	data_width = DConstants::INVALID_INDEX;
 	aggr_width = DConstants::INVALID_INDEX;
@@ -247,6 +220,34 @@ bool TupleDataLayout::HasNestedTypes() const {
 		}
 	}
 	return false;
+}
+
+const TupleDataLayout *TupleDataLayout::GetStructLayout(idx_t col_idx) const {
+	if (col_idx >= types.size()) {
+		return nullptr;
+	}
+	if (types[col_idx].InternalType() != PhysicalType::STRUCT) {
+		return nullptr;
+	}
+	// Check if struct layout is already computed
+	if (col_idx < struct_layouts.size() && struct_layouts[col_idx]) {
+		return struct_layouts[col_idx].get();
+	}
+	// lazily build struct layout
+	auto child_types = StructType::GetChildTypes(types[col_idx]);
+	if (child_types.empty()) {
+		return nullptr;
+	}
+	// Create nested struct layout
+	auto nested_layout = make_shared_ptr<TupleDataLayout>();
+	vector<LogicalType> child_type_list;
+	child_type_list.reserve(child_types.size());
+	for (const auto &child : child_types) {
+		child_type_list.push_back(child.second);
+	}
+	nested_layout->Initialize(child_type_list, validity_type, TupleDataNestednessType::NESTED_STRUCT_LAYOUT);
+	struct_layouts[col_idx] = nested_layout;
+	return nested_layout.get();
 }
 
 } // namespace duckdb

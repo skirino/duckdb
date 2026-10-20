@@ -9,12 +9,12 @@
 #pragma once
 
 #include "duckdb/common/enums/tuple_data_layout_enums.hpp"
+#include "duckdb/common/sorting/sort_key.hpp"
 #include "duckdb/common/types/validity_mask.hpp"
 #include "duckdb/execution/operator/aggregate/aggregate_object.hpp"
 
 namespace duckdb {
 
-enum class SortKeyType : uint8_t;
 struct BoundOrderByNode;
 
 class TupleDataLayout {
@@ -64,11 +64,7 @@ public:
 	}
 	//! Returns whether this is a sort key layout (in implementation file to avoid including here)
 	bool IsSortKeyLayout() const;
-	//! Returns a map from column id to the struct TupleDataLayout
-	const inline TupleDataLayout &GetStructLayout(idx_t col_idx) const {
-		D_ASSERT(struct_layouts->find(col_idx) != struct_layouts->end());
-		return struct_layouts->find(col_idx)->second;
-	}
+
 	//! Returns the total width required for each row, including padding
 	inline idx_t GetRowWidth() const {
 		return row_width;
@@ -130,6 +126,8 @@ public:
 	}
 	//! Returns whether any of the columns are nested (they can compare equal even if there are no explicit NULLs)
 	bool HasNestedTypes() const;
+	//! Returns the nested layout for a STRUCT column (or nullptr if not a struct)
+	const TupleDataLayout *GetStructLayout(idx_t col_idx) const;
 
 private:
 	//! The types of the data columns
@@ -138,8 +136,6 @@ private:
 	Aggregates aggregates;
 	//! The sort key type associated with orders
 	SortKeyType sort_key_type;
-	//! Structs are a recursive TupleDataLayout
-	unique_ptr<unordered_map<idx_t, TupleDataLayout>> struct_layouts;
 	//! The width of the validity header
 	idx_t flag_width;
 	//! The width of the data portion
@@ -164,6 +160,9 @@ private:
 	vector<idx_t> aggr_destructor_idxs;
 	//! Whether none of the columns have NULLs
 	TupleDataValidityType validity_type;
+
+	//! Nested struct layouts for STRUCT columns
+	mutable vector<shared_ptr<TupleDataLayout>> struct_layouts;
 };
 
 } // namespace duckdb
