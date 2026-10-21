@@ -484,7 +484,6 @@ migration please keep the following in mind:
 - Try to eliminate `unsafe` blocks, and do not introduce new compiler warnings.
 - Add a Rust library only when it solves a significantly difficult problem. Do
   not introduce one just to simplify something that is already simple.
-- Run `cargo fmt` in `ahirudb/` when done editing Rust code.
 - Note that build and test are done from bazel. Don't execute `cargo build` or
   `cargo test`.
 
