@@ -42,6 +42,7 @@ pub const INVALID_INDEX: idx_t = idx_t::MAX;
 ///
 /// The struct itself stays in the public header; the bridge copies its members
 /// into this value and back.
+#[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct MultiFileFilterEntryLayout {
     pub is_set: bool,

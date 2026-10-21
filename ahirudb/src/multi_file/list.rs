@@ -25,6 +25,7 @@ use crate::multi_file::data::idx_t;
 
 /// How many files a list resolved to. `NO_FILES` is what decides whether a
 /// reader complains about an empty glob or reads nothing.
+#[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum FileExpandResult {
     NO_FILES,
@@ -34,6 +35,7 @@ pub enum FileExpandResult {
 
 /// Whether a file count is exact, or a lower bound a list that has not expanded
 /// all of its globs can give.
+#[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum FileExpansionType {
     ALL_FILES_EXPANDED,
@@ -41,6 +43,7 @@ pub enum FileExpansionType {
 }
 
 /// Whether a scan may reach past what is already expanded.
+#[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum MultiFileListScanType {
     ALWAYS_FETCH,
@@ -52,6 +55,7 @@ pub enum MultiFileListScanType {
 /// The two travel together: a caller that needs an exact count checks the type,
 /// and only one that does not - the cardinality estimate a planner is shown -
 /// reads the count on its own.
+#[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct MultiFileCount {
     count: idx_t,
