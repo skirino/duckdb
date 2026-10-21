@@ -358,6 +358,6 @@ generated_extension_loader_package_build.cpp
 
 # bazel
 /bazel-bin
-/bazel-duckdb
+/bazel-duckdb*
 /bazel-out
 /bazel-testlogs
