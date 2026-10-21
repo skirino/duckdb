@@ -1,0 +1,3 @@
+load("//bazel:duckdb_test.bzl", "duckdb_test_directory")
+
+duckdb_test_directory()

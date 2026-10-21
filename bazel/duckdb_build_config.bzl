@@ -68,14 +68,17 @@ DUCKDB_DEFINES = [
     "DUCKDB_PATCH_VERSION=0",
     "GENERATED_EXTENSION_HEADERS=1",
 ] + select({
-    ":force_assert_enabled": ["DUCKDB_FORCE_ASSERT"],
+    "//:force_assert_enabled": ["DUCKDB_FORCE_ASSERT"],
     "//conditions:default": [],
 })
 
 # -fPIC, so the objects survive into the shared library and the loadable extensions.
 DUCKDB_COPTS = ["-fPIC"]
 
-DUCKDB_LIB_DEPS = [":duckdb_headers", ":generated_extension_loader"]
+# Absolute labels: every duckdb_library deps on these, and most of them live in
+# subpackages where the package-relative ":foo" spelling would resolve to a
+# nonexistent //src:foo.
+DUCKDB_LIB_DEPS = ["//:duckdb_headers", "//:generated_extension_loader"]
 
 # What a C++ library that calls into the `ahirudb` crate needs beyond the usual.
 # The first two are Crubit's: the generated C++ API, and the staticlib the
@@ -98,7 +101,8 @@ def duckdb_library(
         deps = DUCKDB_LIB_DEPS,
         linkopts = None,
         alwayslink = True,
-        tags = None):
+        tags = None,
+        visibility = None):
     """One library of the DuckDB build.
 
     Every attribute has the value nearly every library wants, so a target states
@@ -117,6 +121,7 @@ def duckdb_library(
         linkopts = linkopts or [],
         alwayslink = alwayslink,
         tags = tags or [],
+        visibility = visibility,
     )
 
 def duckdb_rust_bridge_library(name, srcs, hdrs, include_root, extra_deps = None):

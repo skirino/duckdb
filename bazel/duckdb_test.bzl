@@ -1,5 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("//bazel:duckdb_build_config.bzl", "duckdb_library", "DUCKDB_INCLUDES")
 
 """Macros for the generated unittest targets.
 
@@ -56,74 +57,108 @@ SQL_LOGIC_SUFFIXES = {
     "slow": "*.test_slow|*.test_coverage",
 }
 
-def sql_logic_test_list(name, globs, kind):
-    """The `-f` list of the sqllogictest files one directory owns."""
-    # $$f survives Make-variable expansion into a literal $f.
-    native.genrule(
-        name = name,
-        srcs = globs,
-        outs = [name + ".txt"],
-        cmd = 'for f in $(SRCS); do case "$$f" in %s) echo "$$f";; esac; done > $@' % SQL_LOGIC_SUFFIXES[kind],
-    )
+def duckdb_test_directory(
+    deps = [],
+    sqllogictest_size = "medium",
+    cpp_size = "medium",
+):
+    """A whole test directory: its corpus, and the fast (and slow) runs over it.
 
-def subdirectory_test(name, args, size = "medium", testlist = None, deps = [],
-                      fixture_tree = None):
-    """One test subdirectory's tests, and only that subdirectory's.
+    This is the shape nearly every test subdirectory wants, spelled once. `name`
+    is the directory slug (the package's own name); the corpus is every file in
+    the package, and the fast list is its non-hidden `.test` files. A directory
+    with hidden corpus also gets the slow run; one with C++ cases gets its own
+    cc_test pairs over the Catch2 registry (excluding `*.test`), because `-f`
+    clears that registry and the two halves cannot share a binary.
 
-    Only the -f list, and for the crawls that need real files the fixture tree,
-    are per-target; the trees and the loadable test extensions are the same for
-    every test, so they are named here instead of 221 times over. A fixture tree
-    is a copy, so the built .duckdb_extension artifacts under test/ are not
-    reachable from it -- hence the two shapes rather than one plus a tree.
+    The `-f` argument is a runfiles-relative path, so the package prefix is
+    derived here rather than spelled per call.
     """
-    if fixture_tree:
-        trees = [":" + fixture_tree, ":test_data_without_fixtures"]
-    else:
-        trees = [":test_data", ":test_extension_artifacts"]
-    cc_test(
-        name = name,
-        args = args,
-        size = size,
-        linkopts = TEST_LINKOPTS,
-        deps = ["//:unittest_harness"] + deps,
-        data = trees + ([testlist] if testlist else []),
-    )
+    pkg = native.package_name()
+    cpp_srcs = native.glob(["**/*.cpp"], allow_empty = True)
+    sqllogictest_fast = native.glob(["**/*.test"], allow_empty = True)
+    sqllogictest_slow = native.glob(["**/*.test_slow", "**/*.test_coverage"], allow_empty = True)
 
-def sql_logic_test_groups(prefix, groups, kind, size = "medium", deps = []):
-    """One list+test pair per group; `groups` maps a group name to its glob list.
-
-    The groups partition one subdirectory's corpus, so Bazel runs them as
-    concurrent tests instead of one long serial run. Returns the group testlist
-    labels for sql_logic_test_coverage_test.
-    """
-    testlists = []
-    for group, globs in groups.items():
-        list_name = "%s_%s_%s_testlist" % (prefix, group, kind)
-        sql_logic_test_list(name = list_name, globs = globs, kind = kind)
-        subdirectory_test(
-            name = "%s_%s_%s_test" % (prefix, group, kind),
-            args = ["-f", list_name + ".txt"],
+    def _cc_test(name, args, size, data = []):
+        cc_test(
+            name = name,
+            args = args,
             size = size,
-            deps = deps,
-            testlist = ":" + list_name,
+            linkopts = TEST_LINKOPTS,
+            deps = ["//:unittest_harness"] + deps + ([":lib"] if cpp_srcs else []),
+            data = ["//:test_data", "//:test_extension_artifacts"] + data,
         )
-        testlists.append(":" + list_name)
-    return testlists
 
-def sql_logic_test_coverage_test(name, oracle, testlists, size = "small"):
-    """Fails unless `testlists` partition `oracle`: every file exactly once.
+    if cpp_srcs:
+        duckdb_library(
+            name = "lib",
+            srcs = cpp_srcs,
+            includes = sorted(DUCKDB_INCLUDES + [
+                "test/extension/debug_fs/include",
+                "test/include",
+                "third_party/catch",
+                "third_party/sqlite/include",
+            ]),
+        )
+        _cc_test(
+            name = "cpp_nonhidden_test",
+            args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+            size = cpp_size,
+        )
+        _cc_test(
+            name = "cpp_hidden_test",
+            args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+            size = "large",
+        )
 
-    A group that stops covering part of the corpus -- a new subdirectory added
-    without a group, or two groups claiming the same files -- would otherwise
-    shrink coverage silently. The oracle list is not run as a test itself.
-    """
-    # A genrule output is <label name>.txt and the test reads it relative to
-    # the runfiles working directory, hence the bare file names.
-    args = [label[1:] + ".txt" for label in [oracle] + testlists]
-    sh_test(
-        name = name,
-        size = size,
-        srcs = ["//bazel:sql_logic_coverage_check.sh"],
-        args = args,
-        data = [oracle] + testlists,
+    def _sqllogictest(kind, test_size):
+        list_name = "sqllogictest_%s_list" % kind
+        native.genrule(
+            name = list_name,
+            srcs = native.glob(["**"]),
+            outs = [list_name + ".txt"],
+            cmd = 'for f in $(SRCS); do case "$$f" in %s) echo "$$f";; esac; done > $@' % SQL_LOGIC_SUFFIXES[kind],
+        )
+        _cc_test(
+            name = "sqllogictest_%s_test" % kind,
+            args = ["-f", pkg + "/" + list_name + ".txt"],
+            size = test_size,
+            data = [":" + list_name],
+        )
+
+    if sqllogictest_fast:
+        _sqllogictest("fast", sqllogictest_size)
+    if sqllogictest_slow:
+        _sqllogictest("slow", "large")
+
+def duckdb_demo_loadable_extension(
+    
+):
+    duckdb_library(
+        name = "cpp_api_demo_loadable_extension_srcs",
+        srcs = ["test/extension/cpp_api_demo.cpp"],
+        local_defines = DUCKDB_DEFINES + [
+            "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
+            "DUCKDB_BUILD_LOADABLE_EXTENSION",
+            "DUCKDB_CPP_API_LOADABLE",
+            "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=bc5e2bb7ee",
+            "DUCKDB_EXTENSION_NAME=cpp_api_demo",
+        ],
+        includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
+        linkopts = ["-Wl,-exported_symbol,_cpp_api_demo_init_c_api_v2", "-Wl,-dead_strip"],
+    )
+    cc_shared_library(
+        name = "cpp_api_demo_loadable_extension",
+        deps = [
+            ":cpp_api_demo_loadable_extension_srcs",
+            ":duckdb_static",
+            ":dummy_static_extension_loader",
+            ":duckdb_cpp_api",
+        ],
+    )
+    native.genrule(
+        name = "cpp_api_demo_loadable_extension_file",
+        srcs = [":cpp_api_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
+        outs = ["test/extension/cpp_api_demo.duckdb_extension"],
+        cmd = "cp $(location :cpp_api_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"C_STRUCT_UNSTABLE\"",
     )

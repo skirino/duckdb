@@ -18,8 +18,7 @@ load("//bazel:duckdb_build_config.bzl", "DUCKDB_DEFINES", "DUCKDB_INCLUDES",
 load("//bazel:duckdb_codegen.bzl", "extension_codegen_files", "fixture_tree",
       "version_info_header")
 load("//bazel:duckdb_test.bzl", "FIXTURE_TREES", "TEST_DATA_GLOBS",
-      "TEST_DATA_GLOBS_WITHOUT_FIXTURES", "sql_logic_test_coverage_test",
-      "sql_logic_test_groups", "sql_logic_test_list", "subdirectory_test")
+      "TEST_DATA_GLOBS_WITHOUT_FIXTURES")
 
 exports_files([
     "rustfmt.toml",
@@ -85,6 +84,12 @@ duckdb_library(
 
 # Every header is declared once so the C++ layering check can attribute each
 # inclusion to a target.
+#
+# `includes` carries DUCKDB_INCLUDES here rather than on every library: the
+# engine include roots are all package-relative to the repo root, so a library
+# in a subpackage cannot spell them. Because `includes` propagates transitively
+# through `deps`, and every duckdb_library deps on this target, one declaration
+# reaches the whole tree.
 cc_library(
     name = "duckdb_headers",
     hdrs = glob(
@@ -98,13 +103,20 @@ cc_library(
             "third_party/**/*.tcc",
             "tools/**/*.h",
             "tools/**/*.hpp",
-            "test/**/*.h",
-            "test/**/*.hpp",
         ],
     ),
+    includes = DUCKDB_INCLUDES,
     textual_hdrs = [
         "third_party/utf8proc/utf8proc_data.cpp",
     ],
+)
+
+# The test include roots, same reasoning as duckdb_headers' `includes`: a test
+# library under test/ cannot spell "third_party/catch" or "test/include", but it
+# deps on this target and gets them transitively.
+cc_library(
+    name = "duckdb_test_include_paths",
+    includes = DUCKDB_TEST_INCLUDES,
 )
 
 # --- one library per compile profile ----------------------------------------
@@ -388,41 +400,6 @@ DEMO_CAPI_API_VERSION = "v1.5.6"
 DEMO_CAPI_API_VERSION_PARTS = DEMO_CAPI_API_VERSION[1:].split(".")
 
 duckdb_library(
-    name = "demo_capi_extension_srcs",
-    srcs = glob(["extension/demo_capi/*.cpp"]),
-    local_defines = DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
-        "DUCKDB_BUILD_LOADABLE_EXTENSION",
-        "DUCKDB_EXTENSION_API_VERSION_MAJOR=" + DEMO_CAPI_API_VERSION_PARTS[0],
-        "DUCKDB_EXTENSION_API_VERSION_MINOR=" + DEMO_CAPI_API_VERSION_PARTS[1],
-        "DUCKDB_EXTENSION_API_VERSION_PATCH=" + DEMO_CAPI_API_VERSION_PARTS[2],
-        "DUCKDB_EXTENSION_NAME=demo_capi",
-    ],
-    includes = sorted(DUCKDB_INCLUDES + ["extension/demo_capi/include"]),
-    linkopts = ["-Wl,-exported_symbol,_demo_capi_init_c_api", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "demo_capi_extension",
-    deps = [
-        ":demo_capi_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "demo_capi_extension_file",
-    srcs = [":demo_capi_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/demo_capi.duckdb_extension"],
-    # C_STRUCT rather than C_STRUCT_UNSTABLE: everything the unstable v1 helpers
-    # offered was stabilized into v1.5.6, so this is the stable entrypoint. That
-    # is also why the footer carries --capi-version: a C_STRUCT version field is
-    # the C API version, not the DuckDB one.
-    cmd = "cp $(location :demo_capi_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"C_STRUCT\" --capi-version " + DEMO_CAPI_API_VERSION,
-)
-
-duckdb_library(
     name = "parquet_extension",
     srcs = glob(
         [
@@ -525,55 +502,6 @@ duckdb_library(
         "test/include",
         "third_party/catch",
         "third_party/sqlite/include",
-    ]),
-)
-
-duckdb_library(
-    name = "test_sqlite_libs",
-    srcs = glob(["test/sqlite/*.cpp"]),
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_ROOT_DIRECTORY=\\\".\\\""],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-duckdb_library(
-    name = "test_debug_fs_libs",
-    srcs = glob(["test/extension/debug_fs/*.cpp"]),
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\""],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-duckdb_library(
-    name = "test_remote_optimizer",
-    srcs = ["test/extension/test_remote_optimizer.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\""],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-duckdb_library(
-    name = "test_static_extension_demo",
-    srcs = glob(["test/api/capi/v2/static_extension/*.cpp"]),
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_EXTENSION_NAME=cpp_api_static_demo"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-        "tools/cpp",
     ]),
 )
 
@@ -702,15 +630,16 @@ duckdb_library(
     local_defines = DUCKDB_DEFINES + ["DUCKDB_ROOT_DIRECTORY=\\\".\\\"", "DUCKDB_UNITTEST_CRASH_STACKTRACE"],
     copts = ["-fPIC", "-fPIE"],
     includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
+    visibility = ["//visibility:public"],
     deps = [
         ":duckdb_headers",
         ":generated_extension_loader",
         ":test_helpers",
-        ":test_sqlite_libs",
+        "//test/sqlite:test_sqlite_libs",
         ":duckdb_static",
         ":duckdb_cpp_api",
-        ":test_debug_fs_libs",
-        ":test_static_extension_demo",
+        "//test/extension:debug_fs_libs",
+        "//test/api/capi/v2/static_extension:lib",
     ],
 )
 
@@ -802,7 +731,7 @@ cc_binary(
         ":duckdb_headers",
         ":duckdb_static",
         ":generated_extension_loader",
-        ":test_debug_fs_libs",
+        "//test/extension:debug_fs_libs",
         ":test_helpers",
         ":third_party_imdb",
     ],
@@ -939,3306 +868,1155 @@ genrule(
     cmd = "$(location :duckdb_platform_binary) > $@",
 )
 
-duckdb_library(
-    name = "cpp_api_demo_loadable_extension_srcs",
-    srcs = ["test/extension/cpp_api_demo.cpp"],
-    local_defines = DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
-        "DUCKDB_BUILD_LOADABLE_EXTENSION",
-        "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=bc5e2bb7ee",
-        "DUCKDB_EXTENSION_NAME=cpp_api_demo",
-    ],
-    includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
-    linkopts = ["-Wl,-exported_symbol,_cpp_api_demo_init_c_api_v2", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "cpp_api_demo_loadable_extension",
-    deps = [
-        ":cpp_api_demo_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-        ":duckdb_cpp_api",
-    ],
-)
-
-genrule(
-    name = "cpp_api_demo_loadable_extension_file",
-    srcs = [":cpp_api_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/cpp_api_demo.duckdb_extension"],
-    cmd = "cp $(location :cpp_api_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"C_STRUCT_UNSTABLE\"",
-)
-
-duckdb_library(
-    name = "cpp_api_demo_fail_loadable_extension_srcs",
-    srcs = ["test/extension/cpp_api_demo_fail.cpp"],
-    local_defines = DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
-        "DUCKDB_BUILD_LOADABLE_EXTENSION",
-        "DUCKDB_CPP_API_LOADABLE",
-        "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=bc5e2bb7ee",
-        "DUCKDB_EXTENSION_NAME=cpp_api_demo_fail",
-    ],
-    includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
-    linkopts = ["-Wl,-exported_symbol,_cpp_api_demo_fail_init_c_api_v2", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "cpp_api_demo_fail_loadable_extension",
-    deps = [
-        ":cpp_api_demo_fail_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-        ":duckdb_cpp_api",
-    ],
-)
-
-genrule(
-    name = "cpp_api_demo_fail_loadable_extension_file",
-    srcs = [":cpp_api_demo_fail_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/cpp_api_demo_fail.duckdb_extension"],
-    cmd = "cp $(location :cpp_api_demo_fail_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"C_STRUCT_UNSTABLE\"",
-)
-
-duckdb_library(
-    name = "explicit_extension_schema_loadable_extension_srcs",
-    srcs = ["test/extension/explicit_extension_schema.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_explicit_extension_schema_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "explicit_extension_schema_loadable_extension",
-    deps = [
-        ":explicit_extension_schema_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "explicit_extension_schema_loadable_extension_file",
-    srcs = [":explicit_extension_schema_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/explicit_extension_schema.duckdb_extension"],
-    cmd = "cp $(location :explicit_extension_schema_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
-duckdb_library(
-    name = "explicit_extension_schema_alias_loadable_extension_srcs",
-    srcs = ["test/extension/explicit_extension_schema_alias.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_explicit_extension_schema_alias_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "explicit_extension_schema_alias_loadable_extension",
-    deps = [
-        ":explicit_extension_schema_alias_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "explicit_extension_schema_alias_loadable_extension_file",
-    srcs = [":explicit_extension_schema_alias_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/explicit_extension_schema_alias.duckdb_extension"],
-    cmd = "cp $(location :explicit_extension_schema_alias_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
-duckdb_library(
-    name = "loadable_extension_demo_loadable_extension_srcs",
-    srcs = ["test/extension/loadable_extension_demo.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_loadable_extension_demo_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "loadable_extension_demo_loadable_extension",
-    deps = [
-        ":loadable_extension_demo_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "loadable_extension_demo_loadable_extension_file",
-    srcs = [":loadable_extension_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/loadable_extension_demo.duckdb_extension"],
-    cmd = "cp $(location :loadable_extension_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
-duckdb_library(
-    name = "loadable_extension_demo_double_loadable_extension_srcs",
-    srcs = ["test/extension/loadable_extension_demo_alt.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_loadable_extension_demo_double_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "loadable_extension_demo_double_loadable_extension",
-    deps = [
-        ":loadable_extension_demo_double_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "loadable_extension_demo_double_loadable_extension_file",
-    srcs = [":loadable_extension_demo_double_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/loadable_extension_demo_double.duckdb_extension"],
-    cmd = "cp $(location :loadable_extension_demo_double_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
-duckdb_library(
-    name = "loadable_extension_optimizer_demo_loadable_extension_srcs",
-    srcs = ["test/extension/loadable_extension_optimizer_demo.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_loadable_extension_optimizer_demo_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "loadable_extension_optimizer_demo_loadable_extension",
-    deps = [
-        ":loadable_extension_optimizer_demo_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "loadable_extension_optimizer_demo_loadable_extension_file",
-    srcs = [":loadable_extension_optimizer_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/loadable_extension_optimizer_demo.duckdb_extension"],
-    cmd = "cp $(location :loadable_extension_optimizer_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
-duckdb_library(
-    name = "loadable_grammar_extension_demo_loadable_extension_srcs",
-    srcs = ["test/extension/loadable_grammar_extension_demo.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_loadable_grammar_extension_demo_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "loadable_grammar_extension_demo_loadable_extension",
-    deps = [
-        ":loadable_grammar_extension_demo_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "loadable_grammar_extension_demo_loadable_extension_file",
-    srcs = [":loadable_grammar_extension_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/loadable_grammar_extension_demo.duckdb_extension"],
-    cmd = "cp $(location :loadable_grammar_extension_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
 filegroup(
     name = "test_data",
     srcs = glob(TEST_DATA_GLOBS),
+    visibility = ["//visibility:public"],
 )
 
 filegroup(
     name = "test_data_without_fixtures",
     srcs = glob(TEST_DATA_GLOBS_WITHOUT_FIXTURES),
+    visibility = ["//visibility:public"],
 )
 
 filegroup(
     name = "test_extension_artifacts",
     srcs = [
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":demo_capi_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
+        "//test/extension:cpp_api_demo_loadable_extension_file",
+        "//test/extension:cpp_api_demo_fail_loadable_extension_file",
+        "//test/extension:demo_capi_extension_file",
+        "//test/extension:explicit_extension_schema_loadable_extension_file",
+        "//test/extension:explicit_extension_schema_alias_loadable_extension_file",
+        "//test/extension:loadable_extension_demo_loadable_extension_file",
+        "//test/extension:loadable_extension_demo_double_loadable_extension_file",
+        "//test/extension:loadable_extension_optimizer_demo_loadable_extension_file",
+        "//test/extension:loadable_grammar_extension_demo_loadable_extension_file",
     ],
+    visibility = ["//visibility:public"],
 )
 
-# --- one cc_test per directory -------------------------------------------
+# # --- one cc_test per directory -------------------------------------------
 #
-# A directory's .test files and its C++ TEST_CASEs cannot share a binary:
-# `-f` clears the whole Catch2 registry (test/unittest.cpp) and registers only
-# the listed files, so the two halves get their own targets per directory:
-#   <slug>_test         -f <its .test>       -> its non-hidden corpus
-#   <slug>_slow_test     -f <its .test_slow>  -> its hidden corpus
-#   <slug>_cpp_test      ~*.test ...        -> its C++ cases
-#   <slug>_cpp_slow_test [.] ~*.test ...    -> its hidden C++ cases
+# # A directory's .test files and its C++ TEST_CASEs cannot share a binary:
+# # `-f` clears the whole Catch2 registry (test/unittest.cpp) and registers only
+# # the listed files, so the two halves get their own targets per directory:
+# #   <slug>_test         -f <its .test>       -> its non-hidden corpus
+# #   <slug>_slow_test     -f <its .test_slow>  -> its hidden corpus
+# #   <slug>_cpp_test      ~*.test ...        -> its C++ cases
+# #   <slug>_cpp_slow_test [.] ~*.test ...    -> its hidden C++ cases
 #
-# Corpus is split by an exact file list rather than a `prefix*` Catch2 pattern,
-# which cannot exclude .test_slow. The C++ targets drop the corpus by extension
-# instead (CPP_ONLY_ARGS below): a trailing `*` in a Catch2 pattern means
-# startsWith and a leading one means endsWith, so `~*.test` is the exclusion
-# that reads. `~test/*` would also drop the registered-by-hand cases such as
-# test/ossfuzz/cases/clusterfuzz-test-N, which are not .test files.
-duckdb_library(
-    name = "test_cpp_api",
-    srcs = [
-        "test/api/test_aggregate_state_bind_data.cpp",
-        "test/api/test_api.cpp",
-        "test/api/test_appender_api.cpp",
-        "test/api/test_bignum.cpp",
-        "test/api/test_bind_statement.cpp",
-        "test/api/test_block_allocator_tls.cpp",
-        "test/api/test_buffer_pool_eviction.cpp",
-        "test/api/test_config.cpp",
-        "test/api/test_connection_secrets.cpp",
-        "test/api/test_copy_output_lifecycle.cpp",
-        "test/api/test_custom_allocator.cpp",
-        "test/api/test_dbdir.cpp",
-        "test/api/test_extension_repositories.cpp",
-        "test/api/test_extension_schema_api.cpp",
-        "test/api/test_extension_setting_autoload.cpp",
-        "test/api/test_get_table_names.cpp",
-        "test/api/test_grammar_extension.cpp",
-        "test/api/test_insertion_order_preserving_map.cpp",
-        "test/api/test_instance_cache.cpp",
-        "test/api/test_lifecycle_hooks.cpp",
-        "test/api/test_object_cache.cpp",
-        "test/api/test_operator_memory_limit.cpp",
-        "test/api/test_parse_statement_iterator.cpp",
-        "test/api/test_partial_executor.cpp",
-        "test/api/test_pending_query.cpp",
-        "test/api/test_pending_with_parameters.cpp",
-        "test/api/test_plan_serialization.cpp",
-        "test/api/test_prepared_api.cpp",
-        "test/api/test_process_util.cpp",
-        "test/api/test_progress_bar.cpp",
-        "test/api/test_query_profiler.cpp",
-        "test/api/test_read_ahead_abandon.cpp",
-        "test/api/test_read_ahead_progress.cpp",
-        "test/api/test_read_only.cpp",
-        "test/api/test_relation_api.cpp",
-        "test/api/test_remove_directory_extended.cpp",
-        "test/api/test_reset.cpp",
-        "test/api/test_results.cpp",
-        "test/api/test_row_id_deduplicator.cpp",
-        "test/api/test_scalar_function_decimal_return.cpp",
-        "test/api/test_storage_extension_alias.cpp",
-        "test/api/test_stream_result_buffer.cpp",
-        "test/api/test_table_info.cpp",
-        "test/api/test_temporary_file_owner.cpp",
-        "test/api/test_threads.cpp",
-        "test/api/test_uuid.cpp",
-        "test/api/test_windows_header_compatibility.cpp",
-        "test/api/test_windows_unicode_path.cpp",
-    ],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "api_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_api"],
-)
-
-subdirectory_test(
-    name = "api_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_api"],
-)
-
-duckdb_library(
-    name = "test_cpp_api_adbc",
-    srcs = glob(["test/api/adbc/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "api_adbc_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_api_adbc", ":test_cpp_arrow"],
-)
-
-subdirectory_test(
-    name = "api_adbc_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_api_adbc", ":test_cpp_arrow"],
-)
-
-duckdb_library(
-    name = "test_cpp_api_capi_v1",
-    srcs = glob(["test/api/capi/v1/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "api_capi_v1_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_api_capi_v1"],
-)
-
-subdirectory_test(
-    name = "api_capi_v1_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_api_capi_v1"],
-)
-
-duckdb_library(
-    name = "test_cpp_api_capi_v2",
-    srcs = glob(["test/api/capi/v2/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "api_capi_v2_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_api_capi_v2"],
-)
-
-subdirectory_test(
-    name = "api_capi_v2_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_api_capi_v2"],
-)
-
-duckdb_library(
-    name = "test_cpp_appender",
-    srcs = glob(["test/appender/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "appender_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    deps = [":test_cpp_appender"],
-)
-
-subdirectory_test(
-    name = "appender_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_appender"],
-)
-
-duckdb_library(
-    name = "test_cpp_arrow",
-    srcs = glob(["test/arrow/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "arrow_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    deps = [":test_cpp_arrow"],
-)
-
-subdirectory_test(
-    name = "arrow_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_arrow"],
-)
-
-duckdb_library(
-    name = "test_cpp_catalog",
-    srcs = glob(["test/catalog/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "catalog_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_catalog"],
-)
-
-subdirectory_test(
-    name = "catalog_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_catalog"],
-)
-
-duckdb_library(
-    name = "test_cpp_common",
-    srcs = glob(["test/common/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-sql_logic_test_list(
-    name = "common_fast_testlist",
-    globs = glob(["test/common/*"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "common_test",
-    args = ["-f", "common_fast_testlist.txt"],
-    deps = [":test_cpp_common"],
-    testlist = ":common_fast_testlist",
-)
-
-subdirectory_test(
-    name = "common_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_common"],
-)
-
-subdirectory_test(
-    name = "common_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_common"],
-)
-
-duckdb_library(
-    name = "test_cpp_cpp_api",
-    srcs = glob(["tools/cpp/tests/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-        "tools/cpp",
-        "tools/cpp/tests",
-    ]),
-)
-
-subdirectory_test(
-    name = "cpp_api_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_cpp_api"],
-)
-
-subdirectory_test(
-    name = "cpp_api_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_cpp_api"],
-)
-
-sql_logic_test_list(
-    name = "db-benchmark_slow_testlist",
-    globs = glob(["test/db-benchmark/*"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "db-benchmark_slow_test",
-    args = ["-f", "db-benchmark_slow_testlist.txt"],
-    size = "large",
-    testlist = ":db-benchmark_slow_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_encryption",
-    srcs = glob(["test/encryption/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "encryption_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_encryption"],
-)
-
-subdirectory_test(
-    name = "encryption_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_encryption"],
-)
-
-sql_logic_test_list(
-    name = "extension_fast_testlist",
-    globs = glob(["test/extension/*"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "extension_slow_testlist",
-    globs = glob(["test/extension/*"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "extension_test",
-    args = ["-f", "extension_fast_testlist.txt"],
-    testlist = ":extension_fast_testlist",
-)
-
-subdirectory_test(
-    name = "extension_slow_test",
-    args = ["-f", "extension_slow_testlist.txt"],
-    size = "large",
-    testlist = ":extension_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "fuzzer_fast_testlist",
-    globs = glob(["test/fuzzer/*"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "fuzzer_test",
-    args = ["-f", "fuzzer_fast_testlist.txt"],
-    testlist = ":fuzzer_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "fuzzer_afl_fast_testlist",
-    globs = glob(["test/fuzzer/afl/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "fuzzer_afl_test",
-    args = ["-f", "fuzzer_afl_fast_testlist.txt"],
-    testlist = ":fuzzer_afl_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "fuzzer_duckfuzz_fast_testlist",
-    globs = glob(["test/fuzzer/duckfuzz/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "fuzzer_duckfuzz_slow_testlist",
-    globs = glob(["test/fuzzer/duckfuzz/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "fuzzer_duckfuzz_test",
-    args = ["-f", "fuzzer_duckfuzz_fast_testlist.txt"],
-    testlist = ":fuzzer_duckfuzz_fast_testlist",
-)
-
-subdirectory_test(
-    name = "fuzzer_duckfuzz_slow_test",
-    args = ["-f", "fuzzer_duckfuzz_slow_testlist.txt"],
-    size = "large",
-    testlist = ":fuzzer_duckfuzz_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "fuzzer_pedro_fast_testlist",
-    globs = glob(["test/fuzzer/pedro/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "fuzzer_pedro_test",
-    args = ["-f", "fuzzer_pedro_fast_testlist.txt"],
-    testlist = ":fuzzer_pedro_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "fuzzer_public_fast_testlist",
-    globs = glob(["test/fuzzer/public/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "fuzzer_public_test",
-    args = ["-f", "fuzzer_public_fast_testlist.txt"],
-    testlist = ":fuzzer_public_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "fuzzer_sqlsmith_fast_testlist",
-    globs = glob(["test/fuzzer/sqlsmith/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "fuzzer_sqlsmith_test",
-    args = ["-f", "fuzzer_sqlsmith_fast_testlist.txt"],
-    testlist = ":fuzzer_sqlsmith_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "geoparquet_fast_testlist",
-    globs = glob(["test/geoparquet/*"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "geoparquet_test",
-    args = ["-f", "geoparquet_fast_testlist.txt"],
-    testlist = ":geoparquet_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "issues_fuzz_fast_testlist",
-    globs = glob(["test/issues/fuzz/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "issues_fuzz_test",
-    args = ["-f", "issues_fuzz_fast_testlist.txt"],
-    testlist = ":issues_fuzz_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "issues_general_fast_testlist",
-    globs = glob(["test/issues/general/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "issues_general_slow_testlist",
-    globs = glob(["test/issues/general/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "issues_general_test",
-    args = ["-f", "issues_general_fast_testlist.txt"],
-    testlist = ":issues_general_fast_testlist",
-)
-
-subdirectory_test(
-    name = "issues_general_slow_test",
-    args = ["-f", "issues_general_slow_testlist.txt"],
-    size = "large",
-    testlist = ":issues_general_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "issues_internal_fast_testlist",
-    globs = glob(["test/issues/internal/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "issues_internal_test",
-    args = ["-f", "issues_internal_fast_testlist.txt"],
-    testlist = ":issues_internal_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "issues_monetdb_fast_testlist",
-    globs = glob(["test/issues/monetdb/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "issues_monetdb_slow_testlist",
-    globs = glob(["test/issues/monetdb/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "issues_monetdb_test",
-    args = ["-f", "issues_monetdb_fast_testlist.txt"],
-    testlist = ":issues_monetdb_fast_testlist",
-)
-
-subdirectory_test(
-    name = "issues_monetdb_slow_test",
-    args = ["-f", "issues_monetdb_slow_testlist.txt"],
-    size = "large",
-    testlist = ":issues_monetdb_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "issues_rigger_fast_testlist",
-    globs = glob(["test/issues/rigger/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "issues_rigger_test",
-    args = ["-f", "issues_rigger_fast_testlist.txt"],
-    testlist = ":issues_rigger_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "ldbc_fast_testlist",
-    globs = glob(["test/ldbc/*"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "ldbc_test",
-    args = ["-f", "ldbc_fast_testlist.txt"],
-    testlist = ":ldbc_fast_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_logging",
-    srcs = glob(["test/logging/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-sql_logic_test_list(
-    name = "logging_fast_testlist",
-    globs = glob(["test/logging/*"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "logging_test",
-    args = ["-f", "logging_fast_testlist.txt"],
-    deps = [":test_cpp_logging"],
-    testlist = ":logging_fast_testlist",
-)
-
-subdirectory_test(
-    name = "logging_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_logging"],
-)
-
-subdirectory_test(
-    name = "logging_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_logging"],
-)
-
-duckdb_library(
-    name = "test_cpp_mbedtls",
-    srcs = glob(["test/mbedtls/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "mbedtls_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_mbedtls"],
-)
-
-subdirectory_test(
-    name = "mbedtls_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_mbedtls"],
-)
-
-duckdb_library(
-    name = "test_cpp_memoryleak",
-    srcs = glob(["test/memoryleak/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "memoryleak_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_memoryleak"],
-)
-
-subdirectory_test(
-    name = "memoryleak_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_memoryleak"],
-)
-
-duckdb_library(
-    name = "test_cpp_optimizer",
-    srcs = glob(["test/optimizer/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-sql_logic_test_list(
-    name = "optimizer_fast_testlist",
-    globs = glob(["test/optimizer/*"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "optimizer_slow_testlist",
-    globs = glob(["test/optimizer/*"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "optimizer_test",
-    args = ["-f", "optimizer_fast_testlist.txt"],
-    deps = [":test_cpp_optimizer"],
-    testlist = ":optimizer_fast_testlist",
-)
-
-subdirectory_test(
-    name = "optimizer_slow_test",
-    args = ["-f", "optimizer_slow_testlist.txt"],
-    size = "large",
-    deps = [":test_cpp_optimizer"],
-    testlist = ":optimizer_slow_testlist",
-)
-
-subdirectory_test(
-    name = "optimizer_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_optimizer"],
-)
-
-subdirectory_test(
-    name = "optimizer_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_optimizer"],
-)
-
-sql_logic_test_list(
-    name = "optimizer_column_lifetime_analyzer_fast_testlist",
-    globs = glob(["test/optimizer/column_lifetime_analyzer/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "optimizer_column_lifetime_analyzer_test",
-    args = ["-f", "optimizer_column_lifetime_analyzer_fast_testlist.txt"],
-    testlist = ":optimizer_column_lifetime_analyzer_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "optimizer_expression_rewriter_fast_testlist",
-    globs = glob(["test/optimizer/expression_rewriter/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "optimizer_expression_rewriter_test",
-    args = ["-f", "optimizer_expression_rewriter_fast_testlist.txt"],
-    testlist = ":optimizer_expression_rewriter_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "optimizer_filter_pushdown_fast_testlist",
-    globs = glob(["test/optimizer/filter_pushdown/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "optimizer_filter_pushdown_test",
-    args = ["-f", "optimizer_filter_pushdown_fast_testlist.txt"],
-    testlist = ":optimizer_filter_pushdown_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "optimizer_joins_fast_testlist",
-    globs = glob(["test/optimizer/joins/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "optimizer_joins_slow_testlist",
-    globs = glob(["test/optimizer/joins/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "optimizer_joins_test",
-    args = ["-f", "optimizer_joins_fast_testlist.txt"],
-    testlist = ":optimizer_joins_fast_testlist",
-)
-
-subdirectory_test(
-    name = "optimizer_joins_slow_test",
-    args = ["-f", "optimizer_joins_slow_testlist.txt"],
-    size = "large",
-    testlist = ":optimizer_joins_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "optimizer_misc_fast_testlist",
-    globs = glob(["test/optimizer/misc/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "optimizer_misc_test",
-    args = ["-f", "optimizer_misc_fast_testlist.txt"],
-    testlist = ":optimizer_misc_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "optimizer_pushdown_fast_testlist",
-    globs = glob(["test/optimizer/pushdown/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "optimizer_pushdown_slow_testlist",
-    globs = glob(["test/optimizer/pushdown/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "optimizer_pushdown_test",
-    args = ["-f", "optimizer_pushdown_fast_testlist.txt"],
-    testlist = ":optimizer_pushdown_fast_testlist",
-)
-
-subdirectory_test(
-    name = "optimizer_pushdown_slow_test",
-    args = ["-f", "optimizer_pushdown_slow_testlist.txt"],
-    size = "large",
-    testlist = ":optimizer_pushdown_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "optimizer_reported_bugs_fast_testlist",
-    globs = glob(["test/optimizer/reported_bugs/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "optimizer_reported_bugs_test",
-    args = ["-f", "optimizer_reported_bugs_fast_testlist.txt"],
-    testlist = ":optimizer_reported_bugs_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "optimizer_statistics_fast_testlist",
-    globs = glob(["test/optimizer/statistics/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "optimizer_statistics_slow_testlist",
-    globs = glob(["test/optimizer/statistics/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "optimizer_statistics_test",
-    args = ["-f", "optimizer_statistics_fast_testlist.txt"],
-    testlist = ":optimizer_statistics_fast_testlist",
-)
-
-subdirectory_test(
-    name = "optimizer_statistics_slow_test",
-    args = ["-f", "optimizer_statistics_slow_testlist.txt"],
-    size = "large",
-    testlist = ":optimizer_statistics_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "optimizer_topn_fast_testlist",
-    globs = glob(["test/optimizer/topn/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "optimizer_topn_test",
-    args = ["-f", "optimizer_topn_fast_testlist.txt"],
-    testlist = ":optimizer_topn_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "optimizer_unused_columns_fast_testlist",
-    globs = glob(["test/optimizer/unused_columns/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "optimizer_unused_columns_test",
-    args = ["-f", "optimizer_unused_columns_fast_testlist.txt"],
-    testlist = ":optimizer_unused_columns_fast_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_ossfuzz",
-    srcs = glob(
-        [
-            "test/ossfuzz/**/*.cpp",
-        ],
-        exclude = [
-            "test/ossfuzz/csv_json_fuzz_test.cpp",
-            "test/ossfuzz/parquet_fuzz_test.cpp",
-            "test/ossfuzz/parse_fuzz_test.cpp",
-        ],
-    ),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "ossfuzz_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_ossfuzz"],
-)
-
-subdirectory_test(
-    name = "ossfuzz_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_ossfuzz"],
-)
-
-sql_logic_test_list(
-    name = "parquet_fast_testlist",
-    globs = glob(["test/parquet/*"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "parquet_slow_testlist",
-    globs = glob(["test/parquet/*"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "parquet_test",
-    args = ["-f", "parquet_fast_testlist.txt"],
-    testlist = ":parquet_fast_testlist",
-)
-
-subdirectory_test(
-    name = "parquet_slow_test",
-    args = ["-f", "parquet_slow_testlist.txt"],
-    size = "large",
-    testlist = ":parquet_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "parquet_delta_encoding_fast_testlist",
-    globs = glob(["test/parquet/delta_encoding/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "parquet_delta_encoding_test",
-    args = ["-f", "parquet_delta_encoding_fast_testlist.txt"],
-    testlist = ":parquet_delta_encoding_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "parquet_variant_fast_testlist",
-    globs = glob(["test/parquet/variant/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "parquet_variant_slow_testlist",
-    globs = glob(["test/parquet/variant/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "parquet_variant_test",
-    args = ["-f", "parquet_variant_fast_testlist.txt"],
-    testlist = ":parquet_variant_fast_testlist",
-)
-
-subdirectory_test(
-    name = "parquet_variant_slow_test",
-    args = ["-f", "parquet_variant_slow_testlist.txt"],
-    size = "large",
-    testlist = ":parquet_variant_slow_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_persistence",
-    srcs = glob(["test/persistence/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "persistence_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_persistence"],
-)
-
-subdirectory_test(
-    name = "persistence_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_persistence"],
-)
-
-sql_logic_test_list(
-    name = "planner_fast_testlist",
-    globs = glob(["test/planner/*"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "planner_test",
-    args = ["-f", "planner_fast_testlist.txt"],
-    testlist = ":planner_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sakila_slow_testlist",
-    globs = glob(["test/sakila/*"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sakila_slow_test",
-    args = ["-f", "sakila_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sakila_slow_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_secrets",
-    srcs = glob(["test/secrets/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "secrets_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_secrets"],
-)
-
-subdirectory_test(
-    name = "secrets_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_secrets"],
-)
-
-duckdb_library(
-    name = "test_cpp_serialize",
-    srcs = glob(["test/serialize/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "serialize_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_serialize"],
-)
-
-subdirectory_test(
-    name = "serialize_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_serialize"],
-)
-
-sql_logic_test_list(
-    name = "sql_aggregate_fast_testlist",
-    globs = glob(["test/sql/aggregate/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_aggregate_slow_testlist",
-    globs = glob(["test/sql/aggregate/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_aggregate_test",
-    args = ["-f", "sql_aggregate_fast_testlist.txt"],
-    testlist = ":sql_aggregate_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_aggregate_slow_test",
-    args = ["-f", "sql_aggregate_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_aggregate_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_alter_fast_testlist",
-    globs = glob(["test/sql/alter/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_alter_slow_testlist",
-    globs = glob(["test/sql/alter/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_alter_test",
-    args = ["-f", "sql_alter_fast_testlist.txt"],
-    testlist = ":sql_alter_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_alter_slow_test",
-    args = ["-f", "sql_alter_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_alter_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_aoc24_slow_testlist",
-    globs = glob(["test/sql/aoc24/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_aoc24_slow_test",
-    args = ["-f", "sql_aoc24_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_aoc24_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_append_slow_testlist",
-    globs = glob(["test/sql/append/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_append_slow_test",
-    args = ["-f", "sql_append_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_append_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_attach_fast_testlist",
-    globs = glob(["test/sql/attach/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_attach_slow_testlist",
-    globs = glob(["test/sql/attach/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_attach_test",
-    args = ["-f", "sql_attach_fast_testlist.txt"],
-    testlist = ":sql_attach_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_attach_slow_test",
-    args = ["-f", "sql_attach_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_attach_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_binder_fast_testlist",
-    globs = glob(["test/sql/binder/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_binder_test",
-    args = ["-f", "sql_binder_fast_testlist.txt"],
-    testlist = ":sql_binder_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_cast_fast_testlist",
-    globs = glob(["test/sql/cast/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_cast_slow_testlist",
-    globs = glob(["test/sql/cast/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_cast_test",
-    args = ["-f", "sql_cast_fast_testlist.txt"],
-    testlist = ":sql_cast_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_cast_slow_test",
-    args = ["-f", "sql_cast_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_cast_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_catalog_fast_testlist",
-    globs = glob(["test/sql/catalog/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_catalog_slow_testlist",
-    globs = glob(["test/sql/catalog/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_catalog_test",
-    args = ["-f", "sql_catalog_fast_testlist.txt"],
-    testlist = ":sql_catalog_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_catalog_slow_test",
-    args = ["-f", "sql_catalog_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_catalog_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_collate_fast_testlist",
-    globs = glob(["test/sql/collate/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_collate_slow_testlist",
-    globs = glob(["test/sql/collate/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_collate_test",
-    args = ["-f", "sql_collate_fast_testlist.txt"],
-    testlist = ":sql_collate_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_collate_slow_test",
-    args = ["-f", "sql_collate_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_collate_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_conjunction_fast_testlist",
-    globs = glob(["test/sql/conjunction/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_conjunction_test",
-    args = ["-f", "sql_conjunction_fast_testlist.txt"],
-    testlist = ":sql_conjunction_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_connect_fast_testlist",
-    globs = glob(["test/sql/connect/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_connect_test",
-    args = ["-f", "sql_connect_fast_testlist.txt"],
-    testlist = ":sql_connect_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_constraints_fast_testlist",
-    globs = glob(["test/sql/constraints/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_constraints_slow_testlist",
-    globs = glob(["test/sql/constraints/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_constraints_test",
-    args = ["-f", "sql_constraints_fast_testlist.txt"],
-    testlist = ":sql_constraints_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_constraints_slow_test",
-    args = ["-f", "sql_constraints_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_constraints_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_copy_fast_testlist",
-    globs = glob(["test/sql/copy/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_copy_slow_testlist",
-    globs = glob(["test/sql/copy/**"]),
-    kind = "slow",
-)
-
-# A real copy of data/, for the targets that need one: DuckDB's `**` crawl skips
-# symlinks, and `allowed_directories` compares the configured paths against the
-# resolved ones, so a runfiles symlink tree fails both ways.
-fixture_tree(
-    name = "data_fixture_tree",
-    trees = ["data"],
-    srcs = glob(TEST_DATA_GLOBS),
-)
-
-subdirectory_test(
-    name = "sql_copy_test",
-    args = ["-f", "sql_copy_fast_testlist.txt"],
-    size = "large",
-    testlist = ":sql_copy_fast_testlist",
-    fixture_tree = "data_fixture_tree",
-)
-
-subdirectory_test(
-    name = "sql_copy_slow_test",
-    args = ["-f", "sql_copy_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_copy_slow_testlist",
-    fixture_tree = "data_fixture_tree",
-)
-
-sql_logic_test_list(
-    name = "sql_copy_database_fast_testlist",
-    globs = glob(["test/sql/copy_database/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_copy_database_slow_testlist",
-    globs = glob(["test/sql/copy_database/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_copy_database_test",
-    args = ["-f", "sql_copy_database_fast_testlist.txt"],
-    testlist = ":sql_copy_database_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_copy_database_slow_test",
-    args = ["-f", "sql_copy_database_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_copy_database_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_create_fast_testlist",
-    globs = glob(["test/sql/create/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_create_slow_testlist",
-    globs = glob(["test/sql/create/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_create_test",
-    args = ["-f", "sql_create_fast_testlist.txt"],
-    testlist = ":sql_create_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_create_slow_test",
-    args = ["-f", "sql_create_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_create_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_cte_fast_testlist",
-    globs = glob(["test/sql/cte/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_cte_slow_testlist",
-    globs = glob(["test/sql/cte/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_cte_test",
-    args = ["-f", "sql_cte_fast_testlist.txt"],
-    testlist = ":sql_cte_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_cte_slow_test",
-    args = ["-f", "sql_cte_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_cte_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_delete_fast_testlist",
-    globs = glob(["test/sql/delete/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_delete_slow_testlist",
-    globs = glob(["test/sql/delete/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_delete_test",
-    args = ["-f", "sql_delete_fast_testlist.txt"],
-    testlist = ":sql_delete_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_delete_slow_test",
-    args = ["-f", "sql_delete_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_delete_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_detailed_profiler_fast_testlist",
-    globs = glob(["test/sql/detailed_profiler/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_detailed_profiler_slow_testlist",
-    globs = glob(["test/sql/detailed_profiler/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_detailed_profiler_test",
-    args = ["-f", "sql_detailed_profiler_fast_testlist.txt"],
-    testlist = ":sql_detailed_profiler_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_detailed_profiler_slow_test",
-    args = ["-f", "sql_detailed_profiler_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_detailed_profiler_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_error_fast_testlist",
-    globs = glob(["test/sql/error/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_error_slow_testlist",
-    globs = glob(["test/sql/error/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_error_test",
-    args = ["-f", "sql_error_fast_testlist.txt"],
-    testlist = ":sql_error_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_error_slow_test",
-    args = ["-f", "sql_error_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_error_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_explain_fast_testlist",
-    globs = glob(["test/sql/explain/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_explain_slow_testlist",
-    globs = glob(["test/sql/explain/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_explain_test",
-    args = ["-f", "sql_explain_fast_testlist.txt"],
-    testlist = ":sql_explain_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_explain_slow_test",
-    args = ["-f", "sql_explain_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_explain_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_export_fast_testlist",
-    globs = glob(["test/sql/export/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_export_test",
-    args = ["-f", "sql_export_fast_testlist.txt"],
-    testlist = ":sql_export_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_extensions_fast_testlist",
-    globs = glob(["test/sql/extensions/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_extensions_test",
-    args = ["-f", "sql_extensions_fast_testlist.txt"],
-    testlist = ":sql_extensions_fast_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_sql_filter",
-    srcs = glob(["test/sql/filter/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-sql_logic_test_list(
-    name = "sql_filter_fast_testlist",
-    globs = glob(["test/sql/filter/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_filter_slow_testlist",
-    globs = glob(["test/sql/filter/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_filter_test",
-    args = ["-f", "sql_filter_fast_testlist.txt"],
-    deps = [":test_cpp_sql_filter"],
-    testlist = ":sql_filter_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_filter_slow_test",
-    args = ["-f", "sql_filter_slow_testlist.txt"],
-    size = "large",
-    deps = [":test_cpp_sql_filter"],
-    testlist = ":sql_filter_slow_testlist",
-)
-
-subdirectory_test(
-    name = "sql_filter_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_sql_filter"],
-)
-
-subdirectory_test(
-    name = "sql_filter_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_sql_filter"],
-)
-
-sql_logic_test_list(
-    name = "sql_function_fast_testlist",
-    globs = glob(["test/sql/function/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_function_slow_testlist",
-    globs = glob(["test/sql/function/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_function_test",
-    args = ["-f", "sql_function_fast_testlist.txt"],
-    size = "large",
-    testlist = ":sql_function_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_function_slow_test",
-    args = ["-f", "sql_function_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_function_slow_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_sql_function_table",
-    srcs = glob(["test/sql/function/table/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "sql_function_table_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_sql_function_table"],
-)
-
-subdirectory_test(
-    name = "sql_function_table_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_sql_function_table"],
-)
-
-sql_logic_test_list(
-    name = "sql_generated_columns_fast_testlist",
-    globs = glob(["test/sql/generated_columns/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_generated_columns_slow_testlist",
-    globs = glob(["test/sql/generated_columns/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_generated_columns_test",
-    args = ["-f", "sql_generated_columns_fast_testlist.txt"],
-    testlist = ":sql_generated_columns_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_generated_columns_slow_test",
-    args = ["-f", "sql_generated_columns_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_generated_columns_slow_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_sql_index",
-    srcs = glob(["test/sql/index/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-sql_logic_test_list(
-    name = "sql_index_fast_testlist",
-    globs = glob(["test/sql/index/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_index_slow_testlist",
-    globs = glob(["test/sql/index/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_index_test",
-    args = ["-f", "sql_index_fast_testlist.txt"],
-    deps = [":test_cpp_sql_index"],
-    testlist = ":sql_index_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_index_slow_test",
-    args = ["-f", "sql_index_slow_testlist.txt"],
-    size = "large",
-    deps = [":test_cpp_sql_index"],
-    testlist = ":sql_index_slow_testlist",
-)
-
-subdirectory_test(
-    name = "sql_index_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_sql_index"],
-)
-
-subdirectory_test(
-    name = "sql_index_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_sql_index"],
-)
-
-sql_logic_test_list(
-    name = "sql_insert_fast_testlist",
-    globs = glob(["test/sql/insert/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_insert_slow_testlist",
-    globs = glob(["test/sql/insert/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_insert_test",
-    args = ["-f", "sql_insert_fast_testlist.txt"],
-    testlist = ":sql_insert_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_insert_slow_test",
-    args = ["-f", "sql_insert_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_insert_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_join_fast_testlist",
-    globs = glob(["test/sql/join/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_join_slow_testlist",
-    globs = glob(["test/sql/join/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_join_test",
-    args = ["-f", "sql_join_fast_testlist.txt"],
-    testlist = ":sql_join_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_join_slow_test",
-    args = ["-f", "sql_join_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_join_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_json_fast_testlist",
-    globs = glob(["test/sql/json/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_json_slow_testlist",
-    globs = glob(["test/sql/json/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_json_test",
-    args = ["-f", "sql_json_fast_testlist.txt"],
-    testlist = ":sql_json_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_json_slow_test",
-    args = ["-f", "sql_json_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_json_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_keywords_fast_testlist",
-    globs = glob(["test/sql/keywords/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_keywords_test",
-    args = ["-f", "sql_keywords_fast_testlist.txt"],
-    testlist = ":sql_keywords_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_limit_fast_testlist",
-    globs = glob(["test/sql/limit/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_limit_slow_testlist",
-    globs = glob(["test/sql/limit/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_limit_test",
-    args = ["-f", "sql_limit_fast_testlist.txt"],
-    testlist = ":sql_limit_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_limit_slow_test",
-    args = ["-f", "sql_limit_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_limit_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_logging_fast_testlist",
-    globs = glob(["test/sql/logging/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_logging_slow_testlist",
-    globs = glob(["test/sql/logging/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_logging_test",
-    args = ["-f", "sql_logging_fast_testlist.txt"],
-    testlist = ":sql_logging_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_logging_slow_test",
-    args = ["-f", "sql_logging_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_logging_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_merge_fast_testlist",
-    globs = glob(["test/sql/merge/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_merge_slow_testlist",
-    globs = glob(["test/sql/merge/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_merge_test",
-    args = ["-f", "sql_merge_fast_testlist.txt"],
-    testlist = ":sql_merge_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_merge_slow_test",
-    args = ["-f", "sql_merge_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_merge_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_multi_file_fast_testlist",
-    globs = glob(["test/sql/multi_file/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_multi_file_test",
-    args = ["-f", "sql_multi_file_fast_testlist.txt"],
-    testlist = ":sql_multi_file_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_optimizer_fast_testlist",
-    globs = glob(["test/sql/optimizer/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_optimizer_slow_testlist",
-    globs = glob(["test/sql/optimizer/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_optimizer_test",
-    args = ["-f", "sql_optimizer_fast_testlist.txt"],
-    testlist = ":sql_optimizer_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_optimizer_slow_test",
-    args = ["-f", "sql_optimizer_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_optimizer_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_order_fast_testlist",
-    globs = glob(["test/sql/order/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_order_slow_testlist",
-    globs = glob(["test/sql/order/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_order_test",
-    args = ["-f", "sql_order_fast_testlist.txt"],
-    testlist = ":sql_order_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_order_slow_test",
-    args = ["-f", "sql_order_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_order_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_ordinality_fast_testlist",
-    globs = glob(["test/sql/ordinality/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_ordinality_slow_testlist",
-    globs = glob(["test/sql/ordinality/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_ordinality_test",
-    args = ["-f", "sql_ordinality_fast_testlist.txt"],
-    testlist = ":sql_ordinality_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_ordinality_slow_test",
-    args = ["-f", "sql_ordinality_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_ordinality_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_outofcore_slow_testlist",
-    globs = glob(["test/sql/outofcore/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_outofcore_slow_test",
-    args = ["-f", "sql_outofcore_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_outofcore_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_overflow_fast_testlist",
-    globs = glob(["test/sql/overflow/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_overflow_test",
-    args = ["-f", "sql_overflow_fast_testlist.txt"],
-    testlist = ":sql_overflow_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_parallelism_fast_testlist",
-    globs = glob(["test/sql/parallelism/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_parallelism_slow_testlist",
-    globs = glob(["test/sql/parallelism/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_parallelism_test",
-    args = ["-f", "sql_parallelism_fast_testlist.txt"],
-    testlist = ":sql_parallelism_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_parallelism_slow_test",
-    args = ["-f", "sql_parallelism_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_parallelism_slow_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_sql_parallelism_interquery",
-    srcs = glob(["test/sql/parallelism/interquery/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "sql_parallelism_interquery_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_sql_parallelism_interquery"],
-)
-
-subdirectory_test(
-    name = "sql_parallelism_interquery_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_sql_parallelism_interquery"],
-)
-
-sql_logic_test_list(
-    name = "sql_parser_fast_testlist",
-    globs = glob(["test/sql/parser/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_parser_slow_testlist",
-    globs = glob(["test/sql/parser/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_parser_test",
-    args = ["-f", "sql_parser_fast_testlist.txt"],
-    testlist = ":sql_parser_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_parser_slow_test",
-    args = ["-f", "sql_parser_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_parser_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_peg_parser_fast_testlist",
-    globs = glob(["test/sql/peg_parser/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_peg_parser_test",
-    args = ["-f", "sql_peg_parser_fast_testlist.txt"],
-    testlist = ":sql_peg_parser_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_pg_catalog_fast_testlist",
-    globs = glob(["test/sql/pg_catalog/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_pg_catalog_slow_testlist",
-    globs = glob(["test/sql/pg_catalog/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_pg_catalog_test",
-    args = ["-f", "sql_pg_catalog_fast_testlist.txt"],
-    testlist = ":sql_pg_catalog_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_pg_catalog_slow_test",
-    args = ["-f", "sql_pg_catalog_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_pg_catalog_slow_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_sql_pivot",
-    srcs = glob(["test/sql/pivot/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-sql_logic_test_list(
-    name = "sql_pivot_fast_testlist",
-    globs = glob(["test/sql/pivot/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_pivot_slow_testlist",
-    globs = glob(["test/sql/pivot/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_pivot_test",
-    args = ["-f", "sql_pivot_fast_testlist.txt"],
-    deps = [":test_cpp_sql_pivot"],
-    testlist = ":sql_pivot_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_pivot_slow_test",
-    args = ["-f", "sql_pivot_slow_testlist.txt"],
-    size = "large",
-    deps = [":test_cpp_sql_pivot"],
-    testlist = ":sql_pivot_slow_testlist",
-)
-
-subdirectory_test(
-    name = "sql_pivot_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_sql_pivot"],
-)
-
-subdirectory_test(
-    name = "sql_pivot_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_sql_pivot"],
-)
-
-sql_logic_test_list(
-    name = "sql_pragma_fast_testlist",
-    globs = glob(["test/sql/pragma/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_pragma_slow_testlist",
-    globs = glob(["test/sql/pragma/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_pragma_test",
-    args = ["-f", "sql_pragma_fast_testlist.txt"],
-    testlist = ":sql_pragma_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_pragma_slow_test",
-    args = ["-f", "sql_pragma_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_pragma_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_prepared_fast_testlist",
-    globs = glob(["test/sql/prepared/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_prepared_slow_testlist",
-    globs = glob(["test/sql/prepared/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_prepared_test",
-    args = ["-f", "sql_prepared_fast_testlist.txt"],
-    testlist = ":sql_prepared_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_prepared_slow_test",
-    args = ["-f", "sql_prepared_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_prepared_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_progress_bar_slow_testlist",
-    globs = glob(["test/sql/progress_bar/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_progress_bar_slow_test",
-    args = ["-f", "sql_progress_bar_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_progress_bar_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_projection_fast_testlist",
-    globs = glob(["test/sql/projection/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_projection_slow_testlist",
-    globs = glob(["test/sql/projection/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_projection_test",
-    args = ["-f", "sql_projection_fast_testlist.txt"],
-    testlist = ":sql_projection_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_projection_slow_test",
-    args = ["-f", "sql_projection_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_projection_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_returning_fast_testlist",
-    globs = glob(["test/sql/returning/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_returning_test",
-    args = ["-f", "sql_returning_fast_testlist.txt"],
-    testlist = ":sql_returning_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_sample_fast_testlist",
-    globs = glob(["test/sql/sample/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_sample_slow_testlist",
-    globs = glob(["test/sql/sample/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_sample_test",
-    args = ["-f", "sql_sample_fast_testlist.txt"],
-    testlist = ":sql_sample_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_sample_slow_test",
-    args = ["-f", "sql_sample_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_sample_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_secrets_fast_testlist",
-    globs = glob(["test/sql/secrets/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_secrets_test",
-    args = ["-f", "sql_secrets_fast_testlist.txt"],
-    testlist = ":sql_secrets_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_select_fast_testlist",
-    globs = glob(["test/sql/select/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_select_test",
-    args = ["-f", "sql_select_fast_testlist.txt"],
-    testlist = ":sql_select_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_setops_fast_testlist",
-    globs = glob(["test/sql/setops/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_setops_slow_testlist",
-    globs = glob(["test/sql/setops/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_setops_test",
-    args = ["-f", "sql_setops_fast_testlist.txt"],
-    testlist = ":sql_setops_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_setops_slow_test",
-    args = ["-f", "sql_setops_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_setops_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_settings_fast_testlist",
-    globs = glob(["test/sql/settings/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_settings_slow_testlist",
-    globs = glob(["test/sql/settings/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_settings_test",
-    args = ["-f", "sql_settings_fast_testlist.txt"],
-    testlist = ":sql_settings_fast_testlist",
-    # allowed_directories matches the configured paths against the resolved ones,
-    # so data/ has to be a real directory here rather than a runfiles symlink.
-    fixture_tree = "data_fixture_tree",
-)
-
-subdirectory_test(
-    name = "sql_settings_slow_test",
-    args = ["-f", "sql_settings_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_settings_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_show_select_fast_testlist",
-    globs = glob(["test/sql/show_select/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_show_select_test",
-    args = ["-f", "sql_show_select_fast_testlist.txt"],
-    testlist = ":sql_show_select_fast_testlist",
-)
-
-duckdb_library(
-    name = "test_cpp_sql_storage",
-    srcs = glob(["test/sql/storage/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-sql_logic_test_list(
-    name = "sql_storage_fast_testlist",
-    globs = glob(["test/sql/storage/**"]),
-    kind = "fast",
-)
-
-# The corpus-wide slow list; not a test itself, the groups below run it. It is
-# the oracle sql_storage_slow_coverage_test checks the groups against.
-sql_logic_test_list(
-    name = "sql_storage_all_slow_testlist",
-    globs = glob(["test/sql/storage/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_storage_test",
-    args = ["-f", "sql_storage_fast_testlist.txt"],
-    size = "large",
-    deps = [":test_cpp_sql_storage"],
-    testlist = ":sql_storage_fast_testlist",
-)
-
-# The slow corpus runs as one group per top-level subdirectory of
-# test/sql/storage, plus `root` for the files directly under it, so Bazel can
-# run the groups concurrently instead of in one long serial test. Deeper
-# directories roll up into their top-level ancestor; directories without slow
-# files have no group, and the coverage test below fails if one gains a slow
-# file without a group.
-#
-# Per-target times are uneven (per-file cost is not uniform), so the groups
-# that measured well above the rest are split further: `compression` and
-# `types` one directory level down, and the flat directories `root` and
-# `parallel` into prefix batches. A new file matches some broad pattern (or
-# the excluded remainder), so coverage does not depend on assigning it.
-sql_storage_slow_testlists = sql_logic_test_groups(
-    prefix = "sql_storage",
-    kind = "slow",
-    size = "large",
-    deps = [":test_cpp_sql_storage"],
-    groups = {
-        # root: the two large-data files dominate the other 31 files.
-        "root_large_data": glob([
-            "test/sql/storage/all_types_storage_large.test_slow",
-            "test/sql/storage/test_large_parquet_storage.test_slow",
-        ]),
-        "root": glob(["test/sql/storage/*"], exclude = [
-            "test/sql/storage/all_types_storage_large.test_slow",
-            "test/sql/storage/test_large_parquet_storage.test_slow",
-        ]),
-        "compression_alp": glob(["test/sql/storage/compression/alp/**"]),
-        "compression_alprd": glob(["test/sql/storage/compression/alprd/**"]),
-        "compression_bitpacking": glob(["test/sql/storage/compression/bitpacking/**"]),
-        "compression_zstd": glob(["test/sql/storage/compression/zstd/**"]),
-        "compression_roaring": glob(["test/sql/storage/compression/roaring/**"]),
-        "compression_root": glob(["test/sql/storage/compression/*"]),
-        "compression_dict_fsst": glob(["test/sql/storage/compression/dict_fsst/**"]),
-        "compression_string": glob(["test/sql/storage/compression/string/**"]),
-        "compression_rle": glob(["test/sql/storage/compression/rle/**"]),
-        "compression_constant": glob(["test/sql/storage/compression/constant/**"]),
-        "compression_fsst": glob(["test/sql/storage/compression/fsst/**"]),
-        "compression_dictionary": glob(["test/sql/storage/compression/dictionary/**"]),
-        "compression_patas": glob(["test/sql/storage/compression/patas/**"]),
-        "compression_chimp": glob(["test/sql/storage/compression/chimp/**"]),
-        "optimistic_write": glob(["test/sql/storage/optimistic_write/**"]),
-        "parallel_reclaim_space": glob(["test/sql/storage/parallel/reclaim_space_*"]),
-        "parallel_memory_limit": glob(["test/sql/storage/parallel/memory_limit_*"]),
-        "parallel": glob(["test/sql/storage/parallel/*"], exclude = [
-            "test/sql/storage/parallel/memory_limit_*",
-            "test/sql/storage/parallel/reclaim_space_*",
-        ]),
-        "vacuum": glob(["test/sql/storage/vacuum/**"]),
-        "types_variant": glob(["test/sql/storage/types/variant/**"]),
-        "types_struct": glob(["test/sql/storage/types/struct/**"]),
-        "types_list": glob(["test/sql/storage/types/list/**"]),
-        "reclaim_space": glob(["test/sql/storage/reclaim_space/**"]),
-        "external_file_cache": glob(["test/sql/storage/external_file_cache/**"]),
-        "update": glob(["test/sql/storage/update/**"]),
-        "partial_blocks": glob(["test/sql/storage/partial_blocks/**"]),
-        "lazy_load": glob(["test/sql/storage/lazy_load/**"]),
-        "concurrent_wal": glob(["test/sql/storage/concurrent_wal/**"]),
-        "encryption": glob(["test/sql/storage/encryption/**"]),
-        "wal": glob(["test/sql/storage/wal/**"]),
-        "delete": glob(["test/sql/storage/delete/**"]),
-        "checkpoint": glob(["test/sql/storage/checkpoint/**"]),
-        "temp_directory": glob(["test/sql/storage/temp_directory/**"]),
-        "read_duckdb": glob(["test/sql/storage/read_duckdb/**"]),
-        "mix": glob(["test/sql/storage/mix/**"]),
-        "metadata": glob(["test/sql/storage/metadata/**"]),
-        "buffer_manager": glob(["test/sql/storage/buffer_manager/**"]),
-        "tpch": glob(["test/sql/storage/tpch/**"]),
-        "tpcds": glob(["test/sql/storage/tpcds/**"]),
-        "overflow_strings": glob(["test/sql/storage/overflow_strings/**"]),
-        "memory": glob(["test/sql/storage/memory/**"]),
-    },
-)
-
-sql_logic_test_coverage_test(
-    name = "sql_storage_slow_coverage_test",
-    oracle = ":sql_storage_all_slow_testlist",
-    testlists = sql_storage_slow_testlists,
-)
-
-subdirectory_test(
-    name = "sql_storage_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    deps = [":test_cpp_sql_storage"],
-)
-
-subdirectory_test(
-    name = "sql_storage_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "large",
-    deps = [":test_cpp_sql_storage"],
-)
-
-duckdb_library(
-    name = "test_cpp_sql_storage_catalog",
-    srcs = glob(["test/sql/storage/catalog/*.cpp"]),
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-)
-
-subdirectory_test(
-    name = "sql_storage_catalog_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_sql_storage_catalog"],
-)
-
-subdirectory_test(
-    name = "sql_storage_catalog_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    deps = [":test_cpp_sql_storage_catalog"],
-)
-
-sql_logic_test_list(
-    name = "sql_storage_version_fast_testlist",
-    globs = glob(["test/sql/storage_version/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_storage_version_slow_testlist",
-    globs = glob(["test/sql/storage_version/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_storage_version_test",
-    args = ["-f", "sql_storage_version_fast_testlist.txt"],
-    testlist = ":sql_storage_version_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_storage_version_slow_test",
-    args = ["-f", "sql_storage_version_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_storage_version_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_subquery_fast_testlist",
-    globs = glob(["test/sql/subquery/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_subquery_slow_testlist",
-    globs = glob(["test/sql/subquery/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_subquery_test",
-    args = ["-f", "sql_subquery_fast_testlist.txt"],
-    testlist = ":sql_subquery_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_subquery_slow_test",
-    args = ["-f", "sql_subquery_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_subquery_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_table_function_fast_testlist",
-    globs = glob(["test/sql/table_function/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_table_function_slow_testlist",
-    globs = glob(["test/sql/table_function/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_table_function_test",
-    args = ["-f", "sql_table_function_fast_testlist.txt"],
-    testlist = ":sql_table_function_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_table_function_slow_test",
-    args = ["-f", "sql_table_function_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_table_function_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_timezone_fast_testlist",
-    globs = glob(["test/sql/timezone/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_timezone_slow_testlist",
-    globs = glob(["test/sql/timezone/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_timezone_test",
-    args = ["-f", "sql_timezone_fast_testlist.txt"],
-    testlist = ":sql_timezone_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_timezone_slow_test",
-    args = ["-f", "sql_timezone_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_timezone_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_topn_fast_testlist",
-    globs = glob(["test/sql/topn/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_topn_slow_testlist",
-    globs = glob(["test/sql/topn/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_topn_test",
-    args = ["-f", "sql_topn_fast_testlist.txt"],
-    testlist = ":sql_topn_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_topn_slow_test",
-    args = ["-f", "sql_topn_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_topn_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_tpcds_fast_testlist",
-    globs = glob(["test/sql/tpcds/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_tpcds_slow_testlist",
-    globs = glob(["test/sql/tpcds/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_tpcds_test",
-    args = ["-f", "sql_tpcds_fast_testlist.txt"],
-    testlist = ":sql_tpcds_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_tpcds_slow_test",
-    args = ["-f", "sql_tpcds_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_tpcds_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_tpch_fast_testlist",
-    globs = glob(["test/sql/tpch/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_tpch_slow_testlist",
-    globs = glob(["test/sql/tpch/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_tpch_test",
-    args = ["-f", "sql_tpch_fast_testlist.txt"],
-    testlist = ":sql_tpch_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_tpch_slow_test",
-    args = ["-f", "sql_tpch_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_tpch_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_transactions_fast_testlist",
-    globs = glob(["test/sql/transactions/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_transactions_slow_testlist",
-    globs = glob(["test/sql/transactions/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_transactions_test",
-    args = ["-f", "sql_transactions_fast_testlist.txt"],
-    testlist = ":sql_transactions_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_transactions_slow_test",
-    args = ["-f", "sql_transactions_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_transactions_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_trigger_fast_testlist",
-    globs = glob(["test/sql/trigger/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_trigger_test",
-    args = ["-f", "sql_trigger_fast_testlist.txt"],
-    testlist = ":sql_trigger_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_types_fast_testlist",
-    globs = glob(["test/sql/types/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_types_slow_testlist",
-    globs = glob(["test/sql/types/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_types_test",
-    args = ["-f", "sql_types_fast_testlist.txt"],
-    size = "large",
-    testlist = ":sql_types_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_types_slow_test",
-    args = ["-f", "sql_types_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_types_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_update_fast_testlist",
-    globs = glob(["test/sql/update/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_update_slow_testlist",
-    globs = glob(["test/sql/update/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_update_test",
-    args = ["-f", "sql_update_fast_testlist.txt"],
-    testlist = ":sql_update_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_update_slow_test",
-    args = ["-f", "sql_update_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_update_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_upsert_fast_testlist",
-    globs = glob(["test/sql/upsert/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_upsert_slow_testlist",
-    globs = glob(["test/sql/upsert/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_upsert_test",
-    args = ["-f", "sql_upsert_fast_testlist.txt"],
-    testlist = ":sql_upsert_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_upsert_slow_test",
-    args = ["-f", "sql_upsert_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_upsert_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_vacuum_fast_testlist",
-    globs = glob(["test/sql/vacuum/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_vacuum_test",
-    args = ["-f", "sql_vacuum_fast_testlist.txt"],
-    testlist = ":sql_vacuum_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_variables_fast_testlist",
-    globs = glob(["test/sql/variables/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_variables_test",
-    args = ["-f", "sql_variables_fast_testlist.txt"],
-    testlist = ":sql_variables_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_variant_fast_testlist",
-    globs = glob(["test/sql/variant/**"]),
-    kind = "fast",
-)
-
-subdirectory_test(
-    name = "sql_variant_test",
-    args = ["-f", "sql_variant_fast_testlist.txt"],
-    testlist = ":sql_variant_fast_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_vector_types_fast_testlist",
-    globs = glob(["test/sql/vector_types/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_vector_types_slow_testlist",
-    globs = glob(["test/sql/vector_types/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_vector_types_test",
-    args = ["-f", "sql_vector_types_fast_testlist.txt"],
-    testlist = ":sql_vector_types_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_vector_types_slow_test",
-    args = ["-f", "sql_vector_types_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_vector_types_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sql_window_fast_testlist",
-    globs = glob(["test/sql/window/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sql_window_slow_testlist",
-    globs = glob(["test/sql/window/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sql_window_test",
-    args = ["-f", "sql_window_fast_testlist.txt"],
-    testlist = ":sql_window_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sql_window_slow_test",
-    args = ["-f", "sql_window_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sql_window_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sqlite_slow_testlist",
-    globs = glob(["test/sqlite/*"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sqlite_slow_test",
-    args = ["-f", "sqlite_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sqlite_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sqlite_tags_fast_testlist",
-    globs = glob(["test/sqlite/tags/**"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sqlite_tags_slow_testlist",
-    globs = glob(["test/sqlite/tags/**"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sqlite_tags_test",
-    args = ["-f", "sqlite_tags_fast_testlist.txt"],
-    testlist = ":sqlite_tags_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sqlite_tags_slow_test",
-    args = ["-f", "sqlite_tags_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sqlite_tags_slow_testlist",
-)
-
-sql_logic_test_list(
-    name = "sqlserver_fast_testlist",
-    globs = glob(["test/sqlserver/*"]),
-    kind = "fast",
-)
-
-sql_logic_test_list(
-    name = "sqlserver_slow_testlist",
-    globs = glob(["test/sqlserver/*"]),
-    kind = "slow",
-)
-
-subdirectory_test(
-    name = "sqlserver_test",
-    args = ["-f", "sqlserver_fast_testlist.txt"],
-    testlist = ":sqlserver_fast_testlist",
-)
-
-subdirectory_test(
-    name = "sqlserver_slow_test",
-    args = ["-f", "sqlserver_slow_testlist.txt"],
-    size = "large",
-    testlist = ":sqlserver_slow_testlist",
-)
-
-cc_test(
-    name = "extension_cpp_test",
-    args = ["~*.test", "~*.test_slow", "~*.test_coverage"],
-    size = "small",
-    linkopts = [
-        "-Wl,-search_paths_first",
-        "-Wl,-headerpad_max_install_names",
-    ],
-    deps = [
-        ":unittest_harness",
-        ":test_remote_optimizer",
-    ],
-    data = glob(TEST_DATA_GLOBS) + [
-        ":cpp_api_demo_loadable_extension_file",
-        ":cpp_api_demo_fail_loadable_extension_file",
-        ":explicit_extension_schema_loadable_extension_file",
-        ":explicit_extension_schema_alias_loadable_extension_file",
-        ":loadable_extension_demo_loadable_extension_file",
-        ":loadable_extension_demo_double_loadable_extension_file",
-        ":loadable_extension_optimizer_demo_loadable_extension_file",
-        ":loadable_grammar_extension_demo_loadable_extension_file",
-    ],
-)
-
-# Every C++ test case in one binary, which is what `build/<type>/test/run` runs.
-# The per-directory targets above are the ones `bazel test //...` drives: they
-# finish in parallel and let a failure name its directory. This one exists for
-# the callers that run the suite as a single process -- the artifact a CI job
-# downloads, and the storage-version regression against released binaries.
-cc_binary(
-    name = "unittest",
-    copts = ["-fPIE"],
-    includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
-    linkopts = [
-        "-Wl,-search_paths_first",
-        "-Wl,-headerpad_max_install_names",
-    ],
-    deps = [":unittest_harness"] + [
-        ":test_cpp_api",
-        ":test_cpp_api_adbc",
-        ":test_cpp_appender",
-        ":test_cpp_arrow",
-        ":test_cpp_catalog",
-        ":test_cpp_common",
-        ":test_cpp_cpp_api",
-        ":test_cpp_encryption",
-        ":test_cpp_logging",
-        ":test_cpp_mbedtls",
-        ":test_cpp_memoryleak",
-        ":test_cpp_optimizer",
-        ":test_cpp_ossfuzz",
-        ":test_cpp_persistence",
-        ":test_cpp_secrets",
-        ":test_cpp_serialize",
-        ":test_cpp_sql_filter",
-        ":test_cpp_sql_function_table",
-        ":test_cpp_sql_index",
-        ":test_cpp_sql_parallelism_interquery",
-        ":test_cpp_sql_pivot",
-        ":test_cpp_sql_storage",
-        ":test_cpp_sql_storage_catalog",
-        ":test_remote_optimizer",
-    ],
-)
-
-# `make smoke`: a fixed subset of the suite that finishes in a couple of minutes,
-# so a change gets an answer without waiting for all of `bazel test //...`.
-genrule(
-    name = "smoke_testlist",
-    srcs = ["test/smoke_tests.list"],
-    outs = ["smoke_testlist.txt"],
-    cmd = "cp $(SRCS) $@",
-)
-
-# The corpus is spread over every test directory, so the list is one file rather
-# than one per directory. `size` is what bounds the run: under Bazel there is no
-# wrapper to give a per-batch timeout.
-subdirectory_test(
-    name = "smoke_test",
-    args = ["-f", "smoke_testlist.txt"],
-    size = "medium",
-    testlist = ":smoke_testlist",
-)
-
+# # Corpus is split by an exact file list rather than a `prefix*` Catch2 pattern,
+# # which cannot exclude .test_slow. The C++ targets drop the corpus by extension
+# # instead (CPP_ONLY_ARGS below): a trailing `*` in a Catch2 pattern means
+# # startsWith and a leading one means endsWith, so `~*.test` is the exclusion
+# # that reads. `~test/*` would also drop the registered-by-hand cases such as
+# # test/ossfuzz/cases/clusterfuzz-test-N, which are not .test files.
+# duckdb_library(
+#     name = "test_cpp_api",
+#     srcs = [
+#         "test/api/test_aggregate_state_bind_data.cpp",
+#         "test/api/test_api.cpp",
+#         "test/api/test_appender_api.cpp",
+#         "test/api/test_bignum.cpp",
+#         "test/api/test_bind_statement.cpp",
+#         "test/api/test_block_allocator_tls.cpp",
+#         "test/api/test_buffer_pool_eviction.cpp",
+#         "test/api/test_config.cpp",
+#         "test/api/test_connection_secrets.cpp",
+#         "test/api/test_copy_output_lifecycle.cpp",
+#         "test/api/test_custom_allocator.cpp",
+#         "test/api/test_dbdir.cpp",
+#         "test/api/test_extension_repositories.cpp",
+#         "test/api/test_extension_schema_api.cpp",
+#         "test/api/test_extension_setting_autoload.cpp",
+#         "test/api/test_get_table_names.cpp",
+#         "test/api/test_grammar_extension.cpp",
+#         "test/api/test_insertion_order_preserving_map.cpp",
+#         "test/api/test_instance_cache.cpp",
+#         "test/api/test_lifecycle_hooks.cpp",
+#         "test/api/test_object_cache.cpp",
+#         "test/api/test_operator_memory_limit.cpp",
+#         "test/api/test_parse_statement_iterator.cpp",
+#         "test/api/test_partial_executor.cpp",
+#         "test/api/test_pending_query.cpp",
+#         "test/api/test_pending_with_parameters.cpp",
+#         "test/api/test_plan_serialization.cpp",
+#         "test/api/test_prepared_api.cpp",
+#         "test/api/test_process_util.cpp",
+#         "test/api/test_progress_bar.cpp",
+#         "test/api/test_query_profiler.cpp",
+#         "test/api/test_read_ahead_abandon.cpp",
+#         "test/api/test_read_ahead_progress.cpp",
+#         "test/api/test_read_only.cpp",
+#         "test/api/test_relation_api.cpp",
+#         "test/api/test_remove_directory_extended.cpp",
+#         "test/api/test_reset.cpp",
+#         "test/api/test_results.cpp",
+#         "test/api/test_row_id_deduplicator.cpp",
+#         "test/api/test_scalar_function_decimal_return.cpp",
+#         "test/api/test_storage_extension_alias.cpp",
+#         "test/api/test_stream_result_buffer.cpp",
+#         "test/api/test_table_info.cpp",
+#         "test/api/test_temporary_file_owner.cpp",
+#         "test/api/test_threads.cpp",
+#         "test/api/test_uuid.cpp",
+#         "test/api/test_windows_header_compatibility.cpp",
+#         "test/api/test_windows_unicode_path.cpp",
+#     ],
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "api_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_api"],
+# )
+# 
+# subdirectory_test(
+#     name = "api_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_api"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_api_adbc",
+#     srcs = glob(["test/api/adbc/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "api_adbc_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_api_adbc", ":test_cpp_arrow"],
+# )
+# 
+# subdirectory_test(
+#     name = "api_adbc_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_api_adbc", ":test_cpp_arrow"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_api_capi_v1",
+#     srcs = glob(["test/api/capi/v1/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "api_capi_v1_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_api_capi_v1"],
+# )
+# 
+# subdirectory_test(
+#     name = "api_capi_v1_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_api_capi_v1"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_api_capi_v2",
+#     srcs = glob(["test/api/capi/v2/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "api_capi_v2_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_api_capi_v2"],
+# )
+# 
+# subdirectory_test(
+#     name = "api_capi_v2_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_api_capi_v2"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_appender",
+#     srcs = glob(["test/appender/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "appender_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     deps = [":test_cpp_appender"],
+# )
+# 
+# subdirectory_test(
+#     name = "appender_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_appender"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_arrow",
+#     srcs = glob(["test/arrow/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "arrow_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     deps = [":test_cpp_arrow"],
+# )
+# 
+# subdirectory_test(
+#     name = "arrow_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_arrow"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_catalog",
+#     srcs = glob(["test/catalog/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "catalog_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_catalog"],
+# )
+# 
+# subdirectory_test(
+#     name = "catalog_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_catalog"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_common",
+#     srcs = glob(["test/common/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# sql_logic_test_list(
+#     name = "common_fast_testlist",
+#     globs = glob(["test/common/*"]),
+#     kind = "fast",
+# )
+# 
+# subdirectory_test(
+#     name = "common_test",
+#     args = ["-f", "common_fast_testlist.txt"],
+#     deps = [":test_cpp_common"],
+#     testlist = ":common_fast_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "common_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_common"],
+# )
+# 
+# subdirectory_test(
+#     name = "common_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_common"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_cpp_api",
+#     srcs = glob(["tools/cpp/tests/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#         "tools/cpp",
+#         "tools/cpp/tests",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "cpp_api_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_cpp_api"],
+# )
+# 
+# subdirectory_test(
+#     name = "cpp_api_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_cpp_api"],
+# )
+# duckdb_library(
+#     name = "test_cpp_encryption",
+#     srcs = glob(["test/encryption/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "encryption_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_encryption"],
+# )
+# 
+# subdirectory_test(
+#     name = "encryption_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_encryption"],
+# )
+# duckdb_library(
+#     name = "test_cpp_logging",
+#     srcs = glob(["test/logging/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# sql_logic_test_list(
+#     name = "logging_fast_testlist",
+#     globs = glob(["test/logging/*"]),
+#     kind = "fast",
+# )
+# 
+# subdirectory_test(
+#     name = "logging_test",
+#     args = ["-f", "logging_fast_testlist.txt"],
+#     deps = [":test_cpp_logging"],
+#     testlist = ":logging_fast_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "logging_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_logging"],
+# )
+# 
+# subdirectory_test(
+#     name = "logging_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_logging"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_mbedtls",
+#     srcs = glob(["test/mbedtls/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "mbedtls_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_mbedtls"],
+# )
+# 
+# subdirectory_test(
+#     name = "mbedtls_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_mbedtls"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_memoryleak",
+#     srcs = glob(["test/memoryleak/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "memoryleak_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_memoryleak"],
+# )
+# 
+# subdirectory_test(
+#     name = "memoryleak_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_memoryleak"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_optimizer",
+#     srcs = glob(["test/optimizer/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# sql_logic_test_list(
+#     name = "optimizer_fast_testlist",
+#     globs = glob(["test/optimizer/*"]),
+#     kind = "fast",
+# )
+# 
+# sql_logic_test_list(
+#     name = "optimizer_slow_testlist",
+#     globs = glob(["test/optimizer/*"]),
+#     kind = "slow",
+# )
+# 
+# subdirectory_test(
+#     name = "optimizer_test",
+#     args = ["-f", "optimizer_fast_testlist.txt"],
+#     deps = [":test_cpp_optimizer"],
+#     testlist = ":optimizer_fast_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "optimizer_slow_test",
+#     args = ["-f", "optimizer_slow_testlist.txt"],
+#     size = "large",
+#     deps = [":test_cpp_optimizer"],
+#     testlist = ":optimizer_slow_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "optimizer_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_optimizer"],
+# )
+# 
+# subdirectory_test(
+#     name = "optimizer_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_optimizer"],
+# )
+# duckdb_library(
+#     name = "test_cpp_ossfuzz",
+#     srcs = glob(
+#         [
+#             "test/ossfuzz/**/*.cpp",
+#         ],
+#         exclude = [
+#             "test/ossfuzz/csv_json_fuzz_test.cpp",
+#             "test/ossfuzz/parquet_fuzz_test.cpp",
+#             "test/ossfuzz/parse_fuzz_test.cpp",
+#         ],
+#     ),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "ossfuzz_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_ossfuzz"],
+# )
+# 
+# subdirectory_test(
+#     name = "ossfuzz_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_ossfuzz"],
+# )
+# duckdb_library(
+#     name = "test_cpp_persistence",
+#     srcs = glob(["test/persistence/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "persistence_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_persistence"],
+# )
+# 
+# subdirectory_test(
+#     name = "persistence_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_persistence"],
+# )
+# duckdb_library(
+#     name = "test_cpp_secrets",
+#     srcs = glob(["test/secrets/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "secrets_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_secrets"],
+# )
+# 
+# subdirectory_test(
+#     name = "secrets_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_secrets"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_serialize",
+#     srcs = glob(["test/serialize/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "serialize_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_serialize"],
+# )
+# 
+# subdirectory_test(
+#     name = "serialize_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_serialize"],
+# )
+# sql_logic_test_list(
+#     name = "sql_copy_fast_testlist",
+#     globs = glob(["test/sql/copy/**"]),
+#     kind = "fast",
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_copy_slow_testlist",
+#     globs = glob(["test/sql/copy/**"]),
+#     kind = "slow",
+# )
+# 
+# # A real copy of data/, for the targets that need one: DuckDB's `**` crawl skips
+# # symlinks, and `allowed_directories` compares the configured paths against the
+# # resolved ones, so a runfiles symlink tree fails both ways.
+# fixture_tree(
+#     name = "data_fixture_tree",
+#     trees = ["data"],
+#     srcs = glob(TEST_DATA_GLOBS),
+# )
+# 
+# subdirectory_test(
+#     name = "sql_copy_test",
+#     args = ["-f", "sql_copy_fast_testlist.txt"],
+#     size = "large",
+#     testlist = ":sql_copy_fast_testlist",
+#     fixture_tree = "data_fixture_tree",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_copy_slow_test",
+#     args = ["-f", "sql_copy_slow_testlist.txt"],
+#     size = "large",
+#     testlist = ":sql_copy_slow_testlist",
+#     fixture_tree = "data_fixture_tree",
+# )
+# duckdb_library(
+#     name = "test_cpp_sql_filter",
+#     srcs = glob(["test/sql/filter/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_filter_fast_testlist",
+#     globs = glob(["test/sql/filter/**"]),
+#     kind = "fast",
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_filter_slow_testlist",
+#     globs = glob(["test/sql/filter/**"]),
+#     kind = "slow",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_filter_test",
+#     args = ["-f", "sql_filter_fast_testlist.txt"],
+#     deps = [":test_cpp_sql_filter"],
+#     testlist = ":sql_filter_fast_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_filter_slow_test",
+#     args = ["-f", "sql_filter_slow_testlist.txt"],
+#     size = "large",
+#     deps = [":test_cpp_sql_filter"],
+#     testlist = ":sql_filter_slow_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_filter_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_sql_filter"],
+# )
+# 
+# subdirectory_test(
+#     name = "sql_filter_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_sql_filter"],
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_function_fast_testlist",
+#     globs = glob(["test/sql/function/**"]),
+#     kind = "fast",
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_function_slow_testlist",
+#     globs = glob(["test/sql/function/**"]),
+#     kind = "slow",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_function_test",
+#     args = ["-f", "sql_function_fast_testlist.txt"],
+#     size = "large",
+#     testlist = ":sql_function_fast_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_function_slow_test",
+#     args = ["-f", "sql_function_slow_testlist.txt"],
+#     size = "large",
+#     testlist = ":sql_function_slow_testlist",
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_sql_function_table",
+#     srcs = glob(["test/sql/function/table/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "sql_function_table_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_sql_function_table"],
+# )
+# 
+# subdirectory_test(
+#     name = "sql_function_table_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_sql_function_table"],
+# )
+# duckdb_library(
+#     name = "test_cpp_sql_index",
+#     srcs = glob(["test/sql/index/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_index_fast_testlist",
+#     globs = glob(["test/sql/index/**"]),
+#     kind = "fast",
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_index_slow_testlist",
+#     globs = glob(["test/sql/index/**"]),
+#     kind = "slow",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_index_test",
+#     args = ["-f", "sql_index_fast_testlist.txt"],
+#     deps = [":test_cpp_sql_index"],
+#     testlist = ":sql_index_fast_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_index_slow_test",
+#     args = ["-f", "sql_index_slow_testlist.txt"],
+#     size = "large",
+#     deps = [":test_cpp_sql_index"],
+#     testlist = ":sql_index_slow_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_index_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_sql_index"],
+# )
+# 
+# subdirectory_test(
+#     name = "sql_index_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_sql_index"],
+# )
+# duckdb_library(
+#     name = "test_cpp_sql_parallelism_interquery",
+#     srcs = glob(["test/sql/parallelism/interquery/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "sql_parallelism_interquery_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_sql_parallelism_interquery"],
+# )
+# 
+# subdirectory_test(
+#     name = "sql_parallelism_interquery_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_sql_parallelism_interquery"],
+# )
+# duckdb_library(
+#     name = "test_cpp_sql_pivot",
+#     srcs = glob(["test/sql/pivot/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_pivot_fast_testlist",
+#     globs = glob(["test/sql/pivot/**"]),
+#     kind = "fast",
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_pivot_slow_testlist",
+#     globs = glob(["test/sql/pivot/**"]),
+#     kind = "slow",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_pivot_test",
+#     args = ["-f", "sql_pivot_fast_testlist.txt"],
+#     deps = [":test_cpp_sql_pivot"],
+#     testlist = ":sql_pivot_fast_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_pivot_slow_test",
+#     args = ["-f", "sql_pivot_slow_testlist.txt"],
+#     size = "large",
+#     deps = [":test_cpp_sql_pivot"],
+#     testlist = ":sql_pivot_slow_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_pivot_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_sql_pivot"],
+# )
+# 
+# subdirectory_test(
+#     name = "sql_pivot_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_sql_pivot"],
+# )
+# sql_logic_test_list(
+#     name = "sql_settings_fast_testlist",
+#     globs = glob(["test/sql/settings/**"]),
+#     kind = "fast",
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_settings_slow_testlist",
+#     globs = glob(["test/sql/settings/**"]),
+#     kind = "slow",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_settings_test",
+#     args = ["-f", "sql_settings_fast_testlist.txt"],
+#     testlist = ":sql_settings_fast_testlist",
+#     # allowed_directories matches the configured paths against the resolved ones,
+#     # so data/ has to be a real directory here rather than a runfiles symlink.
+#     fixture_tree = "data_fixture_tree",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_settings_slow_test",
+#     args = ["-f", "sql_settings_slow_testlist.txt"],
+#     size = "large",
+#     testlist = ":sql_settings_slow_testlist",
+# )
+# duckdb_library(
+#     name = "test_cpp_sql_storage",
+#     srcs = glob(["test/sql/storage/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_storage_fast_testlist",
+#     globs = glob(["test/sql/storage/**"]),
+#     kind = "fast",
+# )
+# 
+# # The corpus-wide slow list; not a test itself, the groups below run it. It is
+# # the oracle sql_storage_slow_coverage_test checks the groups against.
+# sql_logic_test_list(
+#     name = "sql_storage_all_slow_testlist",
+#     globs = glob(["test/sql/storage/**"]),
+#     kind = "slow",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_storage_test",
+#     args = ["-f", "sql_storage_fast_testlist.txt"],
+#     size = "large",
+#     deps = [":test_cpp_sql_storage"],
+#     testlist = ":sql_storage_fast_testlist",
+# )
+# 
+# # The slow corpus runs as one group per top-level subdirectory of
+# # test/sql/storage, plus `root` for the files directly under it, so Bazel can
+# # run the groups concurrently instead of in one long serial test. Deeper
+# # directories roll up into their top-level ancestor; directories without slow
+# # files have no group, and the coverage test below fails if one gains a slow
+# # file without a group.
+# #
+# # Per-target times are uneven (per-file cost is not uniform), so the groups
+# # that measured well above the rest are split further: `compression` and
+# # `types` one directory level down, and the flat directories `root` and
+# # `parallel` into prefix batches. A new file matches some broad pattern (or
+# # the excluded remainder), so coverage does not depend on assigning it.
+# sql_storage_slow_testlists = sql_logic_test_groups(
+#     prefix = "sql_storage",
+#     kind = "slow",
+#     size = "large",
+#     deps = [":test_cpp_sql_storage"],
+#     groups = {
+#         # root: the two large-data files dominate the other 31 files.
+#         "root_large_data": glob([
+#             "test/sql/storage/all_types_storage_large.test_slow",
+#             "test/sql/storage/test_large_parquet_storage.test_slow",
+#         ]),
+#         "root": glob(["test/sql/storage/*"], exclude = [
+#             "test/sql/storage/all_types_storage_large.test_slow",
+#             "test/sql/storage/test_large_parquet_storage.test_slow",
+#         ]),
+#         "compression_alp": glob(["test/sql/storage/compression/alp/**"]),
+#         "compression_alprd": glob(["test/sql/storage/compression/alprd/**"]),
+#         "compression_bitpacking": glob(["test/sql/storage/compression/bitpacking/**"]),
+#         "compression_zstd": glob(["test/sql/storage/compression/zstd/**"]),
+#         "compression_roaring": glob(["test/sql/storage/compression/roaring/**"]),
+#         "compression_root": glob(["test/sql/storage/compression/*"]),
+#         "compression_dict_fsst": glob(["test/sql/storage/compression/dict_fsst/**"]),
+#         "compression_string": glob(["test/sql/storage/compression/string/**"]),
+#         "compression_rle": glob(["test/sql/storage/compression/rle/**"]),
+#         "compression_constant": glob(["test/sql/storage/compression/constant/**"]),
+#         "compression_fsst": glob(["test/sql/storage/compression/fsst/**"]),
+#         "compression_dictionary": glob(["test/sql/storage/compression/dictionary/**"]),
+#         "compression_patas": glob(["test/sql/storage/compression/patas/**"]),
+#         "compression_chimp": glob(["test/sql/storage/compression/chimp/**"]),
+#         "optimistic_write": glob(["test/sql/storage/optimistic_write/**"]),
+#         "parallel_reclaim_space": glob(["test/sql/storage/parallel/reclaim_space_*"]),
+#         "parallel_memory_limit": glob(["test/sql/storage/parallel/memory_limit_*"]),
+#         "parallel": glob(["test/sql/storage/parallel/*"], exclude = [
+#             "test/sql/storage/parallel/memory_limit_*",
+#             "test/sql/storage/parallel/reclaim_space_*",
+#         ]),
+#         "vacuum": glob(["test/sql/storage/vacuum/**"]),
+#         "types_variant": glob(["test/sql/storage/types/variant/**"]),
+#         "types_struct": glob(["test/sql/storage/types/struct/**"]),
+#         "types_list": glob(["test/sql/storage/types/list/**"]),
+#         "reclaim_space": glob(["test/sql/storage/reclaim_space/**"]),
+#         "external_file_cache": glob(["test/sql/storage/external_file_cache/**"]),
+#         "update": glob(["test/sql/storage/update/**"]),
+#         "partial_blocks": glob(["test/sql/storage/partial_blocks/**"]),
+#         "lazy_load": glob(["test/sql/storage/lazy_load/**"]),
+#         "concurrent_wal": glob(["test/sql/storage/concurrent_wal/**"]),
+#         "encryption": glob(["test/sql/storage/encryption/**"]),
+#         "wal": glob(["test/sql/storage/wal/**"]),
+#         "delete": glob(["test/sql/storage/delete/**"]),
+#         "checkpoint": glob(["test/sql/storage/checkpoint/**"]),
+#         "temp_directory": glob(["test/sql/storage/temp_directory/**"]),
+#         "read_duckdb": glob(["test/sql/storage/read_duckdb/**"]),
+#         "mix": glob(["test/sql/storage/mix/**"]),
+#         "metadata": glob(["test/sql/storage/metadata/**"]),
+#         "buffer_manager": glob(["test/sql/storage/buffer_manager/**"]),
+#         "tpch": glob(["test/sql/storage/tpch/**"]),
+#         "tpcds": glob(["test/sql/storage/tpcds/**"]),
+#         "overflow_strings": glob(["test/sql/storage/overflow_strings/**"]),
+#         "memory": glob(["test/sql/storage/memory/**"]),
+#     },
+# )
+# 
+# sql_logic_test_coverage_test(
+#     name = "sql_storage_slow_coverage_test",
+#     oracle = ":sql_storage_all_slow_testlist",
+#     testlists = sql_storage_slow_testlists,
+# )
+# 
+# subdirectory_test(
+#     name = "sql_storage_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     deps = [":test_cpp_sql_storage"],
+# )
+# 
+# subdirectory_test(
+#     name = "sql_storage_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "large",
+#     deps = [":test_cpp_sql_storage"],
+# )
+# 
+# duckdb_library(
+#     name = "test_cpp_sql_storage_catalog",
+#     srcs = glob(["test/sql/storage/catalog/*.cpp"]),
+#     includes = sorted(DUCKDB_INCLUDES + [
+#         "test/extension/debug_fs/include",
+#         "test/include",
+#         "third_party/catch",
+#         "third_party/sqlite/include",
+#     ]),
+# )
+# 
+# subdirectory_test(
+#     name = "sql_storage_catalog_cpp_test",
+#     args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_sql_storage_catalog"],
+# )
+# 
+# subdirectory_test(
+#     name = "sql_storage_catalog_cpp_slow_test",
+#     args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     deps = [":test_cpp_sql_storage_catalog"],
+# )
+# sql_logic_test_list(
+#     name = "sql_types_fast_testlist",
+#     globs = glob(["test/sql/types/**"]),
+#     kind = "fast",
+# )
+# 
+# sql_logic_test_list(
+#     name = "sql_types_slow_testlist",
+#     globs = glob(["test/sql/types/**"]),
+#     kind = "slow",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_types_test",
+#     args = ["-f", "sql_types_fast_testlist.txt"],
+#     size = "large",
+#     testlist = ":sql_types_fast_testlist",
+# )
+# 
+# subdirectory_test(
+#     name = "sql_types_slow_test",
+#     args = ["-f", "sql_types_slow_testlist.txt"],
+#     size = "large",
+#     testlist = ":sql_types_slow_testlist",
+# )
+# cc_test(
+#     name = "extension_cpp_test",
+#     args = ["~*.test", "~*.test_slow", "~*.test_coverage"],
+#     size = "small",
+#     linkopts = [
+#         "-Wl,-search_paths_first",
+#         "-Wl,-headerpad_max_install_names",
+#     ],
+#     deps = [
+#         ":unittest_harness",
+#         "//test/extension:test_remote_optimizer",
+#     ],
+#     data = glob(TEST_DATA_GLOBS) + [
+#         ":cpp_api_demo_loadable_extension_file",
+#         ":cpp_api_demo_fail_loadable_extension_file",
+#         ":explicit_extension_schema_loadable_extension_file",
+#         ":explicit_extension_schema_alias_loadable_extension_file",
+#         ":loadable_extension_demo_loadable_extension_file",
+#         ":loadable_extension_demo_double_loadable_extension_file",
+#         ":loadable_extension_optimizer_demo_loadable_extension_file",
+#         ":loadable_grammar_extension_demo_loadable_extension_file",
+#     ],
+# )
+# 
+# # Every C++ test case in one binary, which is what `build/<type>/test/run` runs.
+# # The per-directory targets above are the ones `bazel test //...` drives: they
+# # finish in parallel and let a failure name its directory. This one exists for
+# # the callers that run the suite as a single process -- the artifact a CI job
+# # downloads, and the storage-version regression against released binaries.
+# cc_binary(
+#     name = "unittest",
+#     copts = ["-fPIE"],
+#     includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
+#     linkopts = [
+#         "-Wl,-search_paths_first",
+#         "-Wl,-headerpad_max_install_names",
+#     ],
+#     deps = [":unittest_harness"] + [
+#         ":test_cpp_api",
+#         ":test_cpp_api_adbc",
+#         ":test_cpp_appender",
+#         ":test_cpp_arrow",
+#         ":test_cpp_catalog",
+#         ":test_cpp_common",
+#         ":test_cpp_cpp_api",
+#         ":test_cpp_encryption",
+#         ":test_cpp_logging",
+#         ":test_cpp_mbedtls",
+#         ":test_cpp_memoryleak",
+#         ":test_cpp_optimizer",
+#         ":test_cpp_ossfuzz",
+#         ":test_cpp_persistence",
+#         ":test_cpp_secrets",
+#         ":test_cpp_serialize",
+#         ":test_cpp_sql_filter",
+#         ":test_cpp_sql_function_table",
+#         ":test_cpp_sql_index",
+#         ":test_cpp_sql_parallelism_interquery",
+#         ":test_cpp_sql_pivot",
+#         ":test_cpp_sql_storage",
+#         ":test_cpp_sql_storage_catalog",
+#         "//test/extension:test_remote_optimizer",
+#     ],
+# )
+# 
+# # `make smoke`: a fixed subset of the suite that finishes in a couple of minutes,
+# # so a change gets an answer without waiting for all of `bazel test //...`.
+# genrule(
+#     name = "smoke_testlist",
+#     srcs = ["test/smoke_tests.list"],
+#     outs = ["smoke_testlist.txt"],
+#     cmd = "cp $(SRCS) $@",
+# )
+# 
+# # The corpus is spread over every test directory, so the list is one file rather
+# # than one per directory. `size` is what bounds the run: under Bazel there is no
+# # wrapper to give a per-batch timeout.
+# subdirectory_test(
+#     name = "smoke_test",
+#     args = ["-f", "smoke_testlist.txt"],
+#     size = "medium",
+#     testlist = ":smoke_testlist",
+# )
+# 
 # An optimized build whose D_ASSERT stays live, which is `make relassert` and the
 # configuration several CI jobs test. The define is read by every translation unit
 # (src/include/duckdb/common/assert.hpp), so it is a select on the shared define
