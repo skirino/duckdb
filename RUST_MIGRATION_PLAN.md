@@ -57,7 +57,7 @@ The same shape for every task:
   fails a test instead of producing a wrong answer.
 - The original C++ implementations are deleted, not left unused, and the C++
   callers reach the Rust version through the generated bindings.
-- No new compiler warnings; `cargo fmt` run in `ahirudb/`.
+- No new compiler warnings.
 
 Two things that have not been solved yet and that an early task should expect to
 have to solve: **how an exception crosses the Crubit boundary** (task 003), and
