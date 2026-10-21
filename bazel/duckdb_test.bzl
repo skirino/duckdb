@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 """Macros for the generated unittest targets.
 
@@ -6,6 +7,10 @@ The unittest targets are mechanical: one sqllogictest list per test subdirectory
 and speed class, and one cc_test per subdirectory and speed class with the same
 link flags and the same fixture tree. Spelling that out 225 times is what made
 BUILD.bazel grow past 14k lines, so it lives here instead.
+
+A subdirectory whose corpus is too slow for one process is split into groups
+that Bazel can run concurrently (sql_logic_test_groups); a coverage test then
+guards that the groups still partition the corpus (sql_logic_test_coverage_test).
 """
 
 # The trees every target ships: the tests include
@@ -82,4 +87,43 @@ def subdirectory_test(name, args, size = "medium", testlist = None, deps = [],
         linkopts = TEST_LINKOPTS,
         deps = ["//:unittest_harness"] + deps,
         data = trees + ([testlist] if testlist else []),
+    )
+
+def sql_logic_test_groups(prefix, groups, kind, size = "medium", deps = []):
+    """One list+test pair per group; `groups` maps a group name to its glob list.
+
+    The groups partition one subdirectory's corpus, so Bazel runs them as
+    concurrent tests instead of one long serial run. Returns the group testlist
+    labels for sql_logic_test_coverage_test.
+    """
+    testlists = []
+    for group, globs in groups.items():
+        list_name = "%s_%s_%s_testlist" % (prefix, group, kind)
+        sql_logic_test_list(name = list_name, globs = globs, kind = kind)
+        subdirectory_test(
+            name = "%s_%s_%s_test" % (prefix, group, kind),
+            args = ["-f", list_name + ".txt"],
+            size = size,
+            deps = deps,
+            testlist = ":" + list_name,
+        )
+        testlists.append(":" + list_name)
+    return testlists
+
+def sql_logic_test_coverage_test(name, oracle, testlists, size = "small"):
+    """Fails unless `testlists` partition `oracle`: every file exactly once.
+
+    A group that stops covering part of the corpus -- a new subdirectory added
+    without a group, or two groups claiming the same files -- would otherwise
+    shrink coverage silently. The oracle list is not run as a test itself.
+    """
+    # A genrule output is <label name>.txt and the test reads it relative to
+    # the runfiles working directory, hence the bare file names.
+    args = [label[1:] + ".txt" for label in [oracle] + testlists]
+    sh_test(
+        name = name,
+        size = size,
+        srcs = ["//bazel:sql_logic_coverage_check.sh"],
+        args = args,
+        data = [oracle] + testlists,
     )

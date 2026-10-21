@@ -10,6 +10,8 @@ silently generating bindings for the wrong architecture.
 
 package(default_visibility = ["//visibility:public"])
 
+exports_files(["sql_logic_coverage_check.sh"])
+
 config_setting(
     name = "darwin_arm64",
     constraint_values = [

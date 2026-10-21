@@ -18,8 +18,8 @@ load("//bazel:duckdb_build_config.bzl", "DUCKDB_DEFINES", "DUCKDB_INCLUDES",
 load("//bazel:duckdb_codegen.bzl", "extension_codegen_files", "fixture_tree",
       "version_info_header")
 load("//bazel:duckdb_test.bzl", "FIXTURE_TREES", "TEST_DATA_GLOBS",
-      "TEST_DATA_GLOBS_WITHOUT_FIXTURES", "subdirectory_test",
-      "sql_logic_test_list")
+      "TEST_DATA_GLOBS_WITHOUT_FIXTURES", "sql_logic_test_coverage_test",
+      "sql_logic_test_groups", "sql_logic_test_list", "subdirectory_test")
 
 exports_files([
     "rustfmt.toml",
@@ -3584,8 +3584,10 @@ sql_logic_test_list(
     kind = "fast",
 )
 
+# The corpus-wide slow list; not a test itself, the groups below run it. It is
+# the oracle sql_storage_slow_coverage_test checks the groups against.
 sql_logic_test_list(
-    name = "sql_storage_slow_testlist",
+    name = "sql_storage_all_slow_testlist",
     globs = glob(["test/sql/storage/**"]),
     kind = "slow",
 )
@@ -3598,12 +3600,84 @@ subdirectory_test(
     testlist = ":sql_storage_fast_testlist",
 )
 
-subdirectory_test(
-    name = "sql_storage_slow_test",
-    args = ["-f", "sql_storage_slow_testlist.txt"],
+# The slow corpus runs as one group per top-level subdirectory of
+# test/sql/storage, plus `root` for the files directly under it, so Bazel can
+# run the groups concurrently instead of in one long serial test. Deeper
+# directories roll up into their top-level ancestor; directories without slow
+# files have no group, and the coverage test below fails if one gains a slow
+# file without a group.
+#
+# Per-target times are uneven (per-file cost is not uniform), so the groups
+# that measured well above the rest are split further: `compression` and
+# `types` one directory level down, and the flat directories `root` and
+# `parallel` into prefix batches. A new file matches some broad pattern (or
+# the excluded remainder), so coverage does not depend on assigning it.
+sql_storage_slow_testlists = sql_logic_test_groups(
+    prefix = "sql_storage",
+    kind = "slow",
     size = "large",
     deps = [":test_cpp_sql_storage"],
-    testlist = ":sql_storage_slow_testlist",
+    groups = {
+        # root: the two large-data files dominate the other 31 files.
+        "root_large_data": glob([
+            "test/sql/storage/all_types_storage_large.test_slow",
+            "test/sql/storage/test_large_parquet_storage.test_slow",
+        ]),
+        "root": glob(["test/sql/storage/*"], exclude = [
+            "test/sql/storage/all_types_storage_large.test_slow",
+            "test/sql/storage/test_large_parquet_storage.test_slow",
+        ]),
+        "compression_alp": glob(["test/sql/storage/compression/alp/**"]),
+        "compression_alprd": glob(["test/sql/storage/compression/alprd/**"]),
+        "compression_bitpacking": glob(["test/sql/storage/compression/bitpacking/**"]),
+        "compression_zstd": glob(["test/sql/storage/compression/zstd/**"]),
+        "compression_roaring": glob(["test/sql/storage/compression/roaring/**"]),
+        "compression_root": glob(["test/sql/storage/compression/*"]),
+        "compression_dict_fsst": glob(["test/sql/storage/compression/dict_fsst/**"]),
+        "compression_string": glob(["test/sql/storage/compression/string/**"]),
+        "compression_rle": glob(["test/sql/storage/compression/rle/**"]),
+        "compression_constant": glob(["test/sql/storage/compression/constant/**"]),
+        "compression_fsst": glob(["test/sql/storage/compression/fsst/**"]),
+        "compression_dictionary": glob(["test/sql/storage/compression/dictionary/**"]),
+        "compression_patas": glob(["test/sql/storage/compression/patas/**"]),
+        "compression_chimp": glob(["test/sql/storage/compression/chimp/**"]),
+        "optimistic_write": glob(["test/sql/storage/optimistic_write/**"]),
+        "parallel_reclaim_space": glob(["test/sql/storage/parallel/reclaim_space_*"]),
+        "parallel_memory_limit": glob(["test/sql/storage/parallel/memory_limit_*"]),
+        "parallel": glob(["test/sql/storage/parallel/*"], exclude = [
+            "test/sql/storage/parallel/memory_limit_*",
+            "test/sql/storage/parallel/reclaim_space_*",
+        ]),
+        "vacuum": glob(["test/sql/storage/vacuum/**"]),
+        "types_variant": glob(["test/sql/storage/types/variant/**"]),
+        "types_struct": glob(["test/sql/storage/types/struct/**"]),
+        "types_list": glob(["test/sql/storage/types/list/**"]),
+        "reclaim_space": glob(["test/sql/storage/reclaim_space/**"]),
+        "external_file_cache": glob(["test/sql/storage/external_file_cache/**"]),
+        "update": glob(["test/sql/storage/update/**"]),
+        "partial_blocks": glob(["test/sql/storage/partial_blocks/**"]),
+        "lazy_load": glob(["test/sql/storage/lazy_load/**"]),
+        "concurrent_wal": glob(["test/sql/storage/concurrent_wal/**"]),
+        "encryption": glob(["test/sql/storage/encryption/**"]),
+        "wal": glob(["test/sql/storage/wal/**"]),
+        "delete": glob(["test/sql/storage/delete/**"]),
+        "checkpoint": glob(["test/sql/storage/checkpoint/**"]),
+        "temp_directory": glob(["test/sql/storage/temp_directory/**"]),
+        "read_duckdb": glob(["test/sql/storage/read_duckdb/**"]),
+        "mix": glob(["test/sql/storage/mix/**"]),
+        "metadata": glob(["test/sql/storage/metadata/**"]),
+        "buffer_manager": glob(["test/sql/storage/buffer_manager/**"]),
+        "tpch": glob(["test/sql/storage/tpch/**"]),
+        "tpcds": glob(["test/sql/storage/tpcds/**"]),
+        "overflow_strings": glob(["test/sql/storage/overflow_strings/**"]),
+        "memory": glob(["test/sql/storage/memory/**"]),
+    },
+)
+
+sql_logic_test_coverage_test(
+    name = "sql_storage_slow_coverage_test",
+    oracle = ":sql_storage_all_slow_testlist",
+    testlists = sql_storage_slow_testlists,
 )
 
 subdirectory_test(
