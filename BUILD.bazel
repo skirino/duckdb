@@ -1284,14 +1284,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "api_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_api"],
 )
 
 subdirectory_test(
     name = "api_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_api"],
 )
@@ -1309,14 +1309,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "api_adbc_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_api_adbc", ":test_cpp_arrow"],
 )
 
 subdirectory_test(
     name = "api_adbc_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_api_adbc", ":test_cpp_arrow"],
 )
@@ -1334,14 +1334,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "api_capi_v1_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_api_capi_v1"],
 )
 
 subdirectory_test(
     name = "api_capi_v1_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_api_capi_v1"],
 )
@@ -1359,14 +1359,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "api_capi_v2_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_api_capi_v2"],
 )
 
 subdirectory_test(
     name = "api_capi_v2_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_api_capi_v2"],
 )
@@ -1384,13 +1384,13 @@ duckdb_library(
 
 subdirectory_test(
     name = "appender_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     deps = [":test_cpp_appender"],
 )
 
 subdirectory_test(
     name = "appender_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_appender"],
 )
@@ -1408,13 +1408,13 @@ duckdb_library(
 
 subdirectory_test(
     name = "arrow_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     deps = [":test_cpp_arrow"],
 )
 
 subdirectory_test(
     name = "arrow_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_arrow"],
 )
@@ -1432,14 +1432,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "catalog_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_catalog"],
 )
 
 subdirectory_test(
     name = "catalog_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_catalog"],
 )
@@ -1470,14 +1470,14 @@ subdirectory_test(
 
 subdirectory_test(
     name = "common_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_common"],
 )
 
 subdirectory_test(
     name = "common_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_common"],
 )
@@ -1497,14 +1497,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "cpp_api_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_cpp_api"],
 )
 
 subdirectory_test(
     name = "cpp_api_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_cpp_api"],
 )
@@ -1535,14 +1535,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "encryption_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_encryption"],
 )
 
 subdirectory_test(
     name = "encryption_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_encryption"],
 )
@@ -1793,14 +1793,14 @@ subdirectory_test(
 
 subdirectory_test(
     name = "logging_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_logging"],
 )
 
 subdirectory_test(
     name = "logging_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_logging"],
 )
@@ -1818,14 +1818,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "mbedtls_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_mbedtls"],
 )
 
 subdirectory_test(
     name = "mbedtls_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_mbedtls"],
 )
@@ -1843,14 +1843,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "memoryleak_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_memoryleak"],
 )
 
 subdirectory_test(
     name = "memoryleak_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_memoryleak"],
 )
@@ -1895,14 +1895,14 @@ subdirectory_test(
 
 subdirectory_test(
     name = "optimizer_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_optimizer"],
 )
 
 subdirectory_test(
     name = "optimizer_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_optimizer"],
 )
@@ -2088,14 +2088,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "ossfuzz_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_ossfuzz"],
 )
 
 subdirectory_test(
     name = "ossfuzz_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_ossfuzz"],
 )
@@ -2175,14 +2175,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "persistence_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_persistence"],
 )
 
 subdirectory_test(
     name = "persistence_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_persistence"],
 )
@@ -2225,14 +2225,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "secrets_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_secrets"],
 )
 
 subdirectory_test(
     name = "secrets_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_secrets"],
 )
@@ -2250,14 +2250,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "serialize_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_serialize"],
 )
 
 subdirectory_test(
     name = "serialize_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_serialize"],
 )
@@ -2775,14 +2775,14 @@ subdirectory_test(
 
 subdirectory_test(
     name = "sql_filter_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_sql_filter"],
 )
 
 subdirectory_test(
     name = "sql_filter_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_sql_filter"],
 )
@@ -2826,14 +2826,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "sql_function_table_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_sql_function_table"],
 )
 
 subdirectory_test(
     name = "sql_function_table_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_sql_function_table"],
 )
@@ -2903,14 +2903,14 @@ subdirectory_test(
 
 subdirectory_test(
     name = "sql_index_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_sql_index"],
 )
 
 subdirectory_test(
     name = "sql_index_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_sql_index"],
 )
@@ -3227,14 +3227,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "sql_parallelism_interquery_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_sql_parallelism_interquery"],
 )
 
 subdirectory_test(
     name = "sql_parallelism_interquery_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_sql_parallelism_interquery"],
 )
@@ -3341,14 +3341,14 @@ subdirectory_test(
 
 subdirectory_test(
     name = "sql_pivot_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_sql_pivot"],
 )
 
 subdirectory_test(
     name = "sql_pivot_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_sql_pivot"],
 )
@@ -3682,13 +3682,13 @@ sql_logic_test_coverage_test(
 
 subdirectory_test(
     name = "sql_storage_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     deps = [":test_cpp_sql_storage"],
 )
 
 subdirectory_test(
     name = "sql_storage_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "large",
     deps = [":test_cpp_sql_storage"],
 )
@@ -3706,14 +3706,14 @@ duckdb_library(
 
 subdirectory_test(
     name = "sql_storage_catalog_cpp_test",
-    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_sql_storage_catalog"],
 )
 
 subdirectory_test(
     name = "sql_storage_catalog_cpp_slow_test",
-    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["[.]", "~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     deps = [":test_cpp_sql_storage_catalog"],
 )
@@ -4157,7 +4157,7 @@ subdirectory_test(
 
 cc_test(
     name = "extension_cpp_test",
-    args = ["~*.test", "~*.test_slow", "~*.test_coverage", "~third_party/sqllogictest/*"],
+    args = ["~*.test", "~*.test_slow", "~*.test_coverage"],
     size = "small",
     linkopts = [
         "-Wl,-search_paths_first",
