@@ -1,7 +1,13 @@
-load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_shared_library", "cc_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load(
+    "//bazel:duckdb_build_config.bzl",
+    "DUCKDB_DEFINES",
+    "DUCKDB_INCLUDES",
+    "duckdb_library",
+)
 
-"""Macros for the generated unittest targets.
+"""Macros for testing: the unittest targets and the loadable test extensions.
 
 The unittest targets are mechanical: one sqllogictest list per test subdirectory
 and speed class, and one cc_test per subdirectory and speed class with the same
@@ -11,6 +17,9 @@ BUILD.bazel grow past 14k lines, so it lives here instead.
 A subdirectory whose corpus is too slow for one process is split into groups
 that Bazel can run concurrently (sql_logic_test_groups); a coverage test then
 guards that the groups still partition the corpus (sql_logic_test_coverage_test).
+
+The loadable test extensions (duckdb_test_loadable_extension) are the shared
+library + metadata-footer triplets the tests LOAD from test/extension/.
 """
 
 # The trees every target ships: the tests include
@@ -42,6 +51,78 @@ TEST_DATA_GLOBS_WITHOUT_FIXTURES = [g for g in TEST_DATA_GLOBS if not g.startswi
 # The top-level trees a target copies instead of symlinking, when its corpus globs
 # `dir/**`: DuckDB's crawl skips symlinks (LocalFileSystem::CrawlDirectoryLevel).
 FIXTURE_TREES = ["data"]
+
+# The include paths the loadable test extensions add on top of the engine's.
+LOADABLE_EXTENSION_INCLUDES = [
+    "test/extension/debug_fs/include",
+    "test/include",
+    "third_party/catch",
+    "third_party/sqlite/include",
+]
+
+def duckdb_test_loadable_extension(
+        name,
+        abi = "CPP",
+        src = None,
+        defines = [],
+        includes = [],
+        deps = [],
+        hidden = True):
+    """One loadable .duckdb_extension that tests LOAD by path under test/extension/.
+
+    Each extension is its own shared library, and the loader reads the metadata
+    footer off the end of the file, so three targets: the sources, the
+    cc_shared_library, and a genrule that runs scripts/append_extension_metadata.py
+    to append the footer and place the artifact where the test looks for it.
+
+    The entry-point symbol follows from `abi` ("CPP" -> <name>_duckdb_cpp_init,
+    "C_STRUCT_UNSTABLE" -> <name>_init_c_api_v2), and the output file from `name`;
+    `src` defaults to test/extension/<name>.cpp. `defines`/`includes`/`deps` extend
+    the shared lists, and `hidden` is False for an extension that links the C++ API
+    wrapper, whose symbols must survive into the shared library.
+    """
+    if abi == "CPP":
+        entry = name + "_duckdb_cpp_init"
+    elif abi == "C_STRUCT_UNSTABLE":
+        entry = name + "_init_c_api_v2"
+    else:
+        fail("unknown loadable extension abi: " + abi)
+
+    duckdb_library(
+        name = name + "_loadable_extension_srcs",
+        srcs = [src or ("test/extension/" + name + ".cpp")],
+        local_defines = DUCKDB_DEFINES + [
+            "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
+            "DUCKDB_BUILD_LOADABLE_EXTENSION",
+        ] + defines,
+        copts = ["-fPIC"] + (["-fvisibility=hidden"] if hidden else []),
+        includes = sorted(DUCKDB_INCLUDES + LOADABLE_EXTENSION_INCLUDES + includes),
+        linkopts = ["-Wl,-exported_symbol,_" + entry, "-Wl,-dead_strip"],
+    )
+
+    cc_shared_library(
+        name = name + "_loadable_extension",
+        deps = [
+            ":" + name + "_loadable_extension_srcs",
+            ":duckdb_static",
+            ":dummy_static_extension_loader",
+        ] + deps,
+    )
+
+    native.genrule(
+        name = name + "_loadable_extension_file",
+        srcs = [
+            ":" + name + "_loadable_extension",
+            ":duckdb_platform_out",
+            ":generated_version_info",
+            "scripts/append_extension_metadata.py",
+        ],
+        outs = ["test/extension/" + name + ".duckdb_extension"],
+        cmd = "cp $(location :{name}_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"{abi}\"".format(
+            name = name,
+            abi = abi,
+        ),
+    )
 
 TEST_LINKOPTS = [
     "-Wl,-search_paths_first",

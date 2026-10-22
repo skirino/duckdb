@@ -18,8 +18,8 @@ load("//bazel:duckdb_build_config.bzl", "DUCKDB_DEFINES", "DUCKDB_INCLUDES",
 load("//bazel:duckdb_codegen.bzl", "extension_codegen_files", "fixture_tree",
       "version_info_header")
 load("//bazel:duckdb_test.bzl", "FIXTURE_TREES", "TEST_DATA_GLOBS",
-      "TEST_DATA_GLOBS_WITHOUT_FIXTURES", "sql_logic_test_coverage_test",
-      "sql_logic_test_groups", "sql_logic_test_list", "subdirectory_test")
+      "TEST_DATA_GLOBS_WITHOUT_FIXTURES", "duckdb_test_loadable_extension",
+      "sql_logic_test_coverage_test", "sql_logic_test_groups", "sql_logic_test_list", "subdirectory_test")
 
 exports_files([
     "rustfmt.toml",
@@ -926,12 +926,8 @@ cc_binary(
     ],
 )
 
-# Each of these is its own .duckdb_extension shared library, and the tests LOAD
-# them by that exact path under test/extension/. cc_shared_library keeps them
-# library-kind, and the genrule then places the artifact in the runfiles where
-# the test looks for it.
-# The loader reads the metadata footer off the end of the file, so the artifact
-# needs one; scripts/append_extension_metadata.py appends it.
+# The platform string every loadable test extension's metadata footer records
+# (duckdb_test_loadable_extension appends the footer; the loader range-checks it).
 genrule(
     name = "duckdb_platform_out",
     srcs = [":duckdb_platform_binary"],
@@ -939,247 +935,55 @@ genrule(
     cmd = "$(location :duckdb_platform_binary) > $@",
 )
 
-duckdb_library(
-    name = "cpp_api_demo_loadable_extension_srcs",
-    srcs = ["test/extension/cpp_api_demo.cpp"],
-    local_defines = DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
-        "DUCKDB_BUILD_LOADABLE_EXTENSION",
+# Each of the loadable test extensions is built and shipped by
+# duckdb_test_loadable_extension; a call below states only what its extension
+# does differently.
+
+# The demos of calling DuckDB's C++ API from a loadable extension against the
+# unstable C entrypoint (abi C_STRUCT_UNSTABLE): both link the C++ API wrapper
+# (duckdb_cpp_api), so its symbols must stay visible in the shared library.
+duckdb_test_loadable_extension(
+    name = "cpp_api_demo",
+    abi = "C_STRUCT_UNSTABLE",
+    defines = [
         "DUCKDB_CPP_API_LOADABLE",
         "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=bc5e2bb7ee",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo",
     ],
-    includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
-    linkopts = ["-Wl,-exported_symbol,_cpp_api_demo_init_c_api_v2", "-Wl,-dead_strip"],
+    deps = [":duckdb_cpp_api"],
+    includes = ["tools/cpp"],
+    hidden = False,
 )
 
-cc_shared_library(
-    name = "cpp_api_demo_loadable_extension",
-    deps = [
-        ":cpp_api_demo_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-        ":duckdb_cpp_api",
-    ],
-)
-
-genrule(
-    name = "cpp_api_demo_loadable_extension_file",
-    srcs = [":cpp_api_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/cpp_api_demo.duckdb_extension"],
-    cmd = "cp $(location :cpp_api_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"C_STRUCT_UNSTABLE\"",
-)
-
-duckdb_library(
-    name = "cpp_api_demo_fail_loadable_extension_srcs",
-    srcs = ["test/extension/cpp_api_demo_fail.cpp"],
-    local_defines = DUCKDB_DEFINES + [
-        "DUCKDB_BUILD_DIRECTORY=\\\".\\\"",
-        "DUCKDB_BUILD_LOADABLE_EXTENSION",
+duckdb_test_loadable_extension(
+    name = "cpp_api_demo_fail",
+    abi = "C_STRUCT_UNSTABLE",
+    defines = [
         "DUCKDB_CPP_API_LOADABLE",
         "DUCKDB_EXTENSION_API_VERSION_UNSTABLE=bc5e2bb7ee",
         "DUCKDB_EXTENSION_NAME=cpp_api_demo_fail",
     ],
-    includes = sorted(DUCKDB_INCLUDES + DUCKDB_TEST_INCLUDES),
-    linkopts = ["-Wl,-exported_symbol,_cpp_api_demo_fail_init_c_api_v2", "-Wl,-dead_strip"],
+    deps = [":duckdb_cpp_api"],
+    includes = ["tools/cpp"],
+    hidden = False,
 )
 
-cc_shared_library(
-    name = "cpp_api_demo_fail_loadable_extension",
-    deps = [
-        ":cpp_api_demo_fail_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-        ":duckdb_cpp_api",
-    ],
+duckdb_test_loadable_extension(name = "explicit_extension_schema")
+
+duckdb_test_loadable_extension(name = "explicit_extension_schema_alias")
+
+duckdb_test_loadable_extension(name = "loadable_extension_demo")
+
+# The aliasing tests LOAD this one twice under different names
+# (test/sql/extensions/aliasing.test).
+duckdb_test_loadable_extension(
+    name = "loadable_extension_demo_double",
+    src = "test/extension/loadable_extension_demo_alt.cpp",
 )
 
-genrule(
-    name = "cpp_api_demo_fail_loadable_extension_file",
-    srcs = [":cpp_api_demo_fail_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/cpp_api_demo_fail.duckdb_extension"],
-    cmd = "cp $(location :cpp_api_demo_fail_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"C_STRUCT_UNSTABLE\"",
-)
+duckdb_test_loadable_extension(name = "loadable_extension_optimizer_demo")
 
-duckdb_library(
-    name = "explicit_extension_schema_loadable_extension_srcs",
-    srcs = ["test/extension/explicit_extension_schema.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_explicit_extension_schema_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "explicit_extension_schema_loadable_extension",
-    deps = [
-        ":explicit_extension_schema_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "explicit_extension_schema_loadable_extension_file",
-    srcs = [":explicit_extension_schema_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/explicit_extension_schema.duckdb_extension"],
-    cmd = "cp $(location :explicit_extension_schema_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
-duckdb_library(
-    name = "explicit_extension_schema_alias_loadable_extension_srcs",
-    srcs = ["test/extension/explicit_extension_schema_alias.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_explicit_extension_schema_alias_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "explicit_extension_schema_alias_loadable_extension",
-    deps = [
-        ":explicit_extension_schema_alias_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "explicit_extension_schema_alias_loadable_extension_file",
-    srcs = [":explicit_extension_schema_alias_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/explicit_extension_schema_alias.duckdb_extension"],
-    cmd = "cp $(location :explicit_extension_schema_alias_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
-duckdb_library(
-    name = "loadable_extension_demo_loadable_extension_srcs",
-    srcs = ["test/extension/loadable_extension_demo.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_loadable_extension_demo_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "loadable_extension_demo_loadable_extension",
-    deps = [
-        ":loadable_extension_demo_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "loadable_extension_demo_loadable_extension_file",
-    srcs = [":loadable_extension_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/loadable_extension_demo.duckdb_extension"],
-    cmd = "cp $(location :loadable_extension_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
-duckdb_library(
-    name = "loadable_extension_demo_double_loadable_extension_srcs",
-    srcs = ["test/extension/loadable_extension_demo_alt.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_loadable_extension_demo_double_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "loadable_extension_demo_double_loadable_extension",
-    deps = [
-        ":loadable_extension_demo_double_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "loadable_extension_demo_double_loadable_extension_file",
-    srcs = [":loadable_extension_demo_double_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/loadable_extension_demo_double.duckdb_extension"],
-    cmd = "cp $(location :loadable_extension_demo_double_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
-duckdb_library(
-    name = "loadable_extension_optimizer_demo_loadable_extension_srcs",
-    srcs = ["test/extension/loadable_extension_optimizer_demo.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_loadable_extension_optimizer_demo_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "loadable_extension_optimizer_demo_loadable_extension",
-    deps = [
-        ":loadable_extension_optimizer_demo_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "loadable_extension_optimizer_demo_loadable_extension_file",
-    srcs = [":loadable_extension_optimizer_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/loadable_extension_optimizer_demo.duckdb_extension"],
-    cmd = "cp $(location :loadable_extension_optimizer_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
-
-duckdb_library(
-    name = "loadable_grammar_extension_demo_loadable_extension_srcs",
-    srcs = ["test/extension/loadable_grammar_extension_demo.cpp"],
-    local_defines = DUCKDB_DEFINES + ["DUCKDB_BUILD_DIRECTORY=\\\".\\\"", "DUCKDB_BUILD_LOADABLE_EXTENSION"],
-    copts = ["-fPIC", "-fvisibility=hidden"],
-    includes = sorted(DUCKDB_INCLUDES + [
-        "test/extension/debug_fs/include",
-        "test/include",
-        "third_party/catch",
-        "third_party/sqlite/include",
-    ]),
-    linkopts = ["-Wl,-exported_symbol,_loadable_grammar_extension_demo_duckdb_cpp_init", "-Wl,-dead_strip"],
-)
-
-cc_shared_library(
-    name = "loadable_grammar_extension_demo_loadable_extension",
-    deps = [
-        ":loadable_grammar_extension_demo_loadable_extension_srcs",
-        ":duckdb_static",
-        ":dummy_static_extension_loader",
-    ],
-)
-
-genrule(
-    name = "loadable_grammar_extension_demo_loadable_extension_file",
-    srcs = [":loadable_grammar_extension_demo_loadable_extension", ":duckdb_platform_out", ":generated_version_info", "scripts/append_extension_metadata.py"],
-    outs = ["test/extension/loadable_grammar_extension_demo.duckdb_extension"],
-    cmd = "cp $(location :loadable_grammar_extension_demo_loadable_extension) $@ && chmod u+w $@ && python3 $(location scripts/append_extension_metadata.py) $@ --platform $(location :duckdb_platform_out) --version-from $(location :generated_version_info) --extension-version \"default-version\" --abi \"CPP\"",
-)
+duckdb_test_loadable_extension(name = "loadable_grammar_extension_demo")
 
 filegroup(
     name = "test_data",
