@@ -25,9 +25,6 @@ build --//:stamp_version=false
 # socket) in ways the sandbox does not model, so they run unsandboxed.
 test --spawn_strategy=local
 
-# Disk cache shared between multiple checkouts of this repository (worktrees)
-common --disk_cache=/tmp/duckdb/bazel/diskcache
-
 # opt is the default rather than a config because a -O0 build does not fit the stack
 # on test/ossfuzz case 49 (SIGILL), so the suite only passes in the release
 # configuration. Bazel's own opt flags carry -O2 -DNDEBUG; the rest is what the
