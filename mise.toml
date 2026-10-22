@@ -1,5 +1,5 @@
 [tools]
-bazel = "9.2.0"
+bazel = "9.3.1"
 # The nightly Crubit's bindings generator is built with. It compiles against rustc
 # internals, which upstream renames between releases, so it is pinned rather than
 # tracking "nightly"; this is the version Crubit pins as its own rust_version, and
