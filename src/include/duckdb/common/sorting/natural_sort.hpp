@@ -14,9 +14,9 @@ namespace duckdb {
 
 class NaturalSort : public SortStrategy {
 public:
-	using Types = vector<LogicalType>;
-	using HashGroupPtr = unique_ptr<ColumnDataCollection>;
-	using SortedRunPtr = unique_ptr<SortedRun>;
+	using Types = SortStrategy::Types;
+	using HashGroupPtr = SortStrategy::HashGroupPtr;
+	using SortedRunPtr = SortStrategy::SortedRunPtr;
 
 	explicit NaturalSort(const Types &payload_types);
 

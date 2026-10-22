@@ -1,4 +1,5 @@
 #include "duckdb/common/sorting/sort_strategy.hpp"
+#include "sort_rust_bridge.hpp"
 #include "duckdb/common/sorting/full_sort.hpp"
 #include "duckdb/common/sorting/hashed_sort.hpp"
 #include "duckdb/common/sorting/natural_sort.hpp"
@@ -34,10 +35,11 @@ unique_ptr<SortStrategy> SortStrategy::Factory(ClientContext &client,
                                                const vector<BoundOrderByNode> &order_bys, const Types &payload_types,
                                                const vector<unique_ptr<BaseStatistics>> &partitions_stats,
                                                idx_t estimated_cardinality, bool require_payload) {
-	if (!partition_bys.empty()) {
+	const auto strategy = ahirudb::sort::sort_strategy::select_strategy(!partition_bys.empty(), !order_bys.empty());
+	if (strategy == ahirudb::sort::sort_strategy::STRATEGY_HASHED) {
 		return make_uniq<HashedSort>(client, partition_bys, order_bys, payload_types, partitions_stats,
 		                             estimated_cardinality, require_payload);
-	} else if (!order_bys.empty()) {
+	} else if (strategy == ahirudb::sort::sort_strategy::STRATEGY_FULL) {
 		return make_uniq<FullSort>(client, order_bys, payload_types, require_payload);
 	} else {
 		return make_uniq<NaturalSort>(payload_types);

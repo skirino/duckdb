@@ -8,6 +8,7 @@
 #include "duckdb/common/types/row/tuple_data_collection.hpp"
 #include "duckdb/common/sorting/sort.hpp"
 #include "duckdb/common/sorting/sort_key.hpp"
+#include "sort_rust_bridge.hpp"
 #include "duckdb/common/types/row/block_iterator.hpp"
 
 #include "vergesort.h"
@@ -240,9 +241,8 @@ static void TemplatedSort(ClientContext &context, TupleDataCollection &key_data,
 	auto begin = BLOCK_ITERATOR(state, 0);
 	auto end = BLOCK_ITERATOR(state, key_data.Count());
 
-	const auto requires_next_sort =
-	    is_index_sort ? false : !SORT_KEY::CONSTANT_SIZE || SORT_KEY::INLINE_LENGTH != sizeof(uint64_t);
-	const auto ska_sort_width = MinValue<idx_t>(layout.GetSortWidth(), sizeof(uint64_t));
+	const auto requires_next_sort = ahirudb::sort::sort_key::requires_next_sort(static_cast<uint8_t>(SORT_KEY_TYPE), is_index_sort);
+	const auto ska_sort_width = ahirudb::sort::sort_key::ska_sort_width(layout.GetSortWidth());
 	const auto &sort_skippable_bytes = layout.GetSortSkippableBytes();
 	auto ska_extract_key =
 	    SkaExtractKey<SORT_KEY>(requires_next_sort, ska_sort_width, sort_skippable_bytes, context.interrupt_state);
@@ -411,7 +411,7 @@ void SortedRun::Finalize(bool external) {
 	if (external) {
 		// Reorder variable-size portion of keys and/or payload data (if necessary)
 		const auto sort_key_type = key_data->GetLayout().GetSortKeyType();
-		if (!SortKeyUtils::IsConstantSize(sort_key_type) || SortKeyUtils::HasPayload(sort_key_type)) {
+		if (ahirudb::sort::sort_key::needs_reorder(static_cast<uint8_t>(sort_key_type))) {
 			Reorder(context, key_data, payload_data);
 		} else {
 			// This ensures keys are unpinned even if they are constant size and have no payload

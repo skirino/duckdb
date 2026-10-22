@@ -15,9 +15,9 @@ namespace duckdb {
 class HashedSort : public SortStrategy {
 public:
 	using Orders = vector<BoundOrderByNode>;
-	using Types = vector<LogicalType>;
-	using HashGroupPtr = unique_ptr<ColumnDataCollection>;
-	using SortedRunPtr = unique_ptr<SortedRun>;
+	using Types = SortStrategy::Types;
+	using HashGroupPtr = SortStrategy::HashGroupPtr;
+	using SortedRunPtr = SortStrategy::SortedRunPtr;
 
 	static void GenerateOrderings(Orders &partitions, Orders &orders,
 	                              const vector<unique_ptr<Expression>> &partition_bys, const Orders &order_bys,

@@ -173,6 +173,8 @@ duckdb_library(
             "src/common/multi_file/**/*.cpp",
             # src/common/row_operations has a target of its own.
             "src/common/row_operations/**/*.cpp",
+            # src/common/sort has a target of its own.
+            "src/common/sort/**/*.cpp",
             # src/common/serializer has a target of its own.
             "src/common/serializer/**/*.cpp",
             # src/common/types/row has a target of its own.
@@ -192,7 +194,7 @@ duckdb_library(
         ],
     ),
     # duckdb_library's `deps` replaces the default rather than extending it.
-    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_enums", ":duckdb_row_operations", ":duckdb_serializer"],
+    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_enums", ":duckdb_row_operations", ":duckdb_sort", ":duckdb_serializer"],
 )
 
 # src/logging is a library of its own because it is the one that calls into the ahirudb crate: log_rust_bridge.cpp
@@ -267,6 +269,15 @@ duckdb_rust_bridge_library(
     srcs = glob(["src/common/row_operations/**/*.cpp"]),
     hdrs = ["src/common/row_operations/row_operations_rust_bridge.hpp"],
     include_root = "src/common/row_operations",
+)
+
+# src/common/sort has a target of its own for the same reason as src/logging: sort_rust_bridge.cpp
+# includes crubit/ahirudb.h and calls the Rust sort implementation through it.
+duckdb_rust_bridge_library(
+    name = "duckdb_sort",
+    srcs = glob(["src/common/sort/**/*.cpp"]),
+    hdrs = ["src/common/sort/sort_rust_bridge.hpp"],
+    include_root = "src/common/sort",
 )
 
 # src/common/types/row: tuple_data_layout.cpp now reaches the Rust tuple_data_layout module through

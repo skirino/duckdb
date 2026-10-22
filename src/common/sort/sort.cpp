@@ -4,6 +4,7 @@
 #include "duckdb/main/settings.hpp"
 #include "duckdb/common/type_visitor.hpp"
 #include "duckdb/common/sorting/sort_key.hpp"
+#include "sort_rust_bridge.hpp"
 #include "duckdb/common/sorting/sorted_run.hpp"
 #include "duckdb/common/sorting/sorted_run_merger.hpp"
 #include "duckdb/common/types/batched_data_collection.hpp"
@@ -89,40 +90,53 @@ Sort::Sort(ClientContext &client_context_p, const vector<BoundOrderByNode> &orde
 	// We need to output this many columns, reserve
 	output_projection_columns.reserve(projection_map.size());
 
-	// Create mapping from input column to key (so we won't duplicate columns in key/payload)
-	unordered_map<idx_t, idx_t> input_column_to_key;
-	for (idx_t key_idx = 0; key_idx < orders.size(); key_idx++) {
-		const auto &key_order_expr = *orders[key_idx].expression;
-		if (key_order_expr.GetExpressionClass() == ExpressionClass::BOUND_REF) {
-			input_column_to_key.emplace(key_order_expr.Cast<BoundReferenceExpression>().Index(), key_idx);
+	// Build order_input_columns for Rust: input column each order reads, or INVALID_INDEX.
+	vector<uint64_t> order_input_columns;
+	order_input_columns.reserve(orders.size());
+	for (const auto &order : orders) {
+		const auto &expr = *order.expression;
+		if (expr.GetExpressionClass() == ExpressionClass::BOUND_REF) {
+			order_input_columns.push_back(expr.Cast<BoundReferenceExpression>().Index());
+		} else {
+			order_input_columns.push_back(ahirudb::sort::sort::INVALID_INDEX);
 		}
 	}
 
-	// Construct payload layout (excluding columns that also appear as key)
+	vector<uint64_t> projection_columns_flat(projection_map.size() * 3, 0);
+	vector<uint64_t> input_projection_map_buf(projection_map.size(), 0);
+
+	auto layout = ahirudb::sort::sort::derive_sort_layout(
+	    rs_std::SliceRef<const uint64_t>(order_input_columns.data(), order_input_columns.size()),
+	    rs_std::SliceRef<const uint64_t>(reinterpret_cast<const uint64_t *>(projection_map.data()),
+	                                     projection_map.size()),
+	    rs_std::SliceRef<uint64_t>(projection_columns_flat.data(), projection_columns_flat.size()),
+	    rs_std::SliceRef<uint64_t>(input_projection_map_buf.data(), input_projection_map_buf.size()));
+
+	const idx_t payload_count = layout.payload_column_count;
+
+	// Construct payload layout
 	vector<LogicalType> payload_types;
-	for (idx_t output_col_idx = 0; output_col_idx < projection_map.size(); output_col_idx++) {
-		const auto &input_col_idx = projection_map[output_col_idx];
-		const auto it = input_column_to_key.find(input_col_idx);
-		if (it != input_column_to_key.end()) {
-			// Projected column also appears as a key, just reference it
-			output_projection_columns.push_back({false, it->second, output_col_idx});
-		} else {
-			// Projected column does not appear as a key, add to payload layout
-			output_projection_columns.push_back({true, payload_types.size(), output_col_idx});
-			payload_types.push_back(input_types[input_col_idx]);
-			input_projection_map.push_back(input_col_idx);
-		}
+	payload_types.reserve(payload_count);
+	for (idx_t i = 0; i < payload_count; i++) {
+		payload_types.push_back(input_types[input_projection_map_buf[i]]);
 	}
 	payload_layout->Initialize(payload_types, TupleDataValidityType::CAN_HAVE_NULL_VALUES);
 
-	// Sort the output projection columns so we're gathering the columns in order
-	std::sort(output_projection_columns.begin(), output_projection_columns.end(),
-	          [](const SortProjectionColumn &lhs, const SortProjectionColumn &rhs) {
-		          if (lhs.is_payload == rhs.is_payload) {
-			          return lhs.layout_col_idx < rhs.layout_col_idx;
-		          }
-		          return lhs.is_payload < rhs.is_payload;
-	          });
+	// Reconstruct output_projection_columns from Rust output
+	output_projection_columns.clear();
+	output_projection_columns.reserve(projection_map.size());
+	for (idx_t i = 0; i < projection_map.size(); i++) {
+		SortProjectionColumn opc;
+		opc.is_payload = projection_columns_flat[i * 3] != 0;
+		opc.layout_col_idx = projection_columns_flat[i * 3 + 1];
+		opc.output_col_idx = projection_columns_flat[i * 3 + 2];
+		output_projection_columns.push_back(opc);
+	}
+	input_projection_map.clear();
+	input_projection_map.reserve(payload_count);
+	for (idx_t i = 0; i < payload_count; i++) {
+		input_projection_map.push_back(input_projection_map_buf[i]);
+	}
 
 	// Finally, initialize the key layout (now that we know whether we have a payload)
 	key_layout->Initialize(orders, create_sort_key->GetReturnType(), !payload_types.empty());

@@ -1,6 +1,7 @@
 #include "duckdb/common/enum_util.hpp"
 #include "duckdb/common/smaller_binary.hpp"
 #include "duckdb/common/sorting/sort_key.hpp"
+#include "tuple_data_layout_rust_bridge.hpp"
 #include "duckdb/common/type_visitor.hpp"
 #include "duckdb/common/types/null_value.hpp"
 #include "duckdb/common/types/row/tuple_data_collection.hpp"
@@ -264,7 +265,7 @@ void TupleDataCollection::SortKeyComputeHeapSizes(TupleDataChunkState &chunk_sta
                                                   const SelectionVector &append_sel, const idx_t append_count,
                                                   const SortKeyType sort_key_type) {
 	D_ASSERT(sort_key_type != SortKeyType::INVALID);
-	D_ASSERT(!SortKeyUtils::IsConstantSize(sort_key_type));
+	D_ASSERT(!ahirudb::sort::sort_key::is_constant_size(static_cast<uint8_t>(sort_key_type)).value_or(false));
 	D_ASSERT(new_chunk.ColumnCount() == 1);
 	if (new_chunk.data[0].GetType().id() != LogicalTypeId::BLOB) {
 		return;
@@ -277,7 +278,7 @@ void TupleDataCollection::SortKeyComputeHeapSizes(TupleDataChunkState &chunk_sta
 	const auto &source_validity = source_vector_data.validity;
 	const auto source_data = UnifiedVectorFormat::GetData<string_t>(source_vector_data);
 
-	const auto inlined_size = SortKeyUtils::GetInlineLength(sort_key_type);
+	const auto inlined_size = ahirudb::sort::sort_key::inline_length(static_cast<uint8_t>(sort_key_type)).value_or(0);
 	for (idx_t i = 0; i < append_count; i++) {
 		const auto source_idx = source_sel.get_index(append_sel.get_index(i));
 		const auto &string_size = source_data[source_idx].GetSize();

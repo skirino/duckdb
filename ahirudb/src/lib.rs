@@ -7,5 +7,6 @@ pub mod logging;
 pub mod multi_file;
 pub mod row_operations;
 pub mod serializer;
+pub mod sort;
 pub mod tuple_data_layout;
 pub mod vector;
