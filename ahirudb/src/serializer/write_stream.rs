@@ -28,30 +28,41 @@ pub trait WriteStream {
     /// This is equivalent to `write_data` but takes a `&[u8]` slice for safety.
     fn write_bytes(&mut self, data: &[u8]) {
         let len = data.len() as idx_t;
-        if len > 0
-        {
+        if len > 0 {
             let ptr = data.as_ptr();
             self.write_data(ptr, len);
         }
     }
 
     /// Write a u8 value.
-    fn write_u8(&mut self, value: u8) { self.write_data(&value as *const u8, 1); }
+    fn write_u8(&mut self, value: u8) {
+        self.write_data(&value as *const u8, 1);
+    }
 
     /// Write a u16 value in little-endian order.
-    fn write_u16(&mut self, value: u16) { self.write_bytes(&value.to_le_bytes()); }
+    fn write_u16(&mut self, value: u16) {
+        self.write_bytes(&value.to_le_bytes());
+    }
 
     /// Write a u32 value in little-endian order.
-    fn write_u32(&mut self, value: u32) { self.write_bytes(&value.to_le_bytes()); }
+    fn write_u32(&mut self, value: u32) {
+        self.write_bytes(&value.to_le_bytes());
+    }
 
     /// Write a u64 value in little-endian order.
-    fn write_u64(&mut self, value: u64) { self.write_bytes(&value.to_le_bytes()); }
+    fn write_u64(&mut self, value: u64) {
+        self.write_bytes(&value.to_le_bytes());
+    }
 
     /// Write a f32 value in little-endian order.
-    fn write_f32(&mut self, value: f32) { self.write_bytes(&value.to_le_bytes()); }
+    fn write_f32(&mut self, value: f32) {
+        self.write_bytes(&value.to_le_bytes());
+    }
 
     /// Write a f64 value in little-endian order.
-    fn write_f64(&mut self, value: f64) { self.write_bytes(&value.to_le_bytes()); }
+    fn write_f64(&mut self, value: f64) {
+        self.write_bytes(&value.to_le_bytes());
+    }
 }
 
 #[cfg(test)]

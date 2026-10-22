@@ -28,8 +28,7 @@ pub trait ReadStream {
     /// Reads exactly `len` bytes from the stream.
     fn read_bytes(&mut self, len: idx_t) -> Vec<u8> {
         let mut buffer = vec![0u8; len as usize];
-        if len > 0
-        {
+        if len > 0 {
             let ptr = buffer.as_mut_ptr();
             self.read_data(ptr, len);
         }
@@ -106,7 +105,10 @@ mod tests {
             }
         }
 
-        let mut stream = TestStream { data: vec![1, 2, 3, 4, 5], pos: 0 };
+        let mut stream = TestStream {
+            data: vec![1, 2, 3, 4, 5],
+            pos: 0,
+        };
         let result = stream.read_bytes(3);
         assert_eq!(result, [1, 2, 3]);
         assert_eq!(stream.pos, 3);

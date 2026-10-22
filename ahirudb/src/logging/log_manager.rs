@@ -4,29 +4,17 @@
 use std::{
     collections::HashSet,
     sync::{
-        Mutex,
-        RwLock,
-        atomic::{
-            AtomicU64,
-            Ordering,
-        },
+        Mutex, RwLock,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
 use crate::logging::{
-    log_storage::{
-        CLogStorage,
-        LoggingTargetTable,
-    },
+    log_storage::{CLogStorage, LoggingTargetTable},
     log_type::LogTypeRegistry,
     logger::LoggerKind,
     logging::{
-        LogConfig,
-        LogConfigSnapshot,
-        LogFilter,
-        LogLevel,
-        LogMode,
-        RegisteredLoggingContextLayout,
+        LogConfig, LogConfigSnapshot, LogFilter, LogLevel, LogMode, RegisteredLoggingContextLayout,
         current_timestamp,
     },
 };
@@ -113,7 +101,9 @@ pub fn new_log_manager(storage: CLogStorage) -> *mut LogManager {
 ///
 /// # Safety
 /// `ptr` must come from [`new_log_manager`] and must not be used afterwards.
-pub unsafe fn delete_log_manager(ptr: *mut LogManager) { unsafe { drop(Box::from_raw(ptr)) } }
+pub unsafe fn delete_log_manager(ptr: *mut LogManager) {
+    unsafe { drop(Box::from_raw(ptr)) }
+}
 
 impl LogManager {
     pub fn new(storage: CLogStorage) -> Self {
@@ -148,8 +138,14 @@ impl LogManager {
         enabled_log_types: &[&str],
         disabled_log_types: &[&str],
     ) {
-        *self.config.lock().unwrap() =
-            LogConfig::new(enabled, mode, level, storage, enabled_log_types, disabled_log_types);
+        *self.config.lock().unwrap() = LogConfig::new(
+            enabled,
+            mode,
+            level,
+            storage,
+            enabled_log_types,
+            disabled_log_types,
+        );
     }
 
     /// Returns a snapshot of the config, for the C++ `LogManager::GetConfig`.
@@ -179,9 +175,14 @@ impl LogManager {
         // it is.
         let context_id = self
             .next_registered_logging_context_index
-            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| current.checked_add(1))
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
             .map_err(|_| "Ran out of available log context ids.".to_string())?;
-        Ok(RegisteredLoggingContextLayout { context_id, ..context })
+        Ok(RegisteredLoggingContextLayout {
+            context_id,
+            ..context
+        })
     }
 
     /// Mirrors `LogManager::CreateLogger`: registers the logging context and
@@ -195,20 +196,14 @@ impl LogManager {
         // One read of the config, from which both the kind and the filter the
         // logger is built with are taken
         let config = self.config.lock().unwrap();
-        let kind = if mutable_settings
-        {
+        let kind = if mutable_settings {
             LoggerKind::Mutable
-        }
-        else if !config.enabled
-        {
+        } else if !config.enabled {
             LoggerKind::Nop
-        }
-        else
-        {
+        } else {
             LoggerKind::ThreadSafe
         };
-        let filter = match kind
-        {
+        let filter = match kind {
             LoggerKind::Nop => None,
             _ => Some(LogFilter::from(&*config)),
         };
@@ -216,7 +211,11 @@ impl LogManager {
 
         let registered_context = self.register_logging_context_internal(context)?;
 
-        Ok(CreatedLogger { kind, context: registered_context, filter })
+        Ok(CreatedLogger {
+            kind,
+            context: registered_context,
+            filter,
+        })
     }
 
     /// This is to be called by the Loggers only, it does not verify log_level
@@ -243,9 +242,13 @@ impl LogManager {
     }
 
     /// Flush everything
-    pub fn flush(&self) { self.storage.flush_all(); }
+    pub fn flush(&self) {
+        self.storage.flush_all();
+    }
 
-    pub fn can_scan(&self, table: LoggingTargetTable) -> bool { self.storage.can_scan(table) }
+    pub fn can_scan(&self, table: LoggingTargetTable) -> bool {
+        self.storage.can_scan(table)
+    }
 
     /// Every config mutator returns the config it produced, so that the C++
     /// caller can hand exactly that config to the global logger instead of
@@ -353,13 +356,11 @@ impl LogManager {
         storage_name: &str,
         file_logging_available: bool,
     ) -> Result<Option<String>, StorageSwitchError> {
-        if active_storage == storage_name
-        {
+        if active_storage == storage_name {
             return Ok(None);
         }
 
-        if storage_name == LogConfig::FILE_STORAGE_NAME && !file_logging_available
-        {
+        if storage_name == LogConfig::FILE_STORAGE_NAME && !file_logging_available {
             return Err(StorageSwitchError {
                 kind: StorageSwitchErrorKind::FileSystemDisabled,
                 message: "Can not enable file logging with the LocalFileSystem disabled"
@@ -367,8 +368,7 @@ impl LogManager {
             });
         }
 
-        if !self.is_known_log_storage(storage_name)
-        {
+        if !self.is_known_log_storage(storage_name) {
             return Err(StorageSwitchError {
                 kind: StorageSwitchErrorKind::NotRegistered,
                 message: format!("Log storage '{storage_name}' is not yet registered"),
@@ -416,10 +416,8 @@ impl LogManager {
 
         {
             let registry = self.registered_log_types.read().unwrap();
-            for enabled_logger_type in enabled_logger_types
-            {
-                let lookup = match registry.lookup(enabled_logger_type)
-                {
+            for enabled_logger_type in enabled_logger_types {
+                let lookup = match registry.lookup(enabled_logger_type) {
                     Some(lookup) => lookup,
                     None => return Err(format!("Unknown log type: '{enabled_logger_type}'")),
                 };
@@ -440,7 +438,9 @@ impl LogManager {
         Ok(LogConfigSnapshot::from(&*current))
     }
 
-    pub fn truncate_log_storage(&self) { self.storage.truncate(); }
+    pub fn truncate_log_storage(&self) {
+        self.storage.truncate();
+    }
 
     /// Returns the canonically-cased name of a registered log type.
     pub fn lookup_log_type(&self, type_name: &str) -> Option<String> {
@@ -483,17 +483,13 @@ pub struct StorageSwitchError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::logging::test_support::{
-        context,
-        test_manager,
-    };
+    use crate::logging::test_support::{context, test_manager};
 
     fn assert_storage_is_created(
         storage_name: &str,
         result: &Result<Option<String>, StorageSwitchError>,
     ) {
-        match result
-        {
+        match result {
             Ok(Some(name)) => assert_eq!(name, storage_name),
             Ok(None) => panic!("expected a storage switch to {storage_name}"),
             Err(error) => panic!("expected a storage switch to {storage_name}, got {error:?}"),
@@ -505,8 +501,7 @@ mod tests {
             ("QueryLog", LogLevel::LOG_INFO),
             ("FileSystem", LogLevel::LOG_TRACE),
             ("Metrics", LogLevel::LOG_INFO),
-        ]
-        {
+        ] {
             manager.register_log_type(name, level as u8).unwrap();
         }
     }
@@ -542,8 +537,7 @@ mod tests {
     #[test]
     fn a_nop_logger_is_created_without_a_filter() {
         let manager = test_manager();
-        for _ in 0..3
-        {
+        for _ in 0..3 {
             let created = manager.create_logger(context(), false).unwrap();
             assert_eq!(created.kind, LoggerKind::Nop);
             assert!(created.filter.is_none());
@@ -557,8 +551,7 @@ mod tests {
     #[test]
     fn logging_context_ids_are_monotonic() {
         let manager = test_manager();
-        for expected in 0..5u64
-        {
+        for expected in 0..5u64 {
             let created = manager.create_logger(context(), false).unwrap();
             assert_eq!(created.context.context_id, expected);
         }
@@ -581,8 +574,7 @@ mod tests {
                 .map(|_| {
                     scope.spawn(|| {
                         let mut ids = Vec::with_capacity(IDS_PER_THREAD as usize);
-                        for _ in 0..IDS_PER_THREAD
-                        {
+                        for _ in 0..IDS_PER_THREAD {
                             ids.push(
                                 manager
                                     .create_logger(context(), false)
@@ -646,7 +638,10 @@ mod tests {
         assert_eq!(snapshot.level, LogLevel::LOG_TRACE as u8);
         assert_eq!(snapshot.enabled_log_types, ["FileSystem", "QueryLog"]);
 
-        assert_eq!(manager.get_config().enabled_log_types, snapshot.enabled_log_types);
+        assert_eq!(
+            manager.get_config().enabled_log_types,
+            snapshot.enabled_log_types
+        );
         assert_eq!(
             manager
                 .set_enable_structured_loggers(&["Nonsense"])
@@ -681,7 +676,10 @@ mod tests {
     #[test]
     fn storage_switching() {
         let manager = test_manager();
-        assert_eq!(manager.get_config().storage, LogConfig::IN_MEMORY_STORAGE_NAME);
+        assert_eq!(
+            manager.get_config().storage,
+            LogConfig::IN_MEMORY_STORAGE_NAME
+        );
 
         // Selecting the active storage is a no-op. C++ owns the name of the
         // storage that is installed, and passes it in
@@ -699,7 +697,10 @@ mod tests {
             None
         );
 
-        assert_storage_is_created("stdout", &manager.set_log_storage_name(active, "stdout", true));
+        assert_storage_is_created(
+            "stdout",
+            &manager.set_log_storage_name(active, "stdout", true),
+        );
         let error = manager
             .set_log_storage_name(active, "nope", true)
             .unwrap_err();
@@ -734,14 +735,23 @@ mod tests {
             .resolve_log_storage(active, "file", false)
             .unwrap_err();
         assert_eq!(error.kind, StorageSwitchErrorKind::FileSystemDisabled);
-        assert_eq!(error.message, "Can not enable file logging with the LocalFileSystem disabled");
+        assert_eq!(
+            error.message,
+            "Can not enable file logging with the LocalFileSystem disabled"
+        );
 
-        assert_storage_is_created("stdout", &manager.resolve_log_storage(active, "stdout", true));
+        assert_storage_is_created(
+            "stdout",
+            &manager.resolve_log_storage(active, "stdout", true),
+        );
 
         // The accepted switch does not change anything by itself either:
         // installing the storage (and with it its name) is C++'s job,
         // so the config still names the old storage
-        assert_eq!(manager.get_config().storage, LogConfig::IN_MEMORY_STORAGE_NAME);
+        assert_eq!(
+            manager.get_config().storage,
+            LogConfig::IN_MEMORY_STORAGE_NAME
+        );
         assert_eq!(
             manager
                 .resolve_log_storage(active, LogConfig::IN_MEMORY_STORAGE_NAME, false)
@@ -758,13 +768,22 @@ mod tests {
     fn a_switch_is_resolved_against_the_storage_name_cxx_owns() {
         let manager = test_manager();
 
-        assert_storage_is_created("stdout", &manager.resolve_log_storage("memory", "stdout", true));
-        assert_eq!(manager.get_config().storage, LogConfig::IN_MEMORY_STORAGE_NAME);
+        assert_storage_is_created(
+            "stdout",
+            &manager.resolve_log_storage("memory", "stdout", true),
+        );
+        assert_eq!(
+            manager.get_config().storage,
+            LogConfig::IN_MEMORY_STORAGE_NAME
+        );
 
         // C++ has installed `stdout`, so switching back to `memory` is a real
         // switch - even though the config still names the storage that
         // was active before
-        assert_storage_is_created("memory", &manager.resolve_log_storage("stdout", "memory", true));
+        assert_storage_is_created(
+            "memory",
+            &manager.resolve_log_storage("stdout", "memory", true),
+        );
         assert_eq!(
             manager
                 .resolve_log_storage("stdout", "stdout", true)
@@ -796,7 +815,10 @@ mod tests {
     fn log_types_are_registered_case_insensitively() {
         let manager = test_manager();
         register_log_types(&manager);
-        assert_eq!(manager.lookup_log_type("filesystem").as_deref(), Some("FileSystem"));
+        assert_eq!(
+            manager.lookup_log_type("filesystem").as_deref(),
+            Some("FileSystem")
+        );
         assert!(manager.lookup_log_type("nope").is_none());
 
         assert_eq!(
@@ -804,7 +826,10 @@ mod tests {
             "Registered log writer 'QueryLog' already exists"
         );
         assert!(manager.register_log_type("CustomLog", 30).is_ok());
-        assert_eq!(manager.lookup_log_type("customlog").as_deref(), Some("CustomLog"));
+        assert_eq!(
+            manager.lookup_log_type("customlog").as_deref(),
+            Some("CustomLog")
+        );
     }
 
     #[test]

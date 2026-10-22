@@ -5,22 +5,13 @@ use std::{
     ptr::NonNull,
     sync::{
         RwLock,
-        atomic::{
-            AtomicBool,
-            AtomicU8,
-            Ordering,
-        },
+        atomic::{AtomicBool, AtomicU8, Ordering},
     },
 };
 
 use crate::logging::{
     log_manager::LogManager,
-    logging::{
-        LogConfigSnapshot,
-        LogFilter,
-        LogLevel,
-        RegisteredLoggingContextLayout,
-    },
+    logging::{LogConfigSnapshot, LogFilter, LogLevel, RegisteredLoggingContextLayout},
 };
 
 /// Shared handle to the [`LogManager`] a logger writes to.
@@ -37,12 +28,16 @@ unsafe impl Send for LogManagerRef {}
 unsafe impl Sync for LogManagerRef {}
 
 impl LogManagerRef {
-    pub(crate) fn new(manager: &LogManager) -> Self { Self(NonNull::from(manager)) }
+    pub(crate) fn new(manager: &LogManager) -> Self {
+        Self(NonNull::from(manager))
+    }
 
     /// # Safety
     /// The LogManager must outlive the logger holding this handle, which is
     /// guaranteed for loggers created by the LogManager itself.
-    unsafe fn get(&self) -> &LogManager { unsafe { &*self.0.as_ptr() } }
+    unsafe fn get(&self) -> &LogManager {
+        unsafe { &*self.0.as_ptr() }
+    }
 }
 
 /// The kind of logger that a new logging context gets, mirroring the branches
@@ -81,8 +76,15 @@ impl ThreadSafeLogger {
         // A `NopLogger` should be used instead. This is a tripwire for the
         // tests of this crate only: the crubit staticlib is built from
         // the release profile, so the assert is compiled out of a DuckDB build.
-        debug_assert!(config.enabled, "ThreadSafeLogger requires an enabled config");
-        Self { config: config.clone(), context, manager: LogManagerRef::new(manager) }
+        debug_assert!(
+            config.enabled,
+            "ThreadSafeLogger requires an enabled config"
+        );
+        Self {
+            config: config.clone(),
+            context,
+            manager: LogManagerRef::new(manager),
+        }
     }
 
     pub fn should_log(&self, log_type: &[u8], log_level: LogLevel) -> bool {
@@ -100,7 +102,9 @@ impl ThreadSafeLogger {
         );
     }
 
-    pub fn flush(&self) { unsafe { self.manager.get() }.flush(); }
+    pub fn flush(&self) {
+        unsafe { self.manager.get() }.flush();
+    }
 }
 
 /// Thread-safe logger with mutable log settings.
@@ -177,7 +181,9 @@ impl MutableLogger {
         );
     }
 
-    pub fn flush(&self) { unsafe { self.manager.get() }.flush(); }
+    pub fn flush(&self) {
+        unsafe { self.manager.get() }.flush();
+    }
 
     /// Replaces the cached config, for the C++ `MutableLogger::UpdateConfig`.
     ///
@@ -229,14 +235,8 @@ impl MutableLogger {
 mod tests {
     use super::*;
     use crate::logging::{
-        logging::{
-            LogMode,
-            log_config_snapshot,
-        },
-        test_support::{
-            context,
-            test_manager,
-        },
+        logging::{LogMode, log_config_snapshot},
+        test_support::{context, test_manager},
     };
 
     fn filter(
@@ -273,7 +273,12 @@ mod tests {
     fn the_lock_free_pre_filter_cannot_over_log() {
         let manager = test_manager();
         let logger = MutableLogger::new(
-            &filter(LogMode::ENABLE_SELECTED, LogLevel::LOG_TRACE, &["QueryLog"], &[]),
+            &filter(
+                LogMode::ENABLE_SELECTED,
+                LogLevel::LOG_TRACE,
+                &["QueryLog"],
+                &[],
+            ),
             context(),
             &manager,
         );
@@ -421,11 +426,9 @@ mod tests {
         const WRITES: usize = 20_000;
         let mismatched = std::sync::atomic::AtomicUsize::new(0);
         std::thread::scope(|scope| {
-            for _ in 0..2
-            {
+            for _ in 0..2 {
                 scope.spawn(|| {
-                    for _ in 0..WRITES
-                    {
+                    for _ in 0..WRITES {
                         logger.set_config(&config(
                             true,
                             LogMode::ENABLE_SELECTED,
@@ -440,8 +443,7 @@ mod tests {
                 });
             }
             scope.spawn(|| {
-                for _ in 0..WRITES
-                {
+                for _ in 0..WRITES {
                     let filter = logger.config.read().unwrap();
                     if logger.enabled.load(Ordering::Acquire) != filter.enabled
                         || LogLevel::from(logger.level.load(Ordering::Acquire)) != filter.level

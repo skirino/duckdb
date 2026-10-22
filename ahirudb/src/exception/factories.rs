@@ -11,21 +11,15 @@
 
 use crate::exception::{
     extra_info::initialize_extra_info,
-    types::{
-        ExceptionPayload,
-        QueryLocationLayout,
-        into_payload,
-    },
+    types::{ExceptionPayload, QueryLocationLayout, into_payload},
 };
 
 /// Joins with `separator`, which is what `StringUtil::Join` does for a list of
 /// strings.
 fn join(values: &[&[u8]], separator: &[u8]) -> Vec<u8> {
     let mut result = Vec::new();
-    for (index, value) in values.iter().enumerate()
-    {
-        if index > 0
-        {
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
             result.extend_from_slice(separator);
         }
         result.extend_from_slice(value);
@@ -50,14 +44,11 @@ pub(crate) fn binder_column_not_found(
     let mut extra_info = initialize_extra_info(b"COLUMN_NOT_FOUND", query_location);
     extra_info.push((b"name".to_vec(), name.to_vec()));
 
-    if !similar_bindings.is_empty()
-    {
+    if !similar_bindings.is_empty() {
         message.extend_from_slice(b" not found in FROM clause!");
         message.extend_from_slice(candidate_message);
         extra_info.push((b"candidates".to_vec(), join(similar_bindings, b",")));
-    }
-    else
-    {
+    } else {
         message.extend_from_slice(b" was not found because the FROM clause is missing");
     }
 
@@ -81,8 +72,7 @@ pub(crate) fn binder_no_matching_function(
     message.extend_from_slice(
         b"'. You might need to add explicit type casts.\n\tCandidate functions:\n",
     );
-    for candidate in candidates
-    {
+    for candidate in candidates {
         message.push(b'\t');
         message.extend_from_slice(candidate);
         message.push(b'\n');
@@ -91,17 +81,14 @@ pub(crate) fn binder_no_matching_function(
     let mut extra_info =
         initialize_extra_info(b"NO_MATCHING_FUNCTION", QueryLocationLayout::invalid());
     extra_info.push((b"name".to_vec(), name.to_vec()));
-    if !catalog_name.is_empty()
-    {
+    if !catalog_name.is_empty() {
         extra_info.push((b"catalog".to_vec(), catalog_name.to_vec()));
     }
-    if !schema_name.is_empty()
-    {
+    if !schema_name.is_empty() {
         extra_info.push((b"schema".to_vec(), schema_name.to_vec()));
     }
     extra_info.push((b"call".to_vec(), call_string.to_vec()));
-    if !candidates.is_empty()
-    {
+    if !candidates.is_empty() {
         extra_info.push((b"candidates".to_vec(), join(candidates, b",")));
     }
 
@@ -131,8 +118,7 @@ pub(crate) fn catalog_missing_entry(
     extra_info.push((b"name".to_vec(), name.to_vec()));
     extra_info.push((b"type".to_vec(), catalog_type.to_vec()));
 
-    if !suggestion.is_empty()
-    {
+    if !suggestion.is_empty() {
         extra_info.push((b"candidates".to_vec(), suggestion.to_vec()));
         message.extend_from_slice(b"\nDid you mean \"");
         message.extend_from_slice(suggestion);
@@ -166,8 +152,7 @@ pub(crate) fn catalog_missing_entry_suggestions(
     let mut extra_info = initialize_extra_info(b"MISSING_ENTRY", query_location);
     extra_info.push((b"name".to_vec(), name.to_vec()));
     extra_info.push((b"type".to_vec(), catalog_type.to_vec()));
-    if !suggestions.is_empty()
-    {
+    if !suggestions.is_empty() {
         extra_info.push((b"candidates".to_vec(), join(suggestions, b", ")));
     }
 
@@ -195,22 +180,16 @@ pub(crate) fn catalog_entry_already_exists(catalog_type: &[u8], name: &[u8]) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::exception::types::{
-        free_payload,
-        live_payloads,
-    };
+    use crate::exception::types::{free_payload, live_payloads};
 
     /// Renders a payload the way the C++ side does, then frees it, so that a
     /// leak or a double free in the marshalling shows up here rather than
     /// in a query.
     fn render(payload: ExceptionPayload) -> (String, String) {
         let message = payload.message.as_slice().to_vec();
-        let entries = if payload.entry_count == 0
-        {
+        let entries = if payload.entry_count == 0 {
             &[][..]
-        }
-        else
-        {
+        } else {
             // SAFETY: the payload owns `entry_count` entries at `entries`, and
             // `message` above only borrowed the message allocation.
             unsafe { std::slice::from_raw_parts(payload.entries, payload.entry_count) }
@@ -250,8 +229,12 @@ mod tests {
 
     #[test]
     fn column_not_found_without_candidates_mentions_the_missing_from_clause() {
-        let (message, extra_info) =
-            render(binder_column_not_found(b"i", &[], b"", QueryLocationLayout::invalid()));
+        let (message, extra_info) = render(binder_column_not_found(
+            b"i",
+            &[],
+            b"",
+            QueryLocationLayout::invalid(),
+        ));
         assert_eq!(
             "Referenced column \"i\" was not found because the FROM clause is missing",
             message
@@ -288,7 +271,10 @@ mod tests {
     #[test]
     fn no_matching_function_leaves_out_empty_catalog_and_schema() {
         let (_, extra_info) = render(binder_no_matching_function(b"", b"", b"f", b"f()", &[]));
-        assert_eq!("error_subtype=NO_MATCHING_FUNCTION,name=f,call=f()", extra_info);
+        assert_eq!(
+            "error_subtype=NO_MATCHING_FUNCTION,name=f,call=f()",
+            extra_info
+        );
     }
 
     #[test]
@@ -343,7 +329,10 @@ mod tests {
             QueryLocationLayout::invalid(),
         ));
         assert_eq!("Table with name tbl does not exist!", message);
-        assert_eq!("error_subtype=MISSING_ENTRY,name=tbl,type=Table", extra_info);
+        assert_eq!(
+            "error_subtype=MISSING_ENTRY,name=tbl,type=Table",
+            extra_info
+        );
     }
 
     #[test]
@@ -355,7 +344,10 @@ mod tests {
             b"\nDid you mean: \"my_schem\"",
             QueryLocationLayout::invalid(),
         ));
-        assert_eq!("unrecognized schema my_schema\n\nDid you mean: \"my_schem\"", message);
+        assert_eq!(
+            "unrecognized schema my_schema\n\nDid you mean: \"my_schem\"",
+            message
+        );
         assert_eq!(
             "error_subtype=MISSING_ENTRY,name=my_schema,type=schema,candidates=my_schem, other",
             extra_info
@@ -366,7 +358,10 @@ mod tests {
     fn entry_already_exists_carries_no_query_location() {
         let (message, extra_info) = render(catalog_entry_already_exists(b"Table", b"tbl"));
         assert_eq!("Table with name \"tbl\" already exists!", message);
-        assert_eq!("error_subtype=ENTRY_ALREADY_EXISTS,name=tbl,type=Table", extra_info);
+        assert_eq!(
+            "error_subtype=ENTRY_ALREADY_EXISTS,name=tbl,type=Table",
+            extra_info
+        );
     }
 
     #[test]
@@ -387,8 +382,7 @@ mod tests {
         // One round per factory, so that a factory whose payload is not taken
         // back shows up as a count that keeps climbing.
         let before = live_payloads();
-        for _ in 0..100
-        {
+        for _ in 0..100 {
             let name = catalog_entry_already_exists(b"Table", b"tbl");
             let location = binder_column_not_found(
                 b"i",
@@ -417,9 +411,15 @@ mod tests {
             let only_location =
                 crate::exception::extra_info::set_query_location(QueryLocationLayout::new(3, 3));
             let only_location = into_payload(Vec::new(), only_location);
-            for payload in
-                [name, location, no_location, function, entries, suggestions, only_location]
-            {
+            for payload in [
+                name,
+                location,
+                no_location,
+                function,
+                entries,
+                suggestions,
+                only_location,
+            ] {
                 free_payload(payload);
             }
         }

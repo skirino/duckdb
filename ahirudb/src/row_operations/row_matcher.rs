@@ -243,7 +243,10 @@ enum MatchNode {
     /// `TemplatedMatch<T, OP>` for a fixed-width or string physical type.
     Primitive { predicate: u8, physical: u8 },
     /// `StructMatchEquality<OP>`: a non-union STRUCT equality.
-    StructEquality { predicate: u8, children: Vec<MatchNode> },
+    StructEquality {
+        predicate: u8,
+        children: Vec<MatchNode>,
+    },
     /// `GenericNestedMatch<OP>`: the LIST/ARRAY path and UNION equality.
     Generic { predicate: u8 },
 }
@@ -286,16 +289,12 @@ pub fn matcher_initialize(
     predicates: &[u8],
     columns: &[u64],
 ) -> Result<usize, String> {
-    let columns: Vec<usize> = if columns.is_empty()
-    {
+    let columns: Vec<usize> = if columns.is_empty() {
         (0..predicates.len()).collect()
-    }
-    else
-    {
+    } else {
         columns.iter().map(|&col| col as usize).collect()
     };
-    if columns.len() != predicates.len()
-    {
+    if columns.len() != predicates.len() {
         return Err(format!(
             "RowMatcher::Initialize: {} columns for {} predicates",
             columns.len(),
@@ -304,14 +303,17 @@ pub fn matcher_initialize(
     }
 
     let mut entries = Vec::with_capacity(predicates.len());
-    for (&col_idx, &predicate) in columns.iter().zip(predicates.iter())
-    {
+    for (&col_idx, &predicate) in columns.iter().zip(predicates.iter()) {
         let ty = (ops.layout_type)(rhs_layout, col_idx);
         let node = build_node(&ops, ty, predicate, no_match_sel)?;
         entries.push(MatchEntry { col_idx, node });
     }
 
-    let matcher = Box::new(RowMatcher { ops, rhs_layout, entries });
+    let matcher = Box::new(RowMatcher {
+        ops,
+        rhs_layout,
+        entries,
+    });
     Ok(Box::into_raw(matcher) as usize)
 }
 
@@ -326,8 +328,7 @@ fn build_node(
     use physical as phys;
 
     let physical = (ops.type_physical)(ty);
-    match physical
-    {
+    match physical {
         phys::BOOL
         | phys::INT8
         | phys::INT16
@@ -342,24 +343,20 @@ fn build_node(
         | phys::FLOAT
         | phys::DOUBLE
         | phys::INTERVAL
-        | phys::VARCHAR =>
-        {
+        | phys::VARCHAR => {
             check_primitive_predicate(predicate)?;
-            Ok(MatchNode::Primitive { predicate, physical })
-        },
-        phys::STRUCT =>
-        {
+            Ok(MatchNode::Primitive {
+                predicate,
+                physical,
+            })
+        }
+        phys::STRUCT => {
             let is_union = (ops.type_is_union)(ty);
-            match predicate
-            {
-                expr::COMPARE_EQUAL =>
-                {
-                    if is_union
-                    {
+            match predicate {
+                expr::COMPARE_EQUAL => {
+                    if is_union {
                         Ok(MatchNode::Generic { predicate })
-                    }
-                    else
-                    {
+                    } else {
                         // STRUCT equality uses DISTINCT semantics for the internal columns
                         Ok(MatchNode::StructEquality {
                             predicate,
@@ -370,47 +367,43 @@ fn build_node(
                             )?,
                         })
                     }
-                },
+                }
                 expr::COMPARE_NOTEQUAL
                 | expr::COMPARE_DISTINCT_FROM
                 | expr::COMPARE_GREATERTHAN
                 | expr::COMPARE_GREATERTHANOREQUALTO
                 | expr::COMPARE_LESSTHAN
                 | expr::COMPARE_LESSTHANOREQUALTO => Ok(MatchNode::Generic { predicate }),
-                expr::COMPARE_NOT_DISTINCT_FROM =>
-                {
-                    if is_union
-                    {
+                expr::COMPARE_NOT_DISTINCT_FROM => {
+                    if is_union {
                         Ok(MatchNode::Generic { predicate })
-                    }
-                    else
-                    {
+                    } else {
                         Ok(MatchNode::StructEquality {
                             predicate,
                             children: build_struct_children(ops, ty, predicate)?,
                         })
                     }
-                },
+                }
                 other => Err(format!(
                     "Unsupported ExpressionType for RowMatcher::GetStructMatchFunction: {other}"
                 )),
             }
-        },
-        phys::LIST | phys::ARRAY =>
-        {
+        }
+        phys::LIST | phys::ARRAY => {
             // Same logic as for lists
             check_primitive_predicate_loose(predicate)?;
             Ok(MatchNode::Generic { predicate })
-        },
-        other => Err(format!("Unsupported PhysicalType for RowMatcher::GetMatchFunction: {other}")),
+        }
+        other => Err(format!(
+            "Unsupported PhysicalType for RowMatcher::GetMatchFunction: {other}"
+        )),
     }
 }
 
 /// The predicate check `GetStructMatchFunction` applies before recursing.
 fn check_primitive_predicate(predicate: u8) -> Result<(), String> {
     use expression_type as expr;
-    match predicate
-    {
+    match predicate {
         expr::COMPARE_EQUAL
         | expr::COMPARE_NOTEQUAL
         | expr::COMPARE_DISTINCT_FROM
@@ -419,10 +412,9 @@ fn check_primitive_predicate(predicate: u8) -> Result<(), String> {
         | expr::COMPARE_GREATERTHANOREQUALTO
         | expr::COMPARE_LESSTHAN
         | expr::COMPARE_LESSTHANOREQUALTO => Ok(()),
-        other =>
-        {
-            Err(format!("Unsupported ExpressionType for RowMatcher::GetMatchFunction: {other}"))
-        },
+        other => Err(format!(
+            "Unsupported ExpressionType for RowMatcher::GetMatchFunction: {other}"
+        )),
     }
 }
 
@@ -441,8 +433,7 @@ fn build_struct_children(
 ) -> Result<Vec<MatchNode>, String> {
     let child_count = (ops.type_struct_child_count)(ty);
     let mut children = Vec::with_capacity(child_count);
-    for child_idx in 0..child_count
-    {
+    for child_idx in 0..child_count {
         let child_ty = (ops.type_struct_child)(ty, child_idx);
         children.push(build_node(ops, child_ty, child_predicate, false)?);
     }
@@ -452,8 +443,7 @@ fn build_struct_children(
 /// `RowMatcher::~RowMatcher`'s release of the Rust state.
 #[allow(unsafe_code)]
 pub fn matcher_free(matcher: usize) {
-    if matcher == 0
-    {
+    if matcher == 0 {
         return;
     }
     let ptr = matcher as *mut RowMatcher;
@@ -488,8 +478,7 @@ pub fn matcher_match(
     no_match_sel: &mut [u32],
     no_match_count_in: usize,
 ) -> Result<MatchOut, String> {
-    if matcher == 0
-    {
+    if matcher == 0 {
         return Err("RowMatcher::Match called on an uninitialized matcher".to_string());
     }
     // SAFETY: `matcher` is the live pointer `matcher_initialize` returned and the
@@ -499,8 +488,7 @@ pub fn matcher_match(
 
     let mut count = count;
     let mut no_match_count = no_match_count_in;
-    for entry in &matcher.entries
-    {
+    for entry in &matcher.entries {
         let lhs_vector = (matcher.ops.chunk_child_vector)(lhs, entry.col_idx);
         let lhs_format = (matcher.ops.lhs_format_at)(lhs_formats, entry.col_idx);
         count = match_node(
@@ -517,7 +505,10 @@ pub fn matcher_match(
             &mut no_match_count,
         );
     }
-    Ok(MatchOut { match_count: count, no_match_count })
+    Ok(MatchOut {
+        match_count: count,
+        no_match_count,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -534,9 +525,11 @@ fn match_node(
     no_match_sel: &mut [u32],
     no_match_count: &mut usize,
 ) -> usize {
-    match node
-    {
-        MatchNode::Primitive { predicate, physical } => match_primitive(
+    match node {
+        MatchNode::Primitive {
+            predicate,
+            physical,
+        } => match_primitive(
             ops,
             *predicate,
             *physical,
@@ -549,7 +542,10 @@ fn match_node(
             no_match_sel,
             no_match_count,
         ),
-        MatchNode::StructEquality { predicate, children } => match_struct(
+        MatchNode::StructEquality {
+            predicate,
+            children,
+        } => match_struct(
             ops,
             *predicate,
             children,
@@ -600,16 +596,12 @@ fn match_primitive(
     let want_no_match = !no_match_sel.is_empty();
 
     let mut match_count = 0usize;
-    for row in 0..count
-    {
+    for row in 0..count {
         let idx = sel[row];
         let location = (ops.rhs_location_at)(rhs_row_locations, idx as usize);
-        let rhs_null = if rhs_all_valid
-        {
+        let rhs_null = if rhs_all_valid {
             false
-        }
-        else
-        {
+        } else {
             (ops.rhs_row_is_null)(rhs_layout, location, col_idx, rhs_column_count)
         };
         let matched = (ops.compare_row)(
@@ -621,13 +613,10 @@ fn match_primitive(
             rhs_null,
             lhs_all_valid,
         );
-        if matched
-        {
+        if matched {
             sel[match_count] = idx;
             match_count += 1;
-        }
-        else if want_no_match
-        {
+        } else if want_no_match {
             no_match_sel[*no_match_count] = idx;
             *no_match_count += 1;
         }
@@ -658,15 +647,11 @@ fn match_struct(
     let want_no_match = !no_match_sel.is_empty();
 
     let mut match_count = 0usize;
-    for row in 0..count
-    {
+    for row in 0..count {
         let idx = sel[row];
-        let lhs_null = if lhs_all_valid
-        {
+        let lhs_null = if lhs_all_valid {
             false
-        }
-        else
-        {
+        } else {
             (ops.lhs_row_is_null)(lhs_format, idx as usize)
         };
         let location = (ops.rhs_location_at)(rhs_row_locations, idx as usize);
@@ -674,13 +659,10 @@ fn match_struct(
         // do the rest
         let rhs_null = rhs_can_have_null
             && (ops.rhs_row_is_null)(rhs_layout, location, col_idx, rhs_column_count);
-        if !(lhs_null || rhs_null) || (ops.struct_null_keep)(predicate, lhs_null, rhs_null)
-        {
+        if !(lhs_null || rhs_null) || (ops.struct_null_keep)(predicate, lhs_null, rhs_null) {
             sel[match_count] = idx;
             match_count += 1;
-        }
-        else if want_no_match
-        {
+        } else if want_no_match {
             no_match_sel[*no_match_count] = idx;
             *no_match_count += 1;
         }
@@ -689,16 +671,14 @@ fn match_struct(
     // A Vector of pointers to the start of each matched STRUCT in its row
     let struct_row_locations =
         (ops.build_struct_row_locations)(rhs_row_locations, sel.as_ptr(), match_count, rhs_offset);
-    if struct_row_locations.is_null()
-    {
+    if struct_row_locations.is_null() {
         // The trampoline caught a C++ exception; the boundary rethrows it.
         return match_count;
     }
     let rhs_struct_layout = (ops.layout_struct)(rhs_layout, col_idx);
     let lhs_struct_entries = (ops.struct_entries)(lhs_vector);
 
-    for (struct_col_idx, child) in children.iter().enumerate()
-    {
+    for (struct_col_idx, child) in children.iter().enumerate() {
         let lhs_struct_vector = (ops.struct_entry)(lhs_struct_entries, struct_col_idx);
         let lhs_struct_format = (ops.lhs_format_child)(lhs_format, struct_col_idx);
         match_count = match_node(
@@ -734,13 +714,13 @@ fn match_generic(
     no_match_sel: &mut [u32],
     no_match_count: &mut usize,
 ) -> usize {
-    let (no_match_ptr, no_match_capacity) = if no_match_sel.is_empty()
-    {
+    let (no_match_ptr, no_match_capacity) = if no_match_sel.is_empty() {
         (std::ptr::null_mut(), 0usize)
-    }
-    else
-    {
-        (no_match_sel[*no_match_count..].as_mut_ptr(), no_match_sel.len() - *no_match_count)
+    } else {
+        (
+            no_match_sel[*no_match_count..].as_mut_ptr(),
+            no_match_sel.len() - *no_match_count,
+        )
     };
     (ops.generic_nested_match)(
         predicate,
@@ -775,11 +755,19 @@ mod tests {
         children: Vec<usize>,
     }
 
-    fn set_types(types: Vec<FakeType>) { TYPES.with(|t| *t.borrow_mut() = types); }
+    fn set_types(types: Vec<FakeType>) {
+        TYPES.with(|t| *t.borrow_mut() = types);
+    }
 
-    extern "C" fn fake_layout_column_count(_layout: *const c_void) -> usize { 0 }
-    extern "C" fn fake_layout_can_have_null(_layout: *const c_void) -> bool { false }
-    extern "C" fn fake_layout_offset(_layout: *const c_void, _col: usize) -> usize { 0 }
+    extern "C" fn fake_layout_column_count(_layout: *const c_void) -> usize {
+        0
+    }
+    extern "C" fn fake_layout_can_have_null(_layout: *const c_void) -> bool {
+        false
+    }
+    extern "C" fn fake_layout_offset(_layout: *const c_void, _col: usize) -> usize {
+        0
+    }
     extern "C" fn fake_layout_type(_layout: *const c_void, col: usize) -> *const c_void {
         (col + 1) as *const c_void
     }
@@ -809,8 +797,12 @@ mod tests {
     extern "C" fn fake_lhs_format_child(_format: *const c_void, _col: usize) -> *const c_void {
         std::ptr::null()
     }
-    extern "C" fn fake_lhs_cannot_have_null(_format: *const c_void) -> bool { true }
-    extern "C" fn fake_lhs_row_is_null(_format: *const c_void, _idx: usize) -> bool { false }
+    extern "C" fn fake_lhs_cannot_have_null(_format: *const c_void) -> bool {
+        true
+    }
+    extern "C" fn fake_lhs_row_is_null(_format: *const c_void, _idx: usize) -> bool {
+        false
+    }
     extern "C" fn fake_compare_row(
         _format: *const c_void,
         _idx: usize,
@@ -830,7 +822,9 @@ mod tests {
     ) -> bool {
         false
     }
-    extern "C" fn fake_rhs_location_at(_locations: *mut c_void, _idx: usize) -> usize { 0 }
+    extern "C" fn fake_rhs_location_at(_locations: *mut c_void, _idx: usize) -> usize {
+        0
+    }
     extern "C" fn fake_struct_null_keep(_predicate: u8, _lhs_null: bool, _rhs_null: bool) -> bool {
         false
     }
@@ -895,15 +889,18 @@ mod tests {
         )
     }
 
-    fn handle(index: usize) -> *const c_void { (index + 1) as *const c_void }
+    fn handle(index: usize) -> *const c_void {
+        (index + 1) as *const c_void
+    }
 
     fn assert_primitive(node: &MatchNode, predicate: u8, physical: u8) {
-        match node
-        {
-            MatchNode::Primitive { predicate: p, physical: ph } =>
-            {
+        match node {
+            MatchNode::Primitive {
+                predicate: p,
+                physical: ph,
+            } => {
                 assert_eq!((*p, *ph), (predicate, physical));
-            },
+            }
             _ => panic!("expected a primitive node"),
         }
     }
@@ -931,12 +928,15 @@ mod tests {
         set_types(
             physicals
                 .iter()
-                .map(|&physical| FakeType { physical, is_union: false, children: vec![] })
+                .map(|&physical| FakeType {
+                    physical,
+                    is_union: false,
+                    children: vec![],
+                })
                 .collect(),
         );
         let ops = ops();
-        for (index, &physical) in physicals.iter().enumerate()
-        {
+        for (index, &physical) in physicals.iter().enumerate() {
             let node =
                 build_node(&ops, handle(index), expression_type::COMPARE_EQUAL, false).unwrap();
             assert_primitive(&node, expression_type::COMPARE_EQUAL, physical);
@@ -947,8 +947,16 @@ mod tests {
     fn list_and_array_are_generic() {
         use physical as phys;
         set_types(vec![
-            FakeType { physical: phys::LIST, is_union: false, children: vec![] },
-            FakeType { physical: phys::ARRAY, is_union: false, children: vec![] },
+            FakeType {
+                physical: phys::LIST,
+                is_union: false,
+                children: vec![],
+            },
+            FakeType {
+                physical: phys::ARRAY,
+                is_union: false,
+                children: vec![],
+            },
         ]);
         let ops = ops();
         assert!(matches!(
@@ -956,7 +964,13 @@ mod tests {
             MatchNode::Generic { .. }
         ));
         assert!(matches!(
-            build_node(&ops, handle(1), expression_type::COMPARE_DISTINCT_FROM, false).unwrap(),
+            build_node(
+                &ops,
+                handle(1),
+                expression_type::COMPARE_DISTINCT_FROM,
+                false
+            )
+            .unwrap(),
             MatchNode::Generic { .. }
         ));
     }
@@ -966,16 +980,29 @@ mod tests {
         use physical as phys;
         // A STRUCT of INT32 and INT64.
         set_types(vec![
-            FakeType { physical: phys::STRUCT, is_union: false, children: vec![1, 2] },
-            FakeType { physical: phys::INT32, is_union: false, children: vec![] },
-            FakeType { physical: phys::INT64, is_union: false, children: vec![] },
+            FakeType {
+                physical: phys::STRUCT,
+                is_union: false,
+                children: vec![1, 2],
+            },
+            FakeType {
+                physical: phys::INT32,
+                is_union: false,
+                children: vec![],
+            },
+            FakeType {
+                physical: phys::INT64,
+                is_union: false,
+                children: vec![],
+            },
         ]);
         let ops = ops();
         let node = build_node(&ops, handle(0), expression_type::COMPARE_EQUAL, false).unwrap();
-        match node
-        {
-            MatchNode::StructEquality { predicate, children } =>
-            {
+        match node {
+            MatchNode::StructEquality {
+                predicate,
+                children,
+            } => {
                 assert_eq!(predicate, expression_type::COMPARE_EQUAL);
                 assert_eq!(children.len(), 2);
                 assert_primitive(
@@ -988,7 +1015,7 @@ mod tests {
                     expression_type::COMPARE_NOT_DISTINCT_FROM,
                     phys::INT64,
                 );
-            },
+            }
             _ => panic!("expected a struct-equality node"),
         }
     }
@@ -997,8 +1024,16 @@ mod tests {
     fn union_equality_is_generic() {
         use physical as phys;
         set_types(vec![
-            FakeType { physical: phys::STRUCT, is_union: true, children: vec![1] },
-            FakeType { physical: phys::INT32, is_union: false, children: vec![] },
+            FakeType {
+                physical: phys::STRUCT,
+                is_union: true,
+                children: vec![1],
+            },
+            FakeType {
+                physical: phys::INT32,
+                is_union: false,
+                children: vec![],
+            },
         ]);
         let ops = ops();
         assert!(matches!(
@@ -1009,7 +1044,11 @@ mod tests {
 
     #[test]
     fn unsupported_physical_type_is_an_error() {
-        set_types(vec![FakeType { physical: 250, is_union: false, children: vec![] }]);
+        set_types(vec![FakeType {
+            physical: 250,
+            is_union: false,
+            children: vec![],
+        }]);
         let ops = ops();
         assert!(build_node(&ops, handle(0), expression_type::COMPARE_EQUAL, false).is_err());
     }
@@ -1018,8 +1057,16 @@ mod tests {
     fn initialize_defaults_to_all_columns() {
         use physical as phys;
         set_types(vec![
-            FakeType { physical: phys::INT32, is_union: false, children: vec![] },
-            FakeType { physical: phys::INT64, is_union: false, children: vec![] },
+            FakeType {
+                physical: phys::INT32,
+                is_union: false,
+                children: vec![],
+            },
+            FakeType {
+                physical: phys::INT64,
+                is_union: false,
+                children: vec![],
+            },
         ]);
         let ops = ops();
         let matcher = matcher_initialize(ops, false, std::ptr::null(), &[25, 25], &[]).unwrap();
@@ -1034,7 +1081,11 @@ mod tests {
 
     #[test]
     fn initialize_rejects_a_column_count_mismatch() {
-        set_types(vec![FakeType { physical: 7, is_union: false, children: vec![] }]);
+        set_types(vec![FakeType {
+            physical: 7,
+            is_union: false,
+            children: vec![],
+        }]);
         let ops = ops();
         assert!(matcher_initialize(ops, false, std::ptr::null(), &[25, 25], &[0]).is_err());
     }
@@ -1048,8 +1099,12 @@ mod tests {
         static LOCATIONS: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
     }
 
-    extern "C" fn match_layout_column_count(_layout: *const c_void) -> usize { 1 }
-    extern "C" fn match_layout_offset(_layout: *const c_void, _col: usize) -> usize { 0 }
+    extern "C" fn match_layout_column_count(_layout: *const c_void) -> usize {
+        1
+    }
+    extern "C" fn match_layout_offset(_layout: *const c_void, _col: usize) -> usize {
+        0
+    }
     extern "C" fn match_compare_row(
         _format: *const c_void,
         idx: usize,
@@ -1059,15 +1114,13 @@ mod tests {
         rhs_null: bool,
         _lhs_all_valid: bool,
     ) -> bool {
-        if rhs_null
-        {
+        if rhs_null {
             return false;
         }
         let lhs_idx = LHS_INDEX.with(|s| s.borrow()[idx] as usize);
         let lhs = LHS_DATA.with(|d| d.borrow()[lhs_idx]);
         let rhs = unsafe { *(rhs_ptr as *const i32) };
-        match predicate
-        {
+        match predicate {
             expression_type::COMPARE_EQUAL => lhs == rhs,
             _ => panic!("unexpected predicate"),
         }
@@ -1110,7 +1163,11 @@ mod tests {
         use physical as phys;
         // LHS values 10, 20, 30 (read through the identity selection); RHS rows
         // 20, 20, 30 -> the rows at index 1 and 2 match.
-        set_types(vec![FakeType { physical: phys::INT32, is_union: false, children: vec![] }]);
+        set_types(vec![FakeType {
+            physical: phys::INT32,
+            is_union: false,
+            children: vec![],
+        }]);
         let mut lhs = [10i32, 20, 30];
         let mut rhs = [20i32, 20, 30];
         let mut locs = [0u64, 1, 2];

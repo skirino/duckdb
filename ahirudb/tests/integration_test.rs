@@ -2,21 +2,11 @@
 //! in-Rust storage through the C-ABI bridge, exercising the same behaviour as
 //! `test/sql/logging/*.test` on the C++ side.
 
-use std::{
-    ffi::c_void,
-    sync::Mutex,
-};
+use std::{ffi::c_void, sync::Mutex};
 
 use ahirudb::logging::{
-    CLogStorage,
-    LogConfig,
-    LogLevel,
-    LogManager,
-    LogMode,
-    MutableLogger,
-    RegisteredLoggingContextLayout,
-    StorageSwitchErrorKind,
-    ThreadSafeLogger,
+    CLogStorage, LogConfig, LogLevel, LogManager, LogMode, MutableLogger,
+    RegisteredLoggingContextLayout, StorageSwitchErrorKind, ThreadSafeLogger,
     log_storage::LoggingTargetTable,
 };
 
@@ -54,7 +44,9 @@ impl InMemoryStorage {
         });
     }
 
-    fn flush_all(&self) { *self.flush_count.lock().unwrap() += 1; }
+    fn flush_all(&self) {
+        *self.flush_count.lock().unwrap() += 1;
+    }
 
     fn truncate(&self) {
         *self.truncate_count.lock().unwrap() += 1;
@@ -105,8 +97,7 @@ extern "C" fn c_truncate(ctx: *mut c_void) -> bool {
 // table in as a `u8` and only takes a `bool` out, so the crate itself never has
 // to go the other way.
 fn target_table(value: u8) -> LoggingTargetTable {
-    match value
-    {
+    match value {
         0 => LoggingTargetTable::ALL_LOGS,
         1 => LoggingTargetTable::LOG_ENTRIES,
         2 => LoggingTargetTable::LOG_CONTEXTS,
@@ -152,8 +143,10 @@ fn context_layout(scope: u8) -> RegisteredLoggingContextLayout {
 }
 
 fn register_log_types(manager: &LogManager) {
-    for (name, level) in [("QueryLog", LogLevel::LOG_INFO), ("FileSystem", LogLevel::LOG_TRACE)]
-    {
+    for (name, level) in [
+        ("QueryLog", LogLevel::LOG_INFO),
+        ("FileSystem", LogLevel::LOG_TRACE),
+    ] {
         manager.register_log_type(name, level as u8).unwrap();
     }
 }
@@ -194,7 +187,9 @@ fn make_manager() -> (&'static InMemoryStorage, *mut LogManager) {
     (storage, Box::into_raw(Box::new(manager)))
 }
 
-fn destroy_manager(manager: *mut LogManager) { unsafe { drop(Box::from_raw(manager)) }; }
+fn destroy_manager(manager: *mut LogManager) {
+    unsafe { drop(Box::from_raw(manager)) };
+}
 
 #[test]
 fn log_config_default_matches_cpp() {
@@ -216,12 +211,14 @@ fn log_levels_and_modes_roundtrip() {
         LogLevel::LOG_WARNING,
         LogLevel::LOG_ERROR,
         LogLevel::LOG_FATAL,
-    ]
-    {
+    ] {
         assert_eq!(LogLevel::from(level as u8), level);
     }
-    for mode in [LogMode::LEVEL_ONLY, LogMode::DISABLE_SELECTED, LogMode::ENABLE_SELECTED]
-    {
+    for mode in [
+        LogMode::LEVEL_ONLY,
+        LogMode::DISABLE_SELECTED,
+        LogMode::ENABLE_SELECTED,
+    ] {
         assert_eq!(LogMode::from(mode as u8), mode);
     }
 }
@@ -459,7 +456,10 @@ fn switching_storage_reports_the_new_name_without_flushing() {
         .resolve_log_storage(active, "file", false)
         .unwrap_err();
     assert_eq!(error.kind, StorageSwitchErrorKind::FileSystemDisabled);
-    assert_eq!(error.message, "Can not enable file logging with the LocalFileSystem disabled");
+    assert_eq!(
+        error.message,
+        "Can not enable file logging with the LocalFileSystem disabled"
+    );
     assert!(manager_ref.register_log_storage("extra"));
     assert_eq!(
         manager_ref
@@ -487,8 +487,7 @@ fn concurrent_writes_and_config_changes_do_not_deadlock() {
     let entries = 500usize;
     std::thread::scope(|scope| {
         let writer = scope.spawn(|| {
-            for _ in 0..entries
-            {
+            for _ in 0..entries {
                 manager.write_log_entry(
                     "QueryLog",
                     LogLevel::LOG_INFO,
@@ -498,14 +497,10 @@ fn concurrent_writes_and_config_changes_do_not_deadlock() {
             }
         });
         let switcher = scope.spawn(|| {
-            for i in 0..entries
-            {
-                let level = if i % 2 == 0
-                {
+            for i in 0..entries {
+                let level = if i % 2 == 0 {
                     LogLevel::LOG_INFO
-                }
-                else
-                {
+                } else {
                     LogLevel::LOG_DEBUG
                 };
                 manager.set_config(
@@ -577,7 +572,9 @@ fn a_failing_storage_does_not_wedge_the_manager() {
     ) -> bool {
         false
     }
-    extern "C" fn failing_noop(_ctx: *mut c_void) -> bool { false }
+    extern "C" fn failing_noop(_ctx: *mut c_void) -> bool {
+        false
+    }
 
     let storage = CLogStorage::new(
         std::ptr::null_mut(),

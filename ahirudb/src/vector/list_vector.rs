@@ -12,11 +12,7 @@
 //! entry means a `&[u8]` over the buffer is exactly the entry array, and C++
 //! hands over `data_ptr_t` without converting anything.
 
-use crate::vector::selection::{
-    Selection,
-    Validity,
-    sel_t,
-};
+use crate::vector::selection::{Selection, Validity, sel_t};
 
 /// The byte size of one `list_entry_t`.
 const LIST_ENTRY_SIZE: usize = 2 * std::mem::size_of::<u64>();
@@ -87,10 +83,8 @@ pub fn total_entry_count(
     let selection = Selection::new(selection);
     let validity = Validity::new(validity);
     let mut total = 0u64;
-    for row in 0..count
-    {
-        if !validity.row_is_valid(selection.index(row)?)?
-        {
+    for row in 0..count {
+        if !validity.row_is_valid(selection.index(row)?)? {
             continue;
         }
         let entry = ListEntry::read(entries, selection.index(row)?)?;
@@ -112,15 +106,16 @@ pub fn consecutive_child_list_info(
 ) -> Result<ConsecutiveChildListInfo, String> {
     let selection = Selection::new(selection);
     let validity = Validity::new(validity);
-    let mut info = ConsecutiveChildListInfo { is_constant: true, ..Default::default() };
+    let mut info = ConsecutiveChildListInfo {
+        is_constant: true,
+        ..Default::default()
+    };
 
     // The first non-NULL entry decides where the child range starts.
     let mut first_length = 0u64;
-    for row in offset..offset + count
-    {
+    for row in offset..offset + count {
         let mapped = selection.index(row)?;
-        if !validity.row_is_valid(mapped)?
-        {
+        if !validity.row_is_valid(mapped)? {
             continue;
         }
         let entry = ListEntry::read(entries, mapped)?;
@@ -130,31 +125,26 @@ pub fn consecutive_child_list_info(
     }
 
     // A constant vector holds one entry, so there is nothing left to compare.
-    if is_constant_vector
-    {
+    if is_constant_vector {
         info.child_length = first_length;
         return Ok(info);
     }
 
     let mut is_consecutive = true;
-    for row in offset..offset + count
-    {
+    for row in offset..offset + count {
         let mapped = selection.index(row)?;
-        if !validity.row_is_valid(mapped)?
-        {
+        if !validity.row_is_valid(mapped)? {
             continue;
         }
         let entry = ListEntry::read(entries, mapped)?;
-        if entry.offset != info.child_offset || entry.length != first_length
-        {
+        if entry.offset != info.child_offset || entry.length != first_length {
             info.is_constant = false;
         }
         let row_offset = info
             .child_offset
             .checked_add(info.child_length)
             .ok_or_else(|| "consecutive_child_list_info: child range overflows".to_string())?;
-        if entry.offset != row_offset
-        {
+        if entry.offset != row_offset {
             is_consecutive = false;
         }
         info.child_length = info
@@ -163,12 +153,10 @@ pub fn consecutive_child_list_info(
             .ok_or_else(|| "consecutive_child_list_info: child length overflows".to_string())?;
     }
 
-    if info.is_constant
-    {
+    if info.is_constant {
         info.child_length = first_length;
     }
-    if !info.is_constant && !is_consecutive
-    {
+    if !info.is_constant && !is_consecutive {
         info.needs_slicing = true;
     }
     Ok(info)
@@ -190,16 +178,13 @@ pub fn consecutive_child_sel_vector(
     let selection = Selection::new(selection);
     let validity = Validity::new(validity);
     let mut written = 0usize;
-    for row in offset..offset + count
-    {
+    for row in offset..offset + count {
         let mapped = selection.index(row)?;
-        if !validity.row_is_valid(mapped)?
-        {
+        if !validity.row_is_valid(mapped)? {
             continue;
         }
         let entry = ListEntry::read(entries, mapped)?;
-        for child in 0..entry.length
-        {
+        for child in 0..entry.length {
             let slot = out.get_mut(written).ok_or_else(|| {
                 "consecutive_child_sel_vector: selection vector is too small".to_string()
             })?;
@@ -244,19 +229,20 @@ pub fn copy_list_entries(
     let validity = Validity::new(target_validity);
     let mut child_rows = Vec::new();
     let mut child_len = current_child_len;
-    for i in 0..range.count
-    {
+    for i in 0..range.count {
         let target_row = range.target_offset + i;
-        if !validity.row_is_valid(target_row)?
-        {
+        if !validity.row_is_valid(target_row)? {
             continue;
         }
         let source = ListEntry::read(source_entries, selection.index(range.source_offset + i)?)?;
-        for child in 0..source.length
-        {
+        for child in 0..source.length {
             child_rows.push(sel_t(source.offset + child)?);
         }
-        ListEntry { offset: child_len, length: source.length }.write(target_entries, target_row)?;
+        ListEntry {
+            offset: child_len,
+            length: source.length,
+        }
+        .write(target_entries, target_row)?;
         child_len = child_len
             .checked_add(source.length)
             .ok_or_else(|| "copy_list_entries: child length overflows".to_string())?;
@@ -270,8 +256,7 @@ mod tests {
 
     fn entries(offsets_and_lengths: &[(u64, u64)]) -> Vec<u8> {
         let mut bytes = Vec::new();
-        for &(offset, length) in offsets_and_lengths
-        {
+        for &(offset, length) in offsets_and_lengths {
             bytes.extend_from_slice(&offset.to_le_bytes());
             bytes.extend_from_slice(&length.to_le_bytes());
         }
@@ -386,12 +371,28 @@ mod tests {
     fn copy_list_entries_repoints_every_valid_row() {
         let source = entries(&[(10, 2), (20, 1)]);
         let mut target = entries(&[(0, 0), (0, 0), (0, 0)]);
-        let range = CopyRange { source_offset: 0, target_offset: 1, count: 2 };
+        let range = CopyRange {
+            source_offset: 0,
+            target_offset: 1,
+            count: 2,
+        };
         let child_rows = copy_list_entries(&source, &[], &mut target, &[], range, 100).unwrap();
         assert_eq!(child_rows, vec![10, 11, 20]);
         // valid rows are re-pointed at the appended range
-        assert_eq!(ListEntry::read(&target, 1).unwrap(), ListEntry { offset: 100, length: 2 });
-        assert_eq!(ListEntry::read(&target, 2).unwrap(), ListEntry { offset: 102, length: 1 });
+        assert_eq!(
+            ListEntry::read(&target, 1).unwrap(),
+            ListEntry {
+                offset: 100,
+                length: 2
+            }
+        );
+        assert_eq!(
+            ListEntry::read(&target, 2).unwrap(),
+            ListEntry {
+                offset: 102,
+                length: 1
+            }
+        );
     }
 
     #[test]
@@ -400,10 +401,26 @@ mod tests {
         let mut target = entries(&[(0, 0), (7, 7), (0, 0)]);
         // row 1 of the target is NULL (rows 0 and 2 are valid)
         let validity = [0b101u64];
-        let range = CopyRange { source_offset: 0, target_offset: 1, count: 2 };
+        let range = CopyRange {
+            source_offset: 0,
+            target_offset: 1,
+            count: 2,
+        };
         let child_rows = copy_list_entries(&source, &[], &mut target, &validity, range, 0).unwrap();
         assert_eq!(child_rows, vec![20]);
-        assert_eq!(ListEntry::read(&target, 1).unwrap(), ListEntry { offset: 7, length: 7 });
-        assert_eq!(ListEntry::read(&target, 2).unwrap(), ListEntry { offset: 0, length: 1 });
+        assert_eq!(
+            ListEntry::read(&target, 1).unwrap(),
+            ListEntry {
+                offset: 7,
+                length: 7
+            }
+        );
+        assert_eq!(
+            ListEntry::read(&target, 2).unwrap(),
+            ListEntry {
+                offset: 0,
+                length: 1
+            }
+        );
     }
 }

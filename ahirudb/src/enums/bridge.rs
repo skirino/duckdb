@@ -1,6 +1,5 @@
 pub fn catalog_type_to_string(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         1 => "Table",
         2 => "Schema",
         3 => "View",
@@ -28,8 +27,7 @@ pub fn catalog_type_to_string(t: u8) -> &'static str {
 }
 
 pub fn catalog_type_from_string(input: &[u8]) -> i8 {
-    match input
-    {
+    match input {
         b"INVALID" => 0,
         b"Collation" => 7,
         b"Coordinate System" => 10,
@@ -58,8 +56,7 @@ pub fn catalog_type_from_string(input: &[u8]) -> i8 {
 }
 
 pub fn compression_type_to_string(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         0 => "Auto",
         1 => "Uncompressed",
         2 => "Constant",
@@ -82,12 +79,10 @@ pub fn compression_type_to_string(t: u8) -> &'static str {
 
 pub fn try_date_part_specifier(input: &[u8]) -> i16 {
     let mut lower = Vec::with_capacity(input.len());
-    for &b in input
-    {
+    for &b in input {
         lower.push(b.to_ascii_lowercase());
     }
-    match lower.as_slice()
-    {
+    match lower.as_slice() {
         b"year" => 0,
         b"yr" => 0,
         b"y" => 0,
@@ -169,11 +164,12 @@ pub fn try_date_part_specifier(input: &[u8]) -> i16 {
     }
 }
 
-pub fn is_bigint_datepart(t: u8) -> bool { t < 22 }
+pub fn is_bigint_datepart(t: u8) -> bool {
+    t < 22
+}
 
 pub fn expression_type_to_string(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         12 => "CAST",
         13 => "NOT",
         14 => "IS_NULL",
@@ -252,8 +248,7 @@ pub fn expression_type_to_string(t: u8) -> &'static str {
 }
 
 pub fn expression_class_to_string(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         0 => "INVALID",
         1 => "AGGREGATE",
         2 => "CASE",
@@ -298,8 +293,7 @@ pub fn expression_class_to_string(t: u8) -> &'static str {
 }
 
 pub fn expression_type_to_operator(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         25 => "=",
         26 => "!=",
         27 => "<",
@@ -315,39 +309,25 @@ pub fn expression_type_to_operator(t: u8) -> &'static str {
 }
 
 pub fn operator_to_expression_type(op: &[u8]) -> i8 {
-    if op == b"=" || op == b"=="
-    {
+    if op == b"=" || op == b"==" {
         25
-    }
-    else if op == b"!=" || op == b"<>"
-    {
+    } else if op == b"!=" || op == b"<>" {
         26
-    }
-    else if op == b"<"
-    {
+    } else if op == b"<" {
         27
-    }
-    else if op == b">"
-    {
+    } else if op == b">" {
         28
-    }
-    else if op == b"<="
-    {
+    } else if op == b"<=" {
         29
-    }
-    else if op == b">="
-    {
+    } else if op == b">=" {
         30
-    }
-    else
-    {
+    } else {
         0
     }
 }
 
 pub fn negate_comparison_expression(t: u8) -> i8 {
-    match t
-    {
+    match t {
         25 => 26,
         26 => 25,
         27 => 30,
@@ -361,8 +341,7 @@ pub fn negate_comparison_expression(t: u8) -> i8 {
 }
 
 pub fn flip_comparison_expression(t: u8) -> i8 {
-    match t
-    {
+    match t {
         40 => 40,
         37 => 37,
         26 => 26,
@@ -375,11 +354,12 @@ pub fn flip_comparison_expression(t: u8) -> i8 {
     }
 }
 
-pub fn http_status_code_from_int(t: i32) -> i32 { if !(100..=599).contains(&t) { 0 } else { t } }
+pub fn http_status_code_from_int(t: i32) -> i32 {
+    if !(100..=599).contains(&t) { 0 } else { t }
+}
 
 pub fn http_status_message(t: u16) -> &'static str {
-    match t
-    {
+    match t {
         100 => "Continue",
         101 => "Switching Protocol",
         102 => "Processing",
@@ -447,13 +427,20 @@ pub fn http_status_message(t: u16) -> &'static str {
     }
 }
 
-pub fn is_left_outer_join(t: u8) -> bool { t == 1 || t == 4 }
-pub fn is_right_outer_join(t: u8) -> bool { t == 4 || t == 2 }
-pub fn propagates_build_side(t: u8) -> bool { t == 4 || t == 2 || t == 9 || t == 10 }
-pub fn has_inverse_join_type(t: u8) -> bool { t != 7 && t != 8 }
+pub fn is_left_outer_join(t: u8) -> bool {
+    t == 1 || t == 4
+}
+pub fn is_right_outer_join(t: u8) -> bool {
+    t == 4 || t == 2
+}
+pub fn propagates_build_side(t: u8) -> bool {
+    t == 4 || t == 2 || t == 9 || t == 10
+}
+pub fn has_inverse_join_type(t: u8) -> bool {
+    t != 7 && t != 8
+}
 pub fn inverse_join_type(t: u8) -> i8 {
-    match t
-    {
+    match t {
         1 => 2,
         2 => 1,
         3 => 3,
@@ -467,8 +454,7 @@ pub fn inverse_join_type(t: u8) -> i8 {
 }
 
 pub fn join_type_to_string(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         0 => "INVALID",
         1 => "LEFT",
         2 => "RIGHT",
@@ -485,8 +471,7 @@ pub fn join_type_to_string(t: u8) -> &'static str {
 }
 
 pub fn logical_operator_to_string(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         1 => "PROJECTION",
         2 => "FILTER",
         3 => "AGGREGATE",
@@ -606,32 +591,27 @@ static OPTIMIZER_TABLE: &[(&str, u32)] = &[
     ("projection_placement", 45),
 ];
 
-pub fn optimizer_count() -> usize { OPTIMIZER_TABLE.len() }
+pub fn optimizer_count() -> usize {
+    OPTIMIZER_TABLE.len()
+}
 pub fn optimizer_name(idx: usize) -> &'static str {
-    if idx < OPTIMIZER_TABLE.len()
-    {
+    if idx < OPTIMIZER_TABLE.len() {
         OPTIMIZER_TABLE[idx].0
-    }
-    else
-    {
+    } else {
         ""
     }
 }
 pub fn optimizer_name_for_discriminant(d: u32) -> &'static str {
-    for &(name, disc) in OPTIMIZER_TABLE
-    {
-        if disc == d
-        {
+    for &(name, disc) in OPTIMIZER_TABLE {
+        if disc == d {
             return name;
         }
     }
     ""
 }
 pub fn optimizer_discriminant_of_name(input: &[u8]) -> i64 {
-    for &(name, disc) in OPTIMIZER_TABLE
-    {
-        if input == name.as_bytes()
-        {
+    for &(name, disc) in OPTIMIZER_TABLE {
+        if input == name.as_bytes() {
             return disc as i64;
         }
     }
@@ -639,8 +619,7 @@ pub fn optimizer_discriminant_of_name(input: &[u8]) -> i64 {
 }
 
 pub fn physical_operator_to_string(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         1 => "ORDER_BY",
         2 => "LIMIT",
         3 => "STREAMING_LIMIT",
@@ -735,8 +714,7 @@ pub fn physical_operator_to_string(t: u8) -> &'static str {
 }
 
 pub fn relation_type_to_string(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         1 => "TABLE_RELATION",
         2 => "PROJECTION_RELATION",
         3 => "FILTER_RELATION",
@@ -770,8 +748,7 @@ pub fn relation_type_to_string(t: u8) -> &'static str {
 }
 
 pub fn statement_type_to_string(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         1 => "SELECT",
         2 => "INSERT",
         3 => "UPDATE",
@@ -810,8 +787,7 @@ pub fn statement_type_to_string(t: u8) -> &'static str {
 }
 
 pub fn statement_return_type_to_string(t: u8) -> &'static str {
-    match t
-    {
+    match t {
         0 => "QUERY_RESULT",
         1 => "CHANGED_ROWS",
         2 => "NOTHING",
@@ -835,9 +811,12 @@ mod tests {
         lookup: impl Fn(T) -> &'static str,
         cases: &[(T, &str)],
     ) {
-        for &(discriminant, expected) in cases
-        {
-            assert_eq!(lookup(discriminant), expected, "discriminant {discriminant:?}");
+        for &(discriminant, expected) in cases {
+            assert_eq!(
+                lookup(discriminant),
+                expected,
+                "discriminant {discriminant:?}"
+            );
         }
     }
 
@@ -872,10 +851,12 @@ mod tests {
 
     #[test]
     fn every_catalog_type_label_round_trips() {
-        for &(discriminant, label) in CATALOG_TYPE_LABELS
-        {
+        for &(discriminant, label) in CATALOG_TYPE_LABELS {
             assert_eq!(catalog_type_to_string(discriminant), label);
-            assert_eq!(catalog_type_from_string(label.as_bytes()), discriminant as i8);
+            assert_eq!(
+                catalog_type_from_string(label.as_bytes()),
+                discriminant as i8
+            );
         }
     }
 
@@ -890,8 +871,7 @@ mod tests {
 
     #[test]
     fn catalog_types_without_a_label_are_invalid() {
-        for discriminant in [0u8, 12, 24, 33, 50, 51, 52, 53, 70, 100, 255]
-        {
+        for discriminant in [0u8, 12, 24, 33, 50, 51, 52, 53, 70, 100, 255] {
             assert_eq!(catalog_type_to_string(discriminant), "INVALID");
         }
     }
@@ -1019,9 +999,12 @@ mod tests {
 
     #[test]
     fn every_date_part_alias_maps_to_its_specifier() {
-        for &(alias, expected) in DATE_PART_ALIASES
-        {
-            assert_eq!(try_date_part_specifier(alias.as_bytes()), expected, "alias {alias}");
+        for &(alias, expected) in DATE_PART_ALIASES {
+            assert_eq!(
+                try_date_part_specifier(alias.as_bytes()),
+                expected,
+                "alias {alias}"
+            );
         }
     }
 
@@ -1042,13 +1025,17 @@ mod tests {
     #[test]
     fn is_bigint_datepart_covers_the_bigint_range() {
         // DatePartSpecifier::BEGIN_DOUBLE is EPOCH = 22.
-        for discriminant in 0u8..22
-        {
-            assert!(is_bigint_datepart(discriminant), "discriminant {discriminant}");
+        for discriminant in 0u8..22 {
+            assert!(
+                is_bigint_datepart(discriminant),
+                "discriminant {discriminant}"
+            );
         }
-        for discriminant in [22u8, 23, 24, 25, 255]
-        {
-            assert!(!is_bigint_datepart(discriminant), "discriminant {discriminant}");
+        for discriminant in [22u8, 23, 24, 25, 255] {
+            assert!(
+                !is_bigint_datepart(discriminant),
+                "discriminant {discriminant}"
+            );
         }
     }
 
@@ -1222,17 +1209,31 @@ mod tests {
         );
         // 42 (BOUND_LAMBDA_REF) is deliberately absent in the C++ switch too,
         // so it answers the same unimplemented-case string there.
-        assert_eq!(expression_class_to_string(42), "ExpressionClass::!!UNIMPLEMENTED_CASE!!");
-        assert_eq!(expression_class_to_string(255), "ExpressionClass::!!UNIMPLEMENTED_CASE!!");
+        assert_eq!(
+            expression_class_to_string(42),
+            "ExpressionClass::!!UNIMPLEMENTED_CASE!!"
+        );
+        assert_eq!(
+            expression_class_to_string(255),
+            "ExpressionClass::!!UNIMPLEMENTED_CASE!!"
+        );
     }
 
     #[test]
     fn operator_to_expression_type_is_the_inverse_of_expression_type_to_operator() {
-        for &(discriminant, operator) in
-            &[(25u8, "="), (26, "!="), (27, "<"), (28, ">"), (29, "<="), (30, ">=")]
-        {
+        for &(discriminant, operator) in &[
+            (25u8, "="),
+            (26, "!="),
+            (27, "<"),
+            (28, ">"),
+            (29, "<="),
+            (30, ">="),
+        ] {
             assert_eq!(expression_type_to_operator(discriminant), operator);
-            assert_eq!(operator_to_expression_type(operator.as_bytes()), discriminant as i8);
+            assert_eq!(
+                operator_to_expression_type(operator.as_bytes()),
+                discriminant as i8
+            );
         }
         assert_eq!(operator_to_expression_type(b"=="), 25);
         assert_eq!(operator_to_expression_type(b"<>"), 26);
@@ -1250,9 +1251,12 @@ mod tests {
             (30, 27, 29),
             (37, 40, 37),
             (40, 37, 40),
-        ]
-        {
-            assert_eq!(negate_comparison_expression(input), negated, "negate {input}");
+        ] {
+            assert_eq!(
+                negate_comparison_expression(input),
+                negated,
+                "negate {input}"
+            );
             assert_eq!(flip_comparison_expression(input), flipped, "flip {input}");
         }
     }
@@ -1368,38 +1372,34 @@ mod tests {
     fn join_type_predicates_match_the_cpp() {
         // LEFT = 1, RIGHT = 2, INNER = 3, OUTER = 4, SEMI = 5, ANTI = 6,
         // MARK = 7, SINGLE = 8, RIGHT_SEMI = 9, RIGHT_ANTI = 10.
-        for &join_type in &[1u8, 4]
-        {
+        for &join_type in &[1u8, 4] {
             assert!(is_left_outer_join(join_type), "left outer {join_type}");
         }
-        for &join_type in &[0u8, 2, 3, 5, 6, 7, 8, 9, 10]
-        {
+        for &join_type in &[0u8, 2, 3, 5, 6, 7, 8, 9, 10] {
             assert!(!is_left_outer_join(join_type), "left outer {join_type}");
         }
 
-        for &join_type in &[4u8, 2]
-        {
+        for &join_type in &[4u8, 2] {
             assert!(is_right_outer_join(join_type), "right outer {join_type}");
         }
-        for &join_type in &[0u8, 1, 3, 5, 6, 7, 8, 9, 10]
-        {
+        for &join_type in &[0u8, 1, 3, 5, 6, 7, 8, 9, 10] {
             assert!(!is_right_outer_join(join_type), "right outer {join_type}");
         }
 
-        for &join_type in &[4u8, 2, 10, 9]
-        {
+        for &join_type in &[4u8, 2, 10, 9] {
             assert!(propagates_build_side(join_type), "build side {join_type}");
         }
-        for &join_type in &[0u8, 1, 3, 5, 6, 7, 8]
-        {
+        for &join_type in &[0u8, 1, 3, 5, 6, 7, 8] {
             assert!(!propagates_build_side(join_type), "build side {join_type}");
         }
 
         assert!(!has_inverse_join_type(7));
         assert!(!has_inverse_join_type(8));
-        for &join_type in &[0u8, 1, 2, 3, 4, 5, 6, 9, 10]
-        {
-            assert!(has_inverse_join_type(join_type), "inverse exists {join_type}");
+        for &join_type in &[0u8, 1, 2, 3, 4, 5, 6, 9, 10] {
+            assert!(
+                has_inverse_join_type(join_type),
+                "inverse exists {join_type}"
+            );
         }
     }
 
@@ -1724,8 +1724,7 @@ mod tests {
     fn the_optimizer_table_is_self_consistent() {
         let mut names = HashSet::new();
         let mut discriminants = HashSet::new();
-        for &(name, discriminant) in OPTIMIZER_TABLE
-        {
+        for &(name, discriminant) in OPTIMIZER_TABLE {
             assert!(!name.is_empty());
             assert!(names.insert(name), "duplicate optimizer name {name}");
             assert!(
@@ -1739,10 +1738,12 @@ mod tests {
 
     #[test]
     fn optimizer_lookups_are_inverses() {
-        for &(name, discriminant) in OPTIMIZER_TABLE
-        {
+        for &(name, discriminant) in OPTIMIZER_TABLE {
             assert_eq!(optimizer_name_for_discriminant(discriminant), name);
-            assert_eq!(optimizer_discriminant_of_name(name.as_bytes()), discriminant as i64);
+            assert_eq!(
+                optimizer_discriminant_of_name(name.as_bytes()),
+                discriminant as i64
+            );
         }
         assert_eq!(optimizer_name_for_discriminant(0), "");
         assert_eq!(optimizer_name_for_discriminant(9999), "");
@@ -1752,8 +1753,7 @@ mod tests {
 
     #[test]
     fn optimizer_names_are_addressable_by_index() {
-        for (index, &(name, _)) in OPTIMIZER_TABLE.iter().enumerate()
-        {
+        for (index, &(name, _)) in OPTIMIZER_TABLE.iter().enumerate() {
             assert_eq!(optimizer_name(index), name);
         }
         assert_eq!(optimizer_name(OPTIMIZER_TABLE.len()), "");

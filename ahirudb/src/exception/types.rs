@@ -65,8 +65,7 @@ impl ExceptionType {
     /// The type with the given discriminant, or `None` when there is no such
     /// type.
     pub(crate) fn from_u8(value: u8) -> Option<Self> {
-        Some(match value
-        {
+        Some(match value {
             0 => Self::INVALID,
             1 => Self::OUT_OF_RANGE,
             2 => Self::CONVERSION,
@@ -112,14 +111,13 @@ impl ExceptionType {
             42 => Self::INVALID_CONFIGURATION,
             43 => Self::DATA_CORRUPTION,
             44 => Self::RESOURCE_IN_USE,
-            value =>
-            {
+            value => {
                 debug_assert!(
                     value as usize >= Self::COUNT,
                     "the match above covers every variant"
                 );
                 return None;
-            },
+            }
         })
     }
 }
@@ -166,14 +164,23 @@ const EXCEPTION_MAP: &[(ExceptionType, &str)] = &[
     (ExceptionType::INVALID_INPUT, "Invalid Input"),
     (ExceptionType::OUT_OF_MEMORY, "Out of Memory"),
     (ExceptionType::PERMISSION, "Permission"),
-    (ExceptionType::PARAMETER_NOT_RESOLVED, "Parameter Not Resolved"),
-    (ExceptionType::PARAMETER_NOT_ALLOWED, "Parameter Not Allowed"),
+    (
+        ExceptionType::PARAMETER_NOT_RESOLVED,
+        "Parameter Not Resolved",
+    ),
+    (
+        ExceptionType::PARAMETER_NOT_ALLOWED,
+        "Parameter Not Allowed",
+    ),
     (ExceptionType::DEPENDENCY, "Dependency"),
     (ExceptionType::MISSING_EXTENSION, "Missing Extension"),
     (ExceptionType::HTTP, "HTTP"),
     (ExceptionType::AUTOLOAD, "Extension Autoloading"),
     (ExceptionType::SEQUENCE, "Sequence"),
-    (ExceptionType::INVALID_CONFIGURATION, "Invalid Configuration"),
+    (
+        ExceptionType::INVALID_CONFIGURATION,
+        "Invalid Configuration",
+    ),
     (ExceptionType::DATA_CORRUPTION, "Data Corruption"),
     (ExceptionType::RESOURCE_IN_USE, "Resource In Use"),
 ];
@@ -181,9 +188,7 @@ const EXCEPTION_MAP: &[(ExceptionType, &str)] = &[
 /// The name an exception type is reported under, or `"Unknown"` when it has
 /// none.
 pub(crate) fn exception_type_to_string(exception_type: u8) -> &'static str {
-    let Some(exception_type) = ExceptionType::from_u8(exception_type)
-    else
-    {
+    let Some(exception_type) = ExceptionType::from_u8(exception_type) else {
         return "Unknown";
     };
     EXCEPTION_MAP
@@ -220,11 +225,20 @@ impl QueryLocationLayout {
 
     /// Only the tests build one of these; C++ hands them over field by field.
     #[cfg(test)]
-    pub(crate) fn new(offset: u32, length: u32) -> Self { Self { offset, length } }
+    pub(crate) fn new(offset: u32, length: u32) -> Self {
+        Self { offset, length }
+    }
 
-    pub(crate) fn invalid() -> Self { Self { offset: Self::INVALID_OFFSET, length: 0 } }
+    pub(crate) fn invalid() -> Self {
+        Self {
+            offset: Self::INVALID_OFFSET,
+            length: 0,
+        }
+    }
 
-    pub(crate) fn is_valid(&self) -> bool { self.offset != Self::INVALID_OFFSET }
+    pub(crate) fn is_valid(&self) -> bool {
+        self.offset != Self::INVALID_OFFSET
+    }
 }
 
 /// A borrowed run of bytes. DuckDB strings are not necessarily valid UTF-8, so
@@ -240,14 +254,18 @@ impl ByteSlice {
     /// Only the tests build one of these; C++ fills the fields in directly,
     /// which is the whole point of the type being a plain aggregate.
     #[cfg(test)]
-    pub(crate) fn new(value: &[u8]) -> Self { Self { ptr: value.as_ptr(), len: value.len() } }
+    pub(crate) fn new(value: &[u8]) -> Self {
+        Self {
+            ptr: value.as_ptr(),
+            len: value.len(),
+        }
+    }
 
     /// Borrows a C++ string. The bytes stay alive as long as the C++ string
     /// they came from does, which for every caller is the length of the FFI
     /// call.
     pub(crate) fn as_slice(&self) -> &[u8] {
-        if self.len == 0
-        {
+        if self.len == 0 {
             return &[];
         }
         // SAFETY: a `ByteSlice` is only ever built - on either side of the
@@ -300,7 +318,10 @@ impl OwnedBytes {
         let len = value.len();
         #[cfg(test)]
         LIVE_PAYLOADS.with(|live| live.set(live.get() + 1));
-        Self { ptr: Box::into_raw(value) as *mut u8, len }
+        Self {
+            ptr: Box::into_raw(value) as *mut u8,
+            len,
+        }
     }
 
     /// The bytes. They stay alive as long as the payload this field belongs to,
@@ -308,8 +329,7 @@ impl OwnedBytes {
     /// read them: C++ reads `ptr` and `len` off the struct.
     #[cfg(test)]
     pub(crate) fn as_slice(&self) -> &[u8] {
-        if self.len == 0
-        {
+        if self.len == 0 {
             return &[];
         }
         // SAFETY: an `OwnedBytes` is only ever built by `from_vec`, which hands
@@ -331,7 +351,11 @@ impl OwnedBytes {
         // `Vec::from` takes that box back without reallocating, so the
         // pointer and the layout the allocator is asked to free are the
         // ones it handed out.
-        unsafe { Vec::from(Box::from_raw(std::ptr::slice_from_raw_parts_mut(self.ptr, self.len))) }
+        unsafe {
+            Vec::from(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                self.ptr, self.len,
+            )))
+        }
     }
 }
 
@@ -341,7 +365,9 @@ impl OwnedBytes {
 /// later, in a query. It is per thread because a payload is built and released
 /// by the thread that calls into Rust.
 #[cfg(test)]
-pub(crate) fn live_payloads() -> usize { LIVE_PAYLOADS.with(|live| live.get()) }
+pub(crate) fn live_payloads() -> usize {
+    LIVE_PAYLOADS.with(|live| live.get())
+}
 
 #[cfg(test)]
 thread_local! {
@@ -386,8 +412,7 @@ pub(crate) fn free_payload(payload: ExceptionPayload) {
     // for a length of zero.
     unsafe {
         drop(payload.message.into_vec());
-        for entry in std::slice::from_raw_parts_mut(payload.entries, payload.entry_count)
-        {
+        for entry in std::slice::from_raw_parts_mut(payload.entries, payload.entry_count) {
             drop(std::ptr::read(&entry.key).into_vec());
             drop(std::ptr::read(&entry.value).into_vec());
         }
@@ -404,8 +429,7 @@ mod tests {
 
     #[test]
     fn exception_type_discriminants_round_trip() {
-        for i in 0..ExceptionType::COUNT as u8
-        {
+        for i in 0..ExceptionType::COUNT as u8 {
             assert_eq!(Some(i), ExceptionType::from_u8(i).map(|t| t as u8));
         }
         assert_eq!(None, ExceptionType::from_u8(ExceptionType::COUNT as u8));
@@ -440,8 +464,7 @@ mod tests {
 
     #[test]
     fn names_round_trip_back_to_types() {
-        for (exception_type, name) in EXCEPTION_MAP
-        {
+        for (exception_type, name) in EXCEPTION_MAP {
             assert_eq!(
                 Some(*exception_type),
                 string_to_exception_type(name.as_bytes()),
@@ -469,13 +492,15 @@ mod tests {
 
     #[test]
     fn every_type_but_network_has_a_name() {
-        for i in 0..ExceptionType::COUNT as u8
-        {
-            if i == ExceptionType::NETWORK as u8
-            {
+        for i in 0..ExceptionType::COUNT as u8 {
+            if i == ExceptionType::NETWORK as u8 {
                 continue;
             }
-            assert_ne!("Unknown", exception_type_to_string(i), "type {i} lost its name");
+            assert_ne!(
+                "Unknown",
+                exception_type_to_string(i),
+                "type {i} lost its name"
+            );
         }
     }
 

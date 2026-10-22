@@ -11,18 +11,11 @@ use std::fmt;
 
 use crate::serializer::{
     MESSAGE_TERMINATOR_FIELD_ID,
-    encoding_util::{
-        decode_signed_leb128,
-        decode_unsigned_leb128,
-    },
-    field_id_t,
-    hugeint_t,
-    idx_t,
+    encoding_util::{decode_signed_leb128, decode_unsigned_leb128},
+    field_id_t, hugeint_t, idx_t,
     read_stream::ReadStream,
     serialization_data::SerializationData,
-    string,
-    string_t,
-    uhugeint_t,
+    string, string_t, uhugeint_t,
 };
 
 /// Rust trait equivalent of the C++ `Deserializer` class.
@@ -211,15 +204,18 @@ impl<'a> BinaryDeserializer<'a> {
     }
 
     /// Get the nesting level.
-    pub fn nesting_level(&self) -> idx_t { self.nesting_level }
+    pub fn nesting_level(&self) -> idx_t {
+        self.nesting_level
+    }
 
     /// Set the nesting level.
-    pub fn set_nesting_level(&mut self, level: idx_t) { self.nesting_level = level; }
+    pub fn set_nesting_level(&mut self, level: idx_t) {
+        self.nesting_level = level;
+    }
 
     /// Peek at the next field id without consuming it.
     pub fn peek_field(&mut self) -> field_id_t {
-        if !self.has_buffered_field
-        {
+        if !self.has_buffered_field {
             self.buffered_field = self.stream.read_u16();
             self.has_buffered_field = true;
         }
@@ -228,21 +224,17 @@ impl<'a> BinaryDeserializer<'a> {
 
     /// Consume the next field id.
     fn consume_field(&mut self) {
-        if !self.has_buffered_field
-        {
+        if !self.has_buffered_field {
             self.buffered_field = self.stream.read_u16();
             self.has_buffered_field = true;
-        }
-        else
-        {
+        } else {
             self.has_buffered_field = false;
         }
     }
 
     /// Read the next field id (using the buffered field if one is pending).
     fn next_field(&mut self) -> field_id_t {
-        if self.has_buffered_field
-        {
+        if self.has_buffered_field {
             self.has_buffered_field = false;
             return self.buffered_field;
         }
@@ -254,18 +246,15 @@ impl<'a> BinaryDeserializer<'a> {
         let mut buffer = [0u8; 10];
         let mut count = 0usize;
         let mut shift = 0u32;
-        loop
-        {
-            if shift >= bits
-            {
+        loop {
+            if shift >= bits {
                 panic!("Failed to decode LEB128 integer: data may be corrupt");
             }
             let byte = self.stream.read_u8();
             buffer[count] = byte;
             count += 1;
             shift += 7;
-            if byte & 0x80 == 0
-            {
+            if byte & 0x80 == 0 {
                 break;
             }
         }
@@ -291,9 +280,11 @@ impl<'a> BinaryDeserializer<'a> {
     /// Read `count` bytes of property data into the caller-provided buffer.
     fn read_data_into(&mut self, value: *mut u8, count: idx_t) {
         let data = self.read_data_ptr(count);
-        if count > 0
-        {
-            debug_assert!(!value.is_null(), "read_data_into requires a non-null buffer");
+        if count > 0 {
+            debug_assert!(
+                !value.is_null(),
+                "read_data_into requires a non-null buffer"
+            );
             unsafe {
                 // SAFETY: `value` points to `count` writable bytes (caller
                 // contract), and `data` contains exactly
@@ -314,29 +305,53 @@ impl fmt::Debug for BinaryDeserializer<'_> {
 }
 
 impl<'a> Deserializer for BinaryDeserializer<'a> {
-    fn get_serialization_data(&self) -> &SerializationData { &self.data }
+    fn get_serialization_data(&self) -> &SerializationData {
+        &self.data
+    }
 
-    fn set_serialization_data(&mut self, data: &SerializationData) { self.data = data.clone(); }
+    fn set_serialization_data(&mut self, data: &SerializationData) {
+        self.data = data.clone();
+    }
 
-    fn read_bool(&mut self) -> bool { self.stream.read_u8() != 0 }
+    fn read_bool(&mut self) -> bool {
+        self.stream.read_u8() != 0
+    }
 
-    fn read_char(&mut self) -> char { self.stream.read_u8() as char }
+    fn read_char(&mut self) -> char {
+        self.stream.read_u8() as char
+    }
 
-    fn read_int8(&mut self) -> i8 { self.read_varint_signed(8) as i8 }
+    fn read_int8(&mut self) -> i8 {
+        self.read_varint_signed(8) as i8
+    }
 
-    fn read_uint8(&mut self) -> u8 { self.read_varint_unsigned(8) as u8 }
+    fn read_uint8(&mut self) -> u8 {
+        self.read_varint_unsigned(8) as u8
+    }
 
-    fn read_int16(&mut self) -> i16 { self.read_varint_signed(16) as i16 }
+    fn read_int16(&mut self) -> i16 {
+        self.read_varint_signed(16) as i16
+    }
 
-    fn read_uint16(&mut self) -> u16 { self.read_varint_unsigned(16) as u16 }
+    fn read_uint16(&mut self) -> u16 {
+        self.read_varint_unsigned(16) as u16
+    }
 
-    fn read_int32(&mut self) -> i32 { self.read_varint_signed(32) as i32 }
+    fn read_int32(&mut self) -> i32 {
+        self.read_varint_signed(32) as i32
+    }
 
-    fn read_uint32(&mut self) -> u32 { self.read_varint_unsigned(32) as u32 }
+    fn read_uint32(&mut self) -> u32 {
+        self.read_varint_unsigned(32) as u32
+    }
 
-    fn read_int64(&mut self) -> i64 { self.read_varint_signed(64) }
+    fn read_int64(&mut self) -> i64 {
+        self.read_varint_signed(64)
+    }
 
-    fn read_uint64(&mut self) -> u64 { self.read_varint_unsigned(64) }
+    fn read_uint64(&mut self) -> u64 {
+        self.read_varint_unsigned(64)
+    }
 
     fn read_hugeint(&mut self) -> hugeint_t {
         let upper = self.read_varint_signed(64);
@@ -350,48 +365,67 @@ impl<'a> Deserializer for BinaryDeserializer<'a> {
         uhugeint_t { upper, lower }
     }
 
-    fn read_float(&mut self) -> f32 { self.stream.read_f32() }
+    fn read_float(&mut self) -> f32 {
+        self.stream.read_f32()
+    }
 
-    fn read_double(&mut self) -> f64 { self.stream.read_f64() }
+    fn read_double(&mut self) -> f64 {
+        self.stream.read_f64()
+    }
 
     fn read_string_t(&mut self) -> string_t {
         let len = self.read_varint_unsigned(32);
         let data = self.stream.read_bytes(len);
-        string_t { size: data.len(), data }
+        string_t {
+            size: data.len(),
+            data,
+        }
     }
 
     fn read_string(&mut self) -> string {
         let string_t = self.read_string_t();
-        string { data: String::from_utf8_lossy(string_t.get_data()).into_owned() }
+        string {
+            data: String::from_utf8_lossy(string_t.get_data()).into_owned(),
+        }
     }
 
     fn read_data_ptr(&mut self, count: idx_t) -> Vec<u8> {
         let len = self.read_varint_unsigned(64);
-        if len != count
-        {
-            panic!("Tried to read blob of {} size, but only {} elements are available", count, len);
+        if len != count {
+            panic!(
+                "Tried to read blob of {} size, but only {} elements are available",
+                count, len
+            );
         }
         self.stream.read_bytes(len)
     }
 
-    fn on_object_begin(&mut self) { self.nesting_level += 1; }
+    fn on_object_begin(&mut self) {
+        self.nesting_level += 1;
+    }
 
     fn on_object_end(&mut self) {
         let field = self.next_field();
-        if field != MESSAGE_TERMINATOR_FIELD_ID
-        {
-            panic!("Failed to deserialize: expected end of object, but found field id: {}", field);
+        if field != MESSAGE_TERMINATOR_FIELD_ID {
+            panic!(
+                "Failed to deserialize: expected end of object, but found field id: {}",
+                field
+            );
         }
         self.nesting_level -= 1;
     }
 
-    fn on_list_begin(&mut self) -> idx_t { self.read_varint_unsigned(64) }
+    fn on_list_begin(&mut self) -> idx_t {
+        self.read_varint_unsigned(64)
+    }
 
     fn on_list_end(&mut self) {
         // Nothing needed for binary format
     }
 
-    fn on_nullable_begin(&mut self) -> bool { self.read_bool() }
+    fn on_nullable_begin(&mut self) -> bool {
+        self.read_bool()
+    }
 
     fn on_nullable_end(&mut self) {
         // Nothing needed for binary format
@@ -399,8 +433,7 @@ impl<'a> Deserializer for BinaryDeserializer<'a> {
 
     fn on_property_begin(&mut self, field_id: field_id_t, _tag: *const u8) -> bool {
         let field = self.next_field();
-        if field != field_id
-        {
+        if field != field_id {
             panic!(
                 "Failed to deserialize: field id mismatch, expected: {}, got: {}",
                 field_id, field
@@ -415,8 +448,7 @@ impl<'a> Deserializer for BinaryDeserializer<'a> {
 
     fn on_optional_property_begin(&mut self, field_id: field_id_t, _tag: *const u8) -> bool {
         let present = self.peek_field() == field_id;
-        if present
-        {
+        if present {
             self.consume_field();
         }
         present
@@ -450,10 +482,8 @@ impl<'a> Deserializer for BinaryDeserializer<'a> {
         count: idx_t,
         default_value: *const u8,
     ) -> bool {
-        if !self.on_optional_property_begin(field_id, tag)
-        {
-            if count > 0
-            {
+        if !self.on_optional_property_begin(field_id, tag) {
+            if count > 0 {
                 debug_assert!(
                     !value.is_null() && !default_value.is_null(),
                     "null buffer with non-zero count"
@@ -494,8 +524,7 @@ impl<'a> Deserializer for BinaryDeserializer<'a> {
     ) {
         self.on_property_begin(field_id, tag);
         let count = self.on_list_begin();
-        for i in 0..count
-        {
+        for i in 0..count {
             f(self, i);
         }
         self.on_list_end();
@@ -512,55 +541,81 @@ pub trait DeserializeInDeserializer: Sized {
 // Implement DeserializeInDeserializer for primitive types
 
 impl DeserializeInDeserializer for bool {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_bool() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_bool()
+    }
 }
 
 impl DeserializeInDeserializer for i8 {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_int8() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_int8()
+    }
 }
 
 impl DeserializeInDeserializer for u8 {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_uint8() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_uint8()
+    }
 }
 
 impl DeserializeInDeserializer for i16 {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_int16() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_int16()
+    }
 }
 
 impl DeserializeInDeserializer for u16 {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_uint16() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_uint16()
+    }
 }
 
 impl DeserializeInDeserializer for i32 {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_int32() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_int32()
+    }
 }
 
 impl DeserializeInDeserializer for u32 {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_uint32() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_uint32()
+    }
 }
 
 impl DeserializeInDeserializer for i64 {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_int64() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_int64()
+    }
 }
 
 impl DeserializeInDeserializer for u64 {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_uint64() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_uint64()
+    }
 }
 
 impl DeserializeInDeserializer for f32 {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_float() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_float()
+    }
 }
 
 impl DeserializeInDeserializer for f64 {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_double() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_double()
+    }
 }
 
 impl DeserializeInDeserializer for string_t {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_string_t() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_string_t()
+    }
 }
 
 impl DeserializeInDeserializer for string {
-    fn deserialize(deserializer: &mut dyn Deserializer) -> Self { deserializer.read_string() }
+    fn deserialize(deserializer: &mut dyn Deserializer) -> Self {
+        deserializer.read_string()
+    }
 }
 
 #[cfg(test)]
@@ -568,12 +623,7 @@ mod tests {
     use super::*;
     use crate::serializer::{
         memory_stream::MemoryStream,
-        serializer::{
-            BinarySerializer,
-            SerializationOptions,
-            SerializeInSerializer,
-            Serializer,
-        },
+        serializer::{BinarySerializer, SerializationOptions, SerializeInSerializer, Serializer},
         write_stream::WriteStream,
     };
 
@@ -783,12 +833,12 @@ mod tests {
     fn test_varint_byte_format() {
         // LEB128 encodings must match the C++ EncodingUtil byte-for-byte
         assert_eq!(bytes_of(|s| s.write_uint32(0)), [0x00]);
-        assert_eq!(bytes_of(|s| s.write_uint32(127)), [0x7F]);
+        assert_eq!(bytes_of(|s| s.write_uint32(127)), [0x7f]);
         assert_eq!(bytes_of(|s| s.write_uint32(128)), [0x80, 0x01]);
-        assert_eq!(bytes_of(|s| s.write_int32(-1)), [0x7F]);
+        assert_eq!(bytes_of(|s| s.write_int32(-1)), [0x7f]);
         assert_eq!(
             bytes_of(|s| s.write_int64(i64::MIN)),
-            [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7F]
+            [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7f]
         );
     }
 
@@ -815,12 +865,26 @@ mod tests {
     fn test_string_roundtrip() {
         assert_roundtrip(
             |s| {
-                s.write_string(string { data: "hello world".to_string() });
-                s.write_string(string { data: String::new() });
+                s.write_string(string {
+                    data: "hello world".to_string(),
+                });
+                s.write_string(string {
+                    data: String::new(),
+                });
             },
             |d| {
-                assert_eq!(d.read_string(), string { data: "hello world".to_string() });
-                assert_eq!(d.read_string(), string { data: String::new() });
+                assert_eq!(
+                    d.read_string(),
+                    string {
+                        data: "hello world".to_string()
+                    }
+                );
+                assert_eq!(
+                    d.read_string(),
+                    string {
+                        data: String::new()
+                    }
+                );
             },
         );
     }
@@ -829,13 +893,31 @@ mod tests {
     fn test_string_t_roundtrip() {
         assert_roundtrip(
             |s| {
-                s.write_string_t(string_t { data: b"abc123".to_vec(), size: 3 });
-                s.write_string_t(string_t { data: Vec::new(), size: 0 });
+                s.write_string_t(string_t {
+                    data: b"abc123".to_vec(),
+                    size: 3,
+                });
+                s.write_string_t(string_t {
+                    data: Vec::new(),
+                    size: 0,
+                });
             },
             |d| {
                 // only the first `size` bytes of a string_t are written
-                assert_eq!(d.read_string_t(), string_t { data: b"abc".to_vec(), size: 3 });
-                assert_eq!(d.read_string_t(), string_t { data: Vec::new(), size: 0 });
+                assert_eq!(
+                    d.read_string_t(),
+                    string_t {
+                        data: b"abc".to_vec(),
+                        size: 3
+                    }
+                );
+                assert_eq!(
+                    d.read_string_t(),
+                    string_t {
+                        data: Vec::new(),
+                        size: 0
+                    }
+                );
             },
         );
     }
@@ -844,12 +926,30 @@ mod tests {
     fn test_hugeint_roundtrip() {
         assert_roundtrip(
             |s| {
-                s.write_hugeint(hugeint_t { upper: -12345, lower: u64::MAX });
-                s.write_hugeint(hugeint_t { upper: i64::MIN, lower: 0 });
+                s.write_hugeint(hugeint_t {
+                    upper: -12345,
+                    lower: u64::MAX,
+                });
+                s.write_hugeint(hugeint_t {
+                    upper: i64::MIN,
+                    lower: 0,
+                });
             },
             |d| {
-                assert_eq!(d.read_hugeint(), hugeint_t { upper: -12345, lower: u64::MAX });
-                assert_eq!(d.read_hugeint(), hugeint_t { upper: i64::MIN, lower: 0 });
+                assert_eq!(
+                    d.read_hugeint(),
+                    hugeint_t {
+                        upper: -12345,
+                        lower: u64::MAX
+                    }
+                );
+                assert_eq!(
+                    d.read_hugeint(),
+                    hugeint_t {
+                        upper: i64::MIN,
+                        lower: 0
+                    }
+                );
             },
         );
     }
@@ -858,11 +958,20 @@ mod tests {
     fn test_uhugeint_roundtrip() {
         assert_roundtrip(
             |s| {
-                s.write_uhugeint(uhugeint_t { upper: u64::MAX, lower: 0xDEADBEEF });
+                s.write_uhugeint(uhugeint_t {
+                    upper: u64::MAX,
+                    lower: 0xdeadbeef,
+                });
                 s.write_uhugeint(uhugeint_t { upper: 0, lower: 1 });
             },
             |d| {
-                assert_eq!(d.read_uhugeint(), uhugeint_t { upper: u64::MAX, lower: 0xDEADBEEF });
+                assert_eq!(
+                    d.read_uhugeint(),
+                    uhugeint_t {
+                        upper: u64::MAX,
+                        lower: 0xdeadbeef
+                    }
+                );
                 assert_eq!(d.read_uhugeint(), uhugeint_t { upper: 0, lower: 1 });
             },
         );
@@ -870,7 +979,7 @@ mod tests {
 
     #[test]
     fn test_object_roundtrip() {
-        assert_eq!(bytes_of(|s| s.serialize(&42i64)), [0x2A, 0xFF, 0xFF]);
+        assert_eq!(bytes_of(|s| s.serialize(&42i64)), [0x2a, 0xff, 0xff]);
         let mut stream = serialize(|s| s.serialize(&(-7i64)));
         stream.rewind();
         let mut d = BinaryDeserializer::new(&mut stream);
@@ -955,9 +1064,12 @@ mod tests {
         let point = Point { x: -3, y: 7 };
         assert_eq!(
             bytes_of(|s| s.serialize(&point)),
-            [0x00, 0x00, 0x7D, 0x01, 0x00, 0x07, 0xFF, 0xFF]
+            [0x00, 0x00, 0x7d, 0x01, 0x00, 0x07, 0xff, 0xff]
         );
-        assert_roundtrip(|s| s.serialize(&point), |d| assert_eq!(d.deserialize::<Point>(), point));
+        assert_roundtrip(
+            |s| s.serialize(&point),
+            |d| assert_eq!(d.deserialize::<Point>(), point),
+        );
     }
 
     #[test]
@@ -970,14 +1082,16 @@ mod tests {
                 s.write_object_dyn(7, b"tag".as_ptr(), &mut |s| s.write_int64(-1));
                 s.on_object_end();
             }),
-            [0x07, 0x00, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF]
+            [0x07, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff]
         );
     }
 
     #[test]
     fn test_byte_format_string() {
         assert_eq!(
-            bytes_of(|s| s.write_string(string { data: "hello".to_string() })),
+            bytes_of(|s| s.write_string(string {
+                data: "hello".to_string()
+            })),
             [0x05, b'h', b'e', b'l', b'l', b'o']
         );
     }
@@ -1021,7 +1135,10 @@ mod tests {
             s.write_property(1, b"tag".as_ptr(), data.as_ptr(), 3);
             s.on_object_end();
         });
-        assert_eq!(stream.get_data(), [0x01, 0x00, 0x03, 0x0A, 0x14, 0x1E, 0xFF, 0xFF]);
+        assert_eq!(
+            stream.get_data(),
+            [0x01, 0x00, 0x03, 0x0a, 0x14, 0x1e, 0xff, 0xff]
+        );
         stream.rewind();
         let mut d = BinaryDeserializer::new(&mut stream);
         let mut buf = [0u8; 3];
@@ -1038,7 +1155,10 @@ mod tests {
             s.write_property_with_default(2, b"tag".as_ptr(), value.as_ptr(), 2, default.as_ptr());
             s.on_object_end();
         });
-        assert_eq!(stream.get_data(), [0x02, 0x00, 0x02, 0x01, 0x02, 0xFF, 0xFF]);
+        assert_eq!(
+            stream.get_data(),
+            [0x02, 0x00, 0x02, 0x01, 0x02, 0xff, 0xff]
+        );
         stream.rewind();
         let mut d = BinaryDeserializer::new(&mut stream);
         let mut buf = [0u8; 2];
@@ -1065,7 +1185,10 @@ mod tests {
             s.on_object_end();
         });
         // the default-equal value was skipped, only field 3 is on the wire
-        assert_eq!(stream.get_data(), [0x03, 0x00, 0x02, 0x07, 0x07, 0xFF, 0xFF]);
+        assert_eq!(
+            stream.get_data(),
+            [0x03, 0x00, 0x02, 0x07, 0x07, 0xff, 0xff]
+        );
         stream.rewind();
         let mut d = BinaryDeserializer::new(&mut stream);
         let mut buf = [0u8; 2];
@@ -1123,7 +1246,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "expected end of object")]
     fn test_object_end_terminator_mismatch_panics() {
-        let data = [0x2Au8, 0x01, 0x00];
+        let data = [0x2au8, 0x01, 0x00];
         let mut stream = MemoryStream::new();
         stream.write_data(data.as_ptr(), data.len() as idx_t);
         stream.rewind();

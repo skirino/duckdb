@@ -32,15 +32,9 @@
 //! `duckdb_logs` binding decides which tables to scan from the `CanScan` below
 //! instead.
 
-use std::ffi::{
-    c_char,
-    c_void,
-};
+use std::ffi::{c_char, c_void};
 
-use crate::logging::logging::{
-    LogLevel,
-    RegisteredLoggingContextLayout,
-};
+use crate::logging::logging::{LogLevel, RegisteredLoggingContextLayout};
 
 /// Logging storage can store entries normalized or denormalized. This enum
 /// describes what a single table/file/etc contains.
@@ -104,7 +98,13 @@ impl CLogStorage {
         truncate: TruncateFn,
         can_scan: CanScanFn,
     ) -> Self {
-        Self { ctx, write_log_entry, flush_all, truncate, can_scan }
+        Self {
+            ctx,
+            write_log_entry,
+            flush_all,
+            truncate,
+            can_scan,
+        }
     }
 
     pub fn write_log_entry(
@@ -127,9 +127,13 @@ impl CLogStorage {
         );
     }
 
-    pub fn flush_all(&self) { (self.flush_all)(self.ctx); }
+    pub fn flush_all(&self) {
+        (self.flush_all)(self.ctx);
+    }
 
-    pub fn truncate(&self) { (self.truncate)(self.ctx); }
+    pub fn truncate(&self) {
+        (self.truncate)(self.ctx);
+    }
 
     pub fn can_scan(&self, table: LoggingTargetTable) -> bool {
         (self.can_scan)(self.ctx, table as u8)

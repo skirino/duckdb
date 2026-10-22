@@ -18,22 +18,20 @@ pub enum LogLevel {
 
 impl From<u8> for LogLevel {
     fn from(value: u8) -> Self {
-        match value
-        {
+        match value {
             10 => LogLevel::LOG_TRACE,
             20 => LogLevel::LOG_DEBUG,
             30 => LogLevel::LOG_INFO,
             40 => LogLevel::LOG_WARNING,
             50 => LogLevel::LOG_ERROR,
             60 => LogLevel::LOG_FATAL,
-            _ =>
-            {
+            _ => {
                 // Every value comes from a C++ `LogLevel`, which has no other
                 // discriminants. A byte that is not one of them
                 // would silently become `LOG_INFO`
                 debug_assert!(false, "unknown log level discriminant {value}");
                 LogLevel::LOG_INFO
-            },
+            }
         }
     }
 }
@@ -48,19 +46,17 @@ pub enum LogMode {
 
 impl From<u8> for LogMode {
     fn from(value: u8) -> Self {
-        match value
-        {
+        match value {
             0 => LogMode::LEVEL_ONLY,
             1 => LogMode::DISABLE_SELECTED,
             2 => LogMode::ENABLE_SELECTED,
-            _ =>
-            {
+            _ => {
                 // A `LogMode` only filters by level, which lets every log type
                 // through - the wrong way round for a
                 // corrupt byte to end up as
                 debug_assert!(false, "unknown log mode discriminant {value}");
                 LogMode::LEVEL_ONLY
-            },
+            }
         }
     }
 }
@@ -192,12 +188,10 @@ pub struct LogFilter {
 /// replaced.
 impl LogFilter {
     pub fn should_log(&self, log_type: &[u8], log_level: LogLevel) -> bool {
-        if !self.enabled
-        {
+        if !self.enabled {
             return false;
         }
-        if self.level > log_level
-        {
+        if self.level > log_level {
             return false;
         }
         // Binary search over the sorted names, without allocating a `String`
@@ -207,12 +201,10 @@ impl LogFilter {
                 .binary_search_by(|name| name.as_bytes().cmp(log_type))
                 .is_ok()
         };
-        if self.mode == LogMode::ENABLE_SELECTED
-        {
+        if self.mode == LogMode::ENABLE_SELECTED {
             return contains(&self.enabled_log_types);
         }
-        if self.mode == LogMode::DISABLE_SELECTED
-        {
+        if self.mode == LogMode::DISABLE_SELECTED {
             return !contains(&self.disabled_log_types);
         }
         true
@@ -273,12 +265,8 @@ pub fn log_config_snapshot(
 /// Get current timestamp in microseconds since epoch, matching DuckDB's
 /// `timestamp_t`.
 pub fn current_timestamp() -> i64 {
-    use std::time::{
-        SystemTime,
-        UNIX_EPOCH,
-    };
-    match SystemTime::now().duration_since(UNIX_EPOCH)
-    {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(since_epoch) => i64::try_from(since_epoch.as_micros()).unwrap_or(i64::MAX),
         // A clock that sits before 1970 is negative, not zero
         Err(before_epoch) => i64::try_from(before_epoch.duration().as_micros())
@@ -293,7 +281,9 @@ pub fn current_timestamp() -> i64 {
 /// Log messages are not guaranteed to be valid UTF-8 (they can carry arbitrary
 /// bytes out of files, out of error strings or in from the C API), while `&str`
 /// is, so the bytes have to be sanitized before they cross the FFI boundary.
-pub fn utf8_lossy(value: &[u8]) -> String { String::from_utf8_lossy(value).into_owned() }
+pub fn utf8_lossy(value: &[u8]) -> String {
+    String::from_utf8_lossy(value).into_owned()
+}
 
 /// Layout-compatible mirror of the C++ `duckdb::RegisteredLoggingContext`, used
 /// to hand a registered context back to the C++ log storage. The `has_*` flags
@@ -366,8 +356,11 @@ mod tests {
     /// `HEAD`'s `ThreadSafeLogger::ShouldLog` did not have it.
     #[test]
     fn a_disabled_filter_rejects_every_log_call() {
-        for mode in [LogMode::LEVEL_ONLY, LogMode::ENABLE_SELECTED, LogMode::DISABLE_SELECTED]
-        {
+        for mode in [
+            LogMode::LEVEL_ONLY,
+            LogMode::ENABLE_SELECTED,
+            LogMode::DISABLE_SELECTED,
+        ] {
             let filter = LogFilter::from(&log_config_snapshot(
                 false,
                 mode as u8,
@@ -376,8 +369,7 @@ mod tests {
                 &["FileSystem"],
                 &[],
             ));
-            for level in [LogLevel::LOG_TRACE, LogLevel::LOG_INFO, LogLevel::LOG_FATAL]
-            {
+            for level in [LogLevel::LOG_TRACE, LogLevel::LOG_INFO, LogLevel::LOG_FATAL] {
                 assert!(!filter.should_log(b"FileSystem", level));
                 assert!(!filter.should_log(b"QueryLog", level));
             }

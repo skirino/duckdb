@@ -11,18 +11,10 @@
 //! Panics raised by the Rust side are caught here and stored in a thread-local
 //! slot, so the C++ shim can rethrow them as `SerializationException`.
 
-use std::panic::{
-    AssertUnwindSafe,
-    catch_unwind,
-};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::serializer::{
-    BinaryDeserializer,
-    BinarySerializer,
-    Deserializer,
-    SerializationOptions,
-    Serializer,
-    idx_t,
+    BinaryDeserializer, BinarySerializer, Deserializer, SerializationOptions, Serializer, idx_t,
 };
 
 // --- thread-local pending error slot --------------------------------------
@@ -39,21 +31,18 @@ fn set_pending_error(msg: String) {
 }
 
 fn extract_panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
-    if let Some(s) = payload.downcast_ref::<&str>()
-    {
+    if let Some(s) = payload.downcast_ref::<&str>() {
         (*s).to_string()
-    }
-    else if let Some(s) = payload.downcast_ref::<String>()
-    {
+    } else if let Some(s) = payload.downcast_ref::<String>() {
         s.clone()
-    }
-    else
-    {
+    } else {
         "Rust serializer panicked".to_string()
     }
 }
 
-pub fn has_pending_error() -> bool { PENDING_ERROR.with(|slot| slot.borrow().is_some()) }
+pub fn has_pending_error() -> bool {
+    PENDING_ERROR.with(|slot| slot.borrow().is_some())
+}
 
 pub fn pending_error_ptr() -> *const u8 {
     PENDING_ERROR.with(|slot| {
@@ -74,7 +63,9 @@ pub fn clear_pending_error() {
     });
 }
 
-pub fn last_string_ptr() -> *const u8 { CppBinaryDeserializer::last_string_ptr() }
+pub fn last_string_ptr() -> *const u8 {
+    CppBinaryDeserializer::last_string_ptr()
+}
 
 // --- callback streams ------------------------------------------------------
 
@@ -85,8 +76,7 @@ struct CallbackWriteStream {
 
 impl crate::serializer::write_stream::WriteStream for CallbackWriteStream {
     fn write_data(&mut self, buffer: *const u8, write_size: idx_t) {
-        if write_size == 0
-        {
+        if write_size == 0 {
             return;
         }
         // SAFETY: `write_fn` is a valid C function pointer provided by the
@@ -105,8 +95,7 @@ struct CallbackReadStream {
 
 impl crate::serializer::read_stream::ReadStream for CallbackReadStream {
     fn read_data(&mut self, buffer: *mut u8, read_size: idx_t) {
-        if read_size == 0
-        {
+        if read_size == 0 {
             return;
         }
         // SAFETY: `read_fn` is a valid C function pointer provided by the
@@ -126,16 +115,24 @@ pub struct CppBinarySerializer {
 
 impl CppBinarySerializer {
     pub fn new(write_ctx: usize, write_fn: usize) -> Self {
-        let stream = Box::new(CallbackWriteStream { ctx: write_ctx, write_fn });
+        let stream = Box::new(CallbackWriteStream {
+            ctx: write_ctx,
+            write_fn,
+        });
         // SAFETY: Box allocation is stable; we leak it manually and reclaim in
         // Drop. The serializer borrows this allocation for its whole lifetime.
         let stream_ptr = Box::into_raw(stream) as usize;
         let stream_ref: &'static mut CallbackWriteStream =
             unsafe { &mut *(stream_ptr as *mut CallbackWriteStream) };
-        let serializer =
-            Box::new(BinarySerializer::new(stream_ref, SerializationOptions::default()));
+        let serializer = Box::new(BinarySerializer::new(
+            stream_ref,
+            SerializationOptions::default(),
+        ));
         let serializer_ptr = Box::into_raw(serializer) as usize;
-        Self { stream_ptr, serializer_ptr }
+        Self {
+            stream_ptr,
+            serializer_ptr,
+        }
     }
 
     fn serializer(&mut self) -> &mut BinarySerializer<'static> {
@@ -149,8 +146,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.on_property_begin(field_id, tag);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -160,8 +156,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.on_property_end();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -171,8 +166,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.on_optional_property_begin(field_id, tag, present);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -182,8 +176,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.on_optional_property_end(present);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -193,8 +186,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.on_object_begin();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -204,8 +196,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.on_object_end();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -215,8 +206,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.on_list_begin(count);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -226,8 +216,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.on_list_end();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -237,8 +226,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.on_nullable_begin(present);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -248,8 +236,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.on_nullable_end();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -259,8 +246,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_null();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -270,8 +256,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_bool(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -281,8 +266,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_char(value as u8 as char);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -292,8 +276,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_int8(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -303,8 +286,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_uint8(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -314,8 +296,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_int16(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -325,8 +306,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_uint16(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -336,8 +316,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_int32(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -347,8 +326,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_uint32(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -358,8 +336,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_int64(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -369,8 +346,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_uint64(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -380,8 +356,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_hugeint(crate::serializer::hugeint_t { upper, lower });
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -391,8 +366,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_uhugeint(crate::serializer::uhugeint_t { upper, lower });
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -402,8 +376,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_float(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -413,8 +386,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_double(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -422,12 +394,9 @@ impl CppBinarySerializer {
     pub fn write_string_t(&mut self, data: *const u8, size: usize) {
         let s = self.serializer();
         let st = crate::serializer::string_t {
-            data: if size == 0
-            {
+            data: if size == 0 {
                 Vec::new()
-            }
-            else
-            {
+            } else {
                 // SAFETY: caller guarantees `data` points to `size` readable
                 // bytes.
                 unsafe { std::slice::from_raw_parts(data, size).to_vec() }
@@ -437,8 +406,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_string_t(st);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -455,8 +423,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_cstr(value);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -466,8 +433,7 @@ impl CppBinarySerializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             s.write_data_ptr(ptr, count);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -475,16 +441,16 @@ impl CppBinarySerializer {
 
 impl Drop for CppBinarySerializer {
     fn drop(&mut self) {
-        if self.serializer_ptr != 0
-        {
+        if self.serializer_ptr != 0 {
             // SAFETY: `serializer_ptr` is a live Box allocation from `new`.
             unsafe {
-                drop(Box::from_raw(self.serializer_ptr as *mut BinarySerializer<'static>));
+                drop(Box::from_raw(
+                    self.serializer_ptr as *mut BinarySerializer<'static>,
+                ));
             }
             self.serializer_ptr = 0;
         }
-        if self.stream_ptr != 0
-        {
+        if self.stream_ptr != 0 {
             // SAFETY: `stream_ptr` is a live Box allocation from `new`.
             unsafe {
                 drop(Box::from_raw(self.stream_ptr as *mut CallbackWriteStream));
@@ -503,7 +469,10 @@ pub struct CppBinaryDeserializer {
 
 impl CppBinaryDeserializer {
     pub fn new(read_ctx: usize, read_fn: usize) -> Self {
-        let stream = Box::new(CallbackReadStream { ctx: read_ctx, read_fn });
+        let stream = Box::new(CallbackReadStream {
+            ctx: read_ctx,
+            read_fn,
+        });
         // SAFETY: Box allocation is stable; we leak it manually and reclaim in
         // Drop. The deserializer borrows this allocation for its whole
         // lifetime.
@@ -512,7 +481,10 @@ impl CppBinaryDeserializer {
             unsafe { &mut *(stream_ptr as *mut CallbackReadStream) };
         let deserializer = Box::new(BinaryDeserializer::new(stream_ref));
         let deserializer_ptr = Box::into_raw(deserializer) as usize;
-        Self { stream_ptr, deserializer_ptr }
+        Self {
+            stream_ptr,
+            deserializer_ptr,
+        }
     }
 
     fn deserializer(&mut self) -> &mut BinaryDeserializer<'static> {
@@ -526,8 +498,7 @@ impl CppBinaryDeserializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             d.on_object_begin();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -537,8 +508,7 @@ impl CppBinaryDeserializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             d.on_object_end();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -546,14 +516,12 @@ impl CppBinaryDeserializer {
     pub fn on_list_begin(&mut self) -> u64 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.on_list_begin()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
@@ -562,8 +530,7 @@ impl CppBinaryDeserializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             d.on_list_end();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -571,14 +538,12 @@ impl CppBinaryDeserializer {
     pub fn on_nullable_begin(&mut self) -> bool {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.on_nullable_begin()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 false
-            },
+            }
         }
     }
 
@@ -587,8 +552,7 @@ impl CppBinaryDeserializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             d.on_nullable_end();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -596,14 +560,12 @@ impl CppBinaryDeserializer {
     pub fn on_property_begin(&mut self, field_id: u16, tag: *const u8) -> bool {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.on_property_begin(field_id, tag)));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 false
-            },
+            }
         }
     }
 
@@ -612,23 +574,22 @@ impl CppBinaryDeserializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             d.on_property_end();
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
 
     pub fn on_optional_property_begin(&mut self, field_id: u16, tag: *const u8) -> bool {
         let d = self.deserializer();
-        let res = catch_unwind(AssertUnwindSafe(|| d.on_optional_property_begin(field_id, tag)));
-        match res
-        {
+        let res = catch_unwind(AssertUnwindSafe(|| {
+            d.on_optional_property_begin(field_id, tag)
+        }));
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 false
-            },
+            }
         }
     }
 
@@ -637,8 +598,7 @@ impl CppBinaryDeserializer {
         let res = catch_unwind(AssertUnwindSafe(|| {
             d.on_optional_property_end(present);
         }));
-        if let Err(p) = res
-        {
+        if let Err(p) = res {
             set_pending_error(extract_panic_message(p));
         }
     }
@@ -646,248 +606,213 @@ impl CppBinaryDeserializer {
     pub fn peek_field(&mut self) -> u16 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.peek_field()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
     pub fn read_bool(&mut self) -> bool {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_bool()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 false
-            },
+            }
         }
     }
 
     pub fn read_char(&mut self) -> u8 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_char()));
-        match res
-        {
+        match res {
             Ok(v) => v as u8,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
     pub fn read_int8(&mut self) -> i8 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_int8()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
     pub fn read_uint8(&mut self) -> u8 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_uint8()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
     pub fn read_int16(&mut self) -> i16 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_int16()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
     pub fn read_uint16(&mut self) -> u16 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_uint16()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
     pub fn read_int32(&mut self) -> i32 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_int32()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
     pub fn read_uint32(&mut self) -> u32 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_uint32()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
     pub fn read_int64(&mut self) -> i64 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_int64()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
     pub fn read_uint64(&mut self) -> u64 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_uint64()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
     pub fn read_float(&mut self) -> f32 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_float()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0.0
-            },
+            }
         }
     }
 
     pub fn read_double(&mut self) -> f64 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_double()));
-        match res
-        {
+        match res {
             Ok(v) => v,
-            Err(p) =>
-            {
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0.0
-            },
+            }
         }
     }
 
     pub fn read_hugeint(&mut self, out_upper: *mut i64, out_lower: *mut u64) -> bool {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_hugeint()));
-        match res
-        {
-            Ok(v) =>
-            {
+        match res {
+            Ok(v) => {
                 // SAFETY: caller provides writable out pointers.
                 unsafe {
                     *out_upper = v.upper;
                     *out_lower = v.lower;
                 }
                 true
-            },
-            Err(p) =>
-            {
+            }
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 false
-            },
+            }
         }
     }
 
     pub fn read_uhugeint(&mut self, out_upper: *mut u64, out_lower: *mut u64) -> bool {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_uhugeint()));
-        match res
-        {
-            Ok(v) =>
-            {
+        match res {
+            Ok(v) => {
                 // SAFETY: caller provides writable out pointers.
                 unsafe {
                     *out_upper = v.upper;
                     *out_lower = v.lower;
                 }
                 true
-            },
-            Err(p) =>
-            {
+            }
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 false
-            },
+            }
         }
     }
 
     pub fn read_string(&mut self) -> u64 {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_string_t()));
-        match res
-        {
-            Ok(v) =>
-            {
+        match res {
+            Ok(v) => {
                 let bytes = v.get_data().to_vec();
                 let n = bytes.len() as u64;
                 LAST_STRING.with(|slot| {
                     *slot.borrow_mut() = Some(bytes);
                 });
                 n
-            },
-            Err(p) =>
-            {
+            }
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
                 0
-            },
+            }
         }
     }
 
@@ -903,23 +828,22 @@ impl CppBinaryDeserializer {
     pub fn read_data_into(&mut self, out: *mut u8, count: u64) {
         let d = self.deserializer();
         let res = catch_unwind(AssertUnwindSafe(|| d.read_data_ptr(count)));
-        match res
-        {
-            Ok(v) =>
-            {
+        match res {
+            Ok(v) => {
                 // SAFETY: caller provides `count` writable bytes at `out`.
                 unsafe {
                     std::ptr::copy_nonoverlapping(v.as_ptr(), out, count as usize);
                 }
-            },
-            Err(p) =>
-            {
+            }
+            Err(p) => {
                 set_pending_error(extract_panic_message(p));
-            },
+            }
         }
     }
 
-    pub fn nesting_level(&mut self) -> u64 { self.deserializer().nesting_level() }
+    pub fn nesting_level(&mut self) -> u64 {
+        self.deserializer().nesting_level()
+    }
 
     pub fn set_nesting_level(&mut self, level: u64) {
         self.deserializer().set_nesting_level(level);
@@ -928,16 +852,16 @@ impl CppBinaryDeserializer {
 
 impl Drop for CppBinaryDeserializer {
     fn drop(&mut self) {
-        if self.deserializer_ptr != 0
-        {
+        if self.deserializer_ptr != 0 {
             // SAFETY: `deserializer_ptr` is a live Box allocation from `new`.
             unsafe {
-                drop(Box::from_raw(self.deserializer_ptr as *mut BinaryDeserializer<'static>));
+                drop(Box::from_raw(
+                    self.deserializer_ptr as *mut BinaryDeserializer<'static>,
+                ));
             }
             self.deserializer_ptr = 0;
         }
-        if self.stream_ptr != 0
-        {
+        if self.stream_ptr != 0 {
             // SAFETY: `stream_ptr` is a live Box allocation from `new`.
             unsafe {
                 drop(Box::from_raw(self.stream_ptr as *mut CallbackReadStream));
@@ -953,8 +877,7 @@ pub fn cpp_binary_serializer_new(write_ctx: usize, write_fn: usize) -> usize {
 }
 
 pub fn cpp_binary_serializer_delete(ptr: usize) {
-    if ptr != 0
-    {
+    if ptr != 0 {
         // SAFETY: `ptr` came from `cpp_binary_serializer_new`.
         unsafe {
             drop(Box::from_raw(ptr as *mut CppBinarySerializer));
@@ -968,8 +891,7 @@ pub fn cpp_binary_deserializer_new(read_ctx: usize, read_fn: usize) -> usize {
 }
 
 pub fn cpp_binary_deserializer_delete(ptr: usize) {
-    if ptr != 0
-    {
+    if ptr != 0 {
         // SAFETY: `ptr` came from `cpp_binary_deserializer_new`.
         unsafe {
             drop(Box::from_raw(ptr as *mut CppBinaryDeserializer));

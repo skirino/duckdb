@@ -2,10 +2,7 @@
 //! `Exception::InitializeExtraInfo` set, ported from
 //! `src/common/exception.cpp`.
 
-use crate::exception::types::{
-    ExtraInfo,
-    QueryLocationLayout,
-};
+use crate::exception::types::{ExtraInfo, QueryLocationLayout};
 
 /// The entries `Exception::SetQueryLocation` adds for `location`: nothing for a
 /// location that is not known, otherwise the start offset and the `[start,
@@ -14,13 +11,15 @@ use crate::exception::types::{
 /// `position` is kept for the consumers that only ever read the start offset;
 /// `location` is the structured form.
 pub(crate) fn set_query_location(location: QueryLocationLayout) -> ExtraInfo {
-    if !location.is_valid()
-    {
+    if !location.is_valid() {
         return Vec::new();
     }
     let offset = location.offset.to_string();
     let range = format!("[{},{}]", location.offset, location.length);
-    vec![(b"position".to_vec(), offset.into_bytes()), (b"location".to_vec(), range.into_bytes())]
+    vec![
+        (b"position".to_vec(), offset.into_bytes()),
+        (b"location".to_vec(), range.into_bytes()),
+    ]
 }
 
 /// The entries `Exception::InitializeExtraInfo(subtype, location)` starts from:
@@ -71,7 +70,10 @@ mod tests {
     #[test]
     fn the_subtype_comes_before_the_location() {
         let extra_info = initialize_extra_info(b"COLUMN_NOT_FOUND", QueryLocationLayout::new(3, 1));
-        assert_eq!(vec!["error_subtype", "position", "location"], keys(&extra_info));
+        assert_eq!(
+            vec!["error_subtype", "position", "location"],
+            keys(&extra_info)
+        );
         assert_eq!(vec!["COLUMN_NOT_FOUND", "3", "[3,1]"], values(&extra_info));
     }
 

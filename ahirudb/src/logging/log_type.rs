@@ -31,18 +31,24 @@ pub(crate) struct LogTypeRegistry {
 }
 
 impl LogTypeRegistry {
-    pub(crate) fn new() -> Self { Self::default() }
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
 
     /// Registers a log type, returning an error if the name is already taken
     /// (as in C++).
     pub(crate) fn register_entry(&mut self, name: &str, level: LogLevel) -> Result<(), String> {
         let key = name.to_lowercase();
-        if self.lookup.contains_key(&key)
-        {
+        if self.lookup.contains_key(&key) {
             return Err(format!("Registered log writer '{name}' already exists"));
         }
-        self.lookup
-            .insert(key, LogTypeEntry { name: name.to_string(), level });
+        self.lookup.insert(
+            key,
+            LogTypeEntry {
+                name: name.to_string(),
+                level,
+            },
+        );
         Ok(())
     }
 
@@ -62,7 +68,10 @@ mod tests {
             .register_entry("FileSystem", LogLevel::LOG_TRACE)
             .unwrap();
         assert_eq!(registry.lookup("filesystem").unwrap().name, "FileSystem");
-        assert_eq!(registry.lookup("FILESYSTEM").unwrap().level, LogLevel::LOG_TRACE);
+        assert_eq!(
+            registry.lookup("FILESYSTEM").unwrap().level,
+            LogLevel::LOG_TRACE
+        );
         assert!(registry.lookup("nope").is_none());
     }
 

@@ -63,11 +63,17 @@ pub struct MultiFileCount {
 }
 
 impl MultiFileCount {
-    pub fn new(count: idx_t, expansion: FileExpansionType) -> Self { Self { count, expansion } }
+    pub fn new(count: idx_t, expansion: FileExpansionType) -> Self {
+        Self { count, expansion }
+    }
 
-    pub fn get_count(&self) -> idx_t { self.count }
+    pub fn get_count(&self) -> idx_t {
+        self.count
+    }
 
-    pub fn get_type(&self) -> FileExpansionType { self.expansion }
+    pub fn get_type(&self) -> FileExpansionType {
+        self.expansion
+    }
 }
 
 /// The count of files a list has expanded, read as a [`FileExpandResult`].
@@ -76,16 +82,11 @@ impl MultiFileCount {
 /// from the number of paths it was built with, `LazyMultiFileList` from the
 /// number it has expanded so far.
 pub fn expand_result(expanded_count: idx_t) -> FileExpandResult {
-    if expanded_count > 1
-    {
+    if expanded_count > 1 {
         FileExpandResult::MULTIPLE_FILES
-    }
-    else if expanded_count == 1
-    {
+    } else if expanded_count == 1 {
         FileExpandResult::SINGLE_FILE
-    }
-    else
-    {
+    } else {
         FileExpandResult::NO_FILES
     }
 }
@@ -97,12 +98,9 @@ pub fn expand_result(expanded_count: idx_t) -> FileExpandResult {
 /// `MultiFileList::GetFileCount` passes `true`, because a list that is not
 /// lazily expanded has nothing left to expand.
 pub fn file_count(count: idx_t, all_files_expanded: bool) -> MultiFileCount {
-    let expansion = if all_files_expanded
-    {
+    let expansion = if all_files_expanded {
         FileExpansionType::ALL_FILES_EXPANDED
-    }
-    else
-    {
+    } else {
         FileExpansionType::NOT_ALL_FILES_KNOWN
     };
     MultiFileCount::new(count, expansion)
@@ -156,8 +154,12 @@ mod tests {
         // the scan type is what decides whether the check is made at all: an
         // ALWAYS_FETCH scan pays neither for FileIsAvailable nor for the list's
         // lock it takes
-        assert!(scan_fetches_unconditionally(MultiFileListScanType::ALWAYS_FETCH));
-        assert!(!scan_fetches_unconditionally(MultiFileListScanType::FETCH_IF_AVAILABLE));
+        assert!(scan_fetches_unconditionally(
+            MultiFileListScanType::ALWAYS_FETCH
+        ));
+        assert!(!scan_fetches_unconditionally(
+            MultiFileListScanType::FETCH_IF_AVAILABLE
+        ));
     }
 
     #[test]
@@ -171,7 +173,13 @@ mod tests {
         assert_eq!(expand_result(1), FileExpandResult::SINGLE_FILE);
         assert_eq!(expand_result(2), FileExpandResult::MULTIPLE_FILES);
 
-        assert_eq!(file_count(0, true).get_type(), FileExpansionType::ALL_FILES_EXPANDED);
-        assert_eq!(file_count(0, false).get_type(), FileExpansionType::NOT_ALL_FILES_KNOWN);
+        assert_eq!(
+            file_count(0, true).get_type(),
+            FileExpansionType::ALL_FILES_EXPANDED
+        );
+        assert_eq!(
+            file_count(0, false).get_type(),
+            FileExpansionType::NOT_ALL_FILES_KNOWN
+        );
     }
 }

@@ -11,11 +11,7 @@
 //! apart from whether a NULL array row contributes its child rows, so it lives
 //! here once, with the validity mask deciding that.
 
-use crate::vector::selection::{
-    Selection,
-    Validity,
-    sel_t,
-};
+use crate::vector::selection::{Selection, Validity, sel_t};
 
 /// Expands `count` array rows into the child selection vector that gathers
 /// their elements: `out[i * array_size + j] == sel[offset + i] * array_size +
@@ -38,8 +34,7 @@ pub fn array_child_sel(
     count: usize,
     array_size: usize,
 ) -> Result<Vec<u32>, String> {
-    if array_size == 0
-    {
+    if array_size == 0 {
         return Err("array_child_sel: array size must be non-zero".to_string());
     }
     let selection = Selection::new(selection);
@@ -48,15 +43,12 @@ pub fn array_child_sel(
         .checked_mul(array_size)
         .ok_or_else(|| "array_child_sel: child row count overflows".to_string())?;
     let mut out = Vec::with_capacity(child_count);
-    for row in 0..count
-    {
+    for row in 0..count {
         let mapped = selection.index(offset + row)?;
-        if !validity.row_is_valid(mapped)?
-        {
+        if !validity.row_is_valid(mapped)? {
             continue;
         }
-        for element in 0..array_size
-        {
+        for element in 0..array_size {
             out.push(sel_t(mapped * array_size + element)?);
         }
     }
@@ -70,12 +62,18 @@ mod tests {
     #[test]
     fn expands_a_slice_of_arrays() {
         let selection = [2u32, 0u32];
-        assert_eq!(array_child_sel(&selection, &[], 0, 2, 3), Ok(vec![6, 7, 8, 0, 1, 2]));
+        assert_eq!(
+            array_child_sel(&selection, &[], 0, 2, 3),
+            Ok(vec![6, 7, 8, 0, 1, 2])
+        );
     }
 
     #[test]
     fn expands_an_identity_slice_of_arrays() {
-        assert_eq!(array_child_sel(&[], &[], 0, 3, 2), Ok(vec![0, 1, 2, 3, 4, 5]));
+        assert_eq!(
+            array_child_sel(&[], &[], 0, 3, 2),
+            Ok(vec![0, 1, 2, 3, 4, 5])
+        );
     }
 
     #[test]
@@ -88,14 +86,20 @@ mod tests {
         // rows 0 and 2 valid, row 1 NULL
         let validity = [0b101u64];
         let selection = [2u32, 1u32, 0u32];
-        assert_eq!(array_child_sel(&selection, &validity, 0, 3, 2), Ok(vec![4, 5, 0, 1]));
+        assert_eq!(
+            array_child_sel(&selection, &validity, 0, 3, 2),
+            Ok(vec![4, 5, 0, 1])
+        );
     }
 
     #[test]
     fn keeps_null_array_rows_when_the_mask_is_absent() {
         // the flatten and copy paths have no mask to compact against
         let selection = [2u32, 1u32, 0u32];
-        assert_eq!(array_child_sel(&selection, &[], 0, 3, 2), Ok(vec![4, 5, 2, 3, 0, 1]));
+        assert_eq!(
+            array_child_sel(&selection, &[], 0, 3, 2),
+            Ok(vec![4, 5, 2, 3, 0, 1])
+        );
     }
 
     // A copy that starts part-way into the selection reads the selection at
@@ -105,7 +109,10 @@ mod tests {
     fn the_offset_indexes_the_selection() {
         let selection = [2u32, 5u32, 1u32, 4u32];
         // rows 2 and 3 of the selection, so array rows 1 and 4
-        assert_eq!(array_child_sel(&selection, &[], 2, 2, 2), Ok(vec![2, 3, 8, 9]));
+        assert_eq!(
+            array_child_sel(&selection, &[], 2, 2, 2),
+            Ok(vec![2, 3, 8, 9])
+        );
     }
 
     #[test]

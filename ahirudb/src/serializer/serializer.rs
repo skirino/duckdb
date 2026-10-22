@@ -11,17 +11,10 @@ use std::fmt;
 
 use crate::serializer::{
     MESSAGE_TERMINATOR_FIELD_ID,
-    encoding_util::{
-        encode_signed_leb128,
-        encode_unsigned_leb128,
-    },
-    field_id_t,
-    hugeint_t,
-    idx_t,
+    encoding_util::{encode_signed_leb128, encode_unsigned_leb128},
+    field_id_t, hugeint_t, idx_t,
     serialization_data::SerializationData,
-    string,
-    string_t,
-    uhugeint_t,
+    string, string_t, uhugeint_t,
     write_stream::WriteStream,
 };
 
@@ -261,18 +254,26 @@ impl fmt::Debug for BinarySerializer<'_> {
 }
 
 impl<'a> Serializer for BinarySerializer<'a> {
-    fn get_options(&self) -> &SerializationOptions { &self.options }
+    fn get_options(&self) -> &SerializationOptions {
+        &self.options
+    }
 
-    fn get_serialization_data(&self) -> &SerializationData { &self.data }
+    fn get_serialization_data(&self) -> &SerializationData {
+        &self.data
+    }
 
-    fn set_serialization_data(&mut self, data: &SerializationData) { self.data = data.clone(); }
+    fn set_serialization_data(&mut self, data: &SerializationData) {
+        self.data = data.clone();
+    }
 
     fn write_null(&mut self) {
         // Nothing is written, matching the C++ WriteNull (never called in
         // practice)
     }
 
-    fn write_bool(&mut self, value: bool) { self.stream.write_u8(u8::from(value)); }
+    fn write_bool(&mut self, value: bool) {
+        self.stream.write_u8(u8::from(value));
+    }
 
     fn write_char(&mut self, value: char) {
         // C++ writes char as a single raw byte
@@ -355,8 +356,7 @@ impl<'a> Serializer for BinarySerializer<'a> {
         let len_size = encode_unsigned_leb128(&mut len_buffer, len as u64);
         self.stream.write_data(len_buffer.as_ptr(), len_size);
         // Write the string data
-        if len > 0
-        {
+        if len > 0 {
             self.stream.write_data(value.get_data().as_ptr(), len);
         }
     }
@@ -368,8 +368,7 @@ impl<'a> Serializer for BinarySerializer<'a> {
         let len_size = encode_unsigned_leb128(&mut len_buffer, len as u64);
         self.stream.write_data(len_buffer.as_ptr(), len_size);
         // Write the string data
-        if len > 0
-        {
+        if len > 0 {
             let cstr = value.get_data();
             self.stream.write_data(cstr, len);
         }
@@ -381,8 +380,7 @@ impl<'a> Serializer for BinarySerializer<'a> {
         let mut ptr = value;
         unsafe {
             // SAFETY: value must be a valid null-terminated C string.
-            while *ptr != 0
-            {
+            while *ptr != 0 {
                 ptr = ptr.offset(1);
                 len += 1;
             }
@@ -393,8 +391,7 @@ impl<'a> Serializer for BinarySerializer<'a> {
         let len_size = encode_unsigned_leb128(&mut len_buffer, len as u64);
         self.stream.write_data(len_buffer.as_ptr(), len_size);
         // Write the string data
-        if len > 0
-        {
+        if len > 0 {
             self.stream.write_data(value, len);
         }
     }
@@ -405,8 +402,7 @@ impl<'a> Serializer for BinarySerializer<'a> {
         let count_size = encode_unsigned_leb128(&mut count_buffer, count);
         self.stream.write_data(count_buffer.as_ptr(), count_size);
         // Write the data (the stream trusts `ptr` to reference `count` bytes)
-        if count > 0
-        {
+        if count > 0 {
             self.stream.write_data(ptr, count);
         }
     }
@@ -459,8 +455,7 @@ impl<'a> Serializer for BinarySerializer<'a> {
         #[cfg(debug_assertions)]
         {
             let tag_key = tag as usize;
-            let state = match self.debug_stack.last_mut()
-            {
+            let state = match self.debug_stack.last_mut() {
                 Some(state) => state,
                 None => panic!("OnPropertyBegin called outside of object"),
             };
@@ -484,8 +479,7 @@ impl<'a> Serializer for BinarySerializer<'a> {
     }
 
     fn on_optional_property_begin(&mut self, field_id: field_id_t, tag: *const u8, present: bool) {
-        if present
-        {
+        if present {
             self.on_property_begin(field_id, tag);
         }
     }
@@ -520,16 +514,11 @@ impl<'a> Serializer for BinarySerializer<'a> {
     ) {
         // Skip the property when the value equals the default, like the C++
         // version
-        let is_default = if count == 0
-        {
+        let is_default = if count == 0 {
             true
-        }
-        else if value.is_null() || default_value.is_null()
-        {
+        } else if value.is_null() || default_value.is_null() {
             false
-        }
-        else
-        {
+        } else {
             unsafe {
                 // SAFETY: both pointers reference `count` readable bytes
                 // (caller contract).
@@ -537,8 +526,7 @@ impl<'a> Serializer for BinarySerializer<'a> {
                     == std::slice::from_raw_parts(default_value, count as usize)
             }
         };
-        if !self.options.serialize_default_values && is_default
-        {
+        if !self.options.serialize_default_values && is_default {
             self.on_optional_property_begin(field_id, tag, false);
             self.on_optional_property_end(false);
             return;
@@ -570,8 +558,7 @@ impl<'a> Serializer for BinarySerializer<'a> {
     ) {
         self.on_property_begin(field_id, tag);
         self.on_list_begin(count);
-        for i in 0..count
-        {
+        for i in 0..count {
             f(self, i);
         }
         self.on_list_end();
@@ -588,47 +575,69 @@ pub trait SerializeInSerializer {
 // Implement SerializeInSerializer for primitive types
 
 impl SerializeInSerializer for bool {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_bool(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_bool(*self);
+    }
 }
 
 impl SerializeInSerializer for i8 {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_int8(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_int8(*self);
+    }
 }
 
 impl SerializeInSerializer for u8 {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_uint8(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_uint8(*self);
+    }
 }
 
 impl SerializeInSerializer for i16 {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_int16(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_int16(*self);
+    }
 }
 
 impl SerializeInSerializer for u16 {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_uint16(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_uint16(*self);
+    }
 }
 
 impl SerializeInSerializer for i32 {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_int32(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_int32(*self);
+    }
 }
 
 impl SerializeInSerializer for u32 {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_uint32(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_uint32(*self);
+    }
 }
 
 impl SerializeInSerializer for i64 {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_int64(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_int64(*self);
+    }
 }
 
 impl SerializeInSerializer for u64 {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_uint64(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_uint64(*self);
+    }
 }
 
 impl SerializeInSerializer for f32 {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_float(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_float(*self);
+    }
 }
 
 impl SerializeInSerializer for f64 {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_double(*self); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_double(*self);
+    }
 }
 
 impl SerializeInSerializer for string_t {
@@ -638,7 +647,9 @@ impl SerializeInSerializer for string_t {
 }
 
 impl SerializeInSerializer for string {
-    fn serialize(&self, serializer: &mut dyn Serializer) { serializer.write_string(self.clone()); }
+    fn serialize(&self, serializer: &mut dyn Serializer) {
+        serializer.write_string(self.clone());
+    }
 }
 
 #[cfg(test)]
@@ -743,7 +754,9 @@ mod tests {
             storage_compatibility: StorageCompatibility::Default,
         };
         let mut serializer = BinarySerializer::new(ws, options);
-        let s = string { data: "hello".to_string() };
+        let s = string {
+            data: "hello".to_string(),
+        };
         serializer.write_string(s);
         // Should have varint length + 5 bytes
         assert_eq!(stream.len(), 1 + 5); // varint 5 + "hello"
@@ -815,7 +828,9 @@ mod tests {
         let mut serializer = BinarySerializer::new(ws, options);
 
         // Write
-        let s = string { data: "test string".to_string() };
+        let s = string {
+            data: "test string".to_string(),
+        };
         serializer.write_string(s);
 
         assert!(!stream.is_empty());

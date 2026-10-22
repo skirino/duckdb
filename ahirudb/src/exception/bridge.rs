@@ -9,16 +9,8 @@
 //! failure.
 
 use crate::exception::{
-    classification,
-    extra_info,
-    factories,
-    types::{
-        self,
-        ByteSlice,
-        ExceptionPayload,
-        ExceptionType,
-        QueryLocationLayout,
-    },
+    classification, extra_info, factories,
+    types::{self, ByteSlice, ExceptionPayload, ExceptionType, QueryLocationLayout},
 };
 
 /// The name an exception type is reported under, or `"Unknown"` when it has
@@ -30,8 +22,7 @@ pub fn exception_type_to_string(exception_type: u8) -> &'static str {
 /// The exception type a name stands for, or `INVALID` when it names none.
 /// Matching `Exception::StringToExceptionType`.
 pub fn string_to_exception_type(name: &[u8]) -> u8 {
-    match types::string_to_exception_type(name)
-    {
+    match types::string_to_exception_type(name) {
         Some(exception_type) => exception_type as u8,
         None => ExceptionType::INVALID as u8,
     }
@@ -40,8 +31,7 @@ pub fn string_to_exception_type(name: &[u8]) -> u8 {
 /// Whether this exception type invalidates the current transaction.
 /// Matching `Exception::InvalidatesTransaction`.
 pub fn invalidates_transaction(exception_type: u8) -> bool {
-    match ExceptionType::from_u8(exception_type)
-    {
+    match ExceptionType::from_u8(exception_type) {
         Some(exception_type) => classification::invalidates_transaction(exception_type),
         // A discriminant that names no type is as fatal as any other unknown failure.
         None => true,
@@ -51,8 +41,7 @@ pub fn invalidates_transaction(exception_type: u8) -> bool {
 /// Whether this exception type invalidates the entire database.
 /// Matching `Exception::InvalidatesDatabase`.
 pub fn invalidates_database(exception_type: u8) -> bool {
-    match ExceptionType::from_u8(exception_type)
-    {
+    match ExceptionType::from_u8(exception_type) {
         Some(exception_type) => classification::invalidates_database(exception_type),
         None => false,
     }
@@ -61,8 +50,7 @@ pub fn invalidates_database(exception_type: u8) -> bool {
 /// Whether this exception type can occur during query execution.
 /// Matching `Exception::IsExecutionError`.
 pub fn is_execution_error(exception_type: u8) -> bool {
-    match ExceptionType::from_u8(exception_type)
-    {
+    match ExceptionType::from_u8(exception_type) {
         Some(exception_type) => classification::is_execution_error(exception_type),
         None => false,
     }
@@ -143,7 +131,9 @@ pub fn catalog_entry_already_exists(catalog_type: &[u8], name: &[u8]) -> Excepti
 
 /// Releases the message and the entries of a payload. C++ calls this exactly
 /// once per payload, after copying them out.
-pub fn free_payload(payload: ExceptionPayload) { types::free_payload(payload); }
+pub fn free_payload(payload: ExceptionPayload) {
+    types::free_payload(payload);
+}
 
 /// Borrows every element of a list C++ handed over. The views borrow from C++
 /// strings that outlive the call that made them.
@@ -160,8 +150,14 @@ mod tests {
     fn the_type_name_round_trips_through_the_bridge() {
         assert_eq!("Binder", exception_type_to_string(24));
         assert_eq!("Unknown", exception_type_to_string(45));
-        assert_eq!(ExceptionType::BINDER as u8, string_to_exception_type(b"Binder"));
-        assert_eq!(ExceptionType::INVALID as u8, string_to_exception_type(b"not a type"));
+        assert_eq!(
+            ExceptionType::BINDER as u8,
+            string_to_exception_type(b"Binder")
+        );
+        assert_eq!(
+            ExceptionType::INVALID as u8,
+            string_to_exception_type(b"not a type")
+        );
     }
 
     #[test]
@@ -183,7 +179,10 @@ mod tests {
         let payload = catalog_entry_already_exists(b"Table", b"tbl");
         let message = payload.message.as_slice().to_vec();
         free_payload(payload);
-        assert_eq!("Table with name \"tbl\" already exists!".as_bytes(), message);
+        assert_eq!(
+            "Table with name \"tbl\" already exists!".as_bytes(),
+            message
+        );
     }
 
     #[test]

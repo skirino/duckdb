@@ -32,8 +32,7 @@ pub fn copy_vector_buffer(
     copy_count: usize,
     type_size: usize,
 ) -> Result<(), String> {
-    if type_size == 0
-    {
+    if type_size == 0 {
         return Err("copy_vector_buffer: type size must be non-zero".to_string());
     }
     let target_bytes = copy_count
@@ -45,8 +44,7 @@ pub fn copy_vector_buffer(
     let target_end = target_start.checked_add(target_bytes).ok_or_else(|| {
         "copy_vector_buffer: target range overflows the target buffer".to_string()
     })?;
-    if target_end > target.len()
-    {
+    if target_end > target.len() {
         return Err(format!(
             "copy_vector_buffer: target buffer holds {} bytes but the copy needs {target_end}",
             target.len()
@@ -60,8 +58,7 @@ pub fn copy_vector_buffer(
     // asks for the runtime `type_size` instead, which is what the C++ left
     // to its `default:` arm; nothing calls this through the boundary with
     // one of those often enough for the extra body to matter.
-    match type_size
-    {
+    match type_size {
         1 => copy_rows::<1>(target, source, selection, source_offset, type_size),
         2 => copy_rows::<2>(target, source, selection, source_offset, type_size),
         4 => copy_rows::<4>(target, source, selection, source_offset, type_size),
@@ -90,8 +87,7 @@ fn copy_rows<const N: usize>(
     type_size: usize,
 ) -> Result<(), String> {
     let stride = if N == 0 { type_size } else { N };
-    for (i, destination) in target.chunks_exact_mut(stride).enumerate()
-    {
+    for (i, destination) in target.chunks_exact_mut(stride).enumerate() {
         // the source row is looked up in the selection at `source_offset + i`,
         // which is where the C++ `FixedSizeCopy` started its own scan
         let selection_index = source_offset
@@ -232,8 +228,7 @@ mod tests {
 
     fn by_words(values: &[u32]) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(values.len() * 4);
-        for value in values
-        {
+        for value in values {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
         bytes

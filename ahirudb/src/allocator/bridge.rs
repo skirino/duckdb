@@ -14,10 +14,7 @@
 //! destroys a tracker, the release of a leak report, and the
 //! trim gate.
 
-use crate::allocator::{
-    debug,
-    trim,
-};
+use crate::allocator::{debug, trim};
 
 /// Heap-allocates a debug tracker for a `PrivateAllocatorData`,
 /// so that the C++ shell that owns it holds a pointer whose
@@ -57,7 +54,9 @@ pub fn free_leak_report(report: debug::OwnedBytes) {
 /// Whether the caller may call `malloc_trim` at `now_ms`. The
 /// interval and the race that decide the answer are Rust's; the
 /// trim itself stays in C++.
-pub fn should_trim(now_ms: i64) -> bool { trim::should_trim(now_ms) }
+pub fn should_trim(now_ms: i64) -> bool {
+    trim::should_trim(now_ms)
+}
 
 #[cfg(test)]
 mod tests {
@@ -66,8 +65,7 @@ mod tests {
     /// The bytes of a report Rust owns, read through the
     /// pointer and the length the way C++ reads them.
     fn report_text(report: debug::OwnedBytes) -> String {
-        if report.len == 0
-        {
+        if report.len == 0 {
             return String::new();
         }
         // SAFETY: `report` came from `leak_report`, which built

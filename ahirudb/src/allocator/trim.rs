@@ -9,10 +9,7 @@
 //! C++, which is what keeps the crate free of a libc
 //! dependency.
 
-use std::sync::atomic::{
-    AtomicI64,
-    Ordering,
-};
+use std::sync::atomic::{AtomicI64, Ordering};
 
 /// How long the gate holds after a trim, in milliseconds.
 const TRIM_INTERVAL_MS: i64 = 100;
@@ -25,7 +22,11 @@ struct TrimGate {
 }
 
 impl TrimGate {
-    const fn new() -> Self { TrimGate { last_trim_tick_ms: AtomicI64::new(-TRIM_INTERVAL_MS) } }
+    const fn new() -> Self {
+        TrimGate {
+            last_trim_tick_ms: AtomicI64::new(-TRIM_INTERVAL_MS),
+        }
+    }
 
     /// Whether a trim may happen at `now_ms`.
     ///
@@ -36,8 +37,7 @@ impl TrimGate {
     /// `true`.
     fn should_trim(&self, now_ms: i64) -> bool {
         let last_trim_tick_ms = self.last_trim_tick_ms.load(Ordering::Relaxed);
-        if now_ms - last_trim_tick_ms < TRIM_INTERVAL_MS
-        {
+        if now_ms - last_trim_tick_ms < TRIM_INTERVAL_MS {
             return false; // We trimmed less than TRIM_INTERVAL_MS ago
         }
         // We successfully updated the tick, we can trim. A
@@ -47,7 +47,12 @@ impl TrimGate {
         // fails when the value actually changed, which is the
         // C++ `compare_exchange_strong` the gate mirrors.
         self.last_trim_tick_ms
-            .compare_exchange(last_trim_tick_ms, now_ms, Ordering::Acquire, Ordering::Relaxed)
+            .compare_exchange(
+                last_trim_tick_ms,
+                now_ms,
+                Ordering::Acquire,
+                Ordering::Relaxed,
+            )
             .is_ok()
     }
 }
@@ -62,7 +67,9 @@ static TRIM_GATE: TrimGate = TrimGate::new();
 /// milliseconds since some fixed point, as
 /// `duckdb::TimePoint::GetTickMs` measures them. The C++
 /// caller trims when this answers `true`, and only then.
-pub fn should_trim(now_ms: i64) -> bool { TRIM_GATE.should_trim(now_ms) }
+pub fn should_trim(now_ms: i64) -> bool {
+    TRIM_GATE.should_trim(now_ms)
+}
 
 #[cfg(test)]
 mod tests {

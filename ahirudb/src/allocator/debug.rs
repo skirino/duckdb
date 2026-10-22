@@ -23,10 +23,7 @@ use std::{
     collections::HashMap,
     sync::{
         Mutex,
-        atomic::{
-            AtomicUsize,
-            Ordering,
-        },
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
@@ -87,10 +84,15 @@ impl DebugTracker {
     /// ignores whatever it is handed.
     pub fn track_allocate(&self, pointer: u64, size: u64, stack: &[u8]) {
         self.outstanding.fetch_add(size as usize, Ordering::SeqCst);
-        if self.capture_stacks
-        {
+        if self.capture_stacks {
             let mut pointers = self.pointers.lock().unwrap();
-            pointers.insert(pointer, TrackedAllocation { size, stack: stack.to_vec() });
+            pointers.insert(
+                pointer,
+                TrackedAllocation {
+                    size,
+                    stack: stack.to_vec(),
+                },
+            );
         }
     }
 
@@ -104,19 +106,16 @@ impl DebugTracker {
     /// that answers `false` is a bug in the caller, and a
     /// debug build stops on it.
     pub fn track_free(&self, pointer: u64, size: u64) -> bool {
-        if self.capture_stacks
-        {
+        if self.capture_stacks {
             // The free has to end an allocation of exactly this
             // size, at a pointer the tracker knows. Checked
             // before anything is changed, so that a refused
             // free leaves the tracker exactly as it was.
             let mut pointers = self.pointers.lock().unwrap();
-            match pointers.get(&pointer)
-            {
-                Some(alloc) if alloc.size == size =>
-                {
+            match pointers.get(&pointer) {
+                Some(alloc) if alloc.size == size => {
                     pointers.remove(&pointer);
-                },
+                }
                 _ => return false,
             }
         }
@@ -126,10 +125,8 @@ impl DebugTracker {
         // decrement one step, so two concurrent frees cannot
         // both pass it and wrap the counter.
         let mut current = self.outstanding.load(Ordering::SeqCst);
-        loop
-        {
-            if current < size as usize
-            {
+        loop {
+            if current < size as usize {
                 return false;
             }
             match self.outstanding.compare_exchange_weak(
@@ -137,8 +134,7 @@ impl DebugTracker {
                 current - size as usize,
                 Ordering::SeqCst,
                 Ordering::SeqCst,
-            )
-            {
+            ) {
                 Ok(_) => return true,
                 Err(actual) => current = actual,
             }
@@ -161,8 +157,7 @@ impl DebugTracker {
         new_size: u64,
         stack: &[u8],
     ) -> bool {
-        if !self.track_free(pointer, old_size)
-        {
+        if !self.track_free(pointer, old_size) {
             return false;
         }
         self.track_allocate(new_pointer, new_size, stack);
@@ -171,10 +166,14 @@ impl DebugTracker {
 
     /// The number of bytes that are outstanding: allocated and
     /// not freed.
-    pub fn outstanding_bytes(&self) -> u64 { self.outstanding.load(Ordering::SeqCst) as u64 }
+    pub fn outstanding_bytes(&self) -> u64 {
+        self.outstanding.load(Ordering::SeqCst) as u64
+    }
 
     /// Whether every tracked allocation has been freed again.
-    pub fn is_empty(&self) -> bool { self.outstanding_bytes() == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.outstanding_bytes() == 0
+    }
 
     /// The leak report the C++ destructor prints: one block per
     /// outstanding pointer, with its size, its address and the
@@ -187,14 +186,11 @@ impl DebugTracker {
     /// diagnostic printed to stdout; no test pins its bytes.
     pub fn leak_report(&self) -> OwnedBytes {
         let mut report = String::new();
-        if self.outstanding_bytes() != 0
-        {
+        if self.outstanding_bytes() != 0 {
             report.push_str("Outstanding allocations found for Allocator\n");
-            if self.capture_stacks
-            {
+            if self.capture_stacks {
                 let pointers = self.pointers.lock().unwrap();
-                for (pointer, alloc) in pointers.iter()
-                {
+                for (pointer, alloc) in pointers.iter() {
                     report.push_str(&format!(
                         "Allocation of size {} at address 0x{:x}\n",
                         alloc.size, pointer
@@ -227,7 +223,10 @@ impl OwnedBytes {
     pub(crate) fn from_vec(value: Vec<u8>) -> Self {
         let value = value.into_boxed_slice();
         let len = value.len();
-        Self { ptr: Box::into_raw(value) as *mut u8, len }
+        Self {
+            ptr: Box::into_raw(value) as *mut u8,
+            len,
+        }
     }
 
     /// Gives the bytes back. Paired with [`Self::from_vec`].
@@ -240,7 +239,11 @@ impl OwnedBytes {
         // length, and `Vec::from` takes that box back without
         // reallocating, so the pointer and the layout the
         // allocator is asked to free are the ones it handed out.
-        unsafe { Vec::from(Box::from_raw(std::ptr::slice_from_raw_parts_mut(self.ptr, self.len))) }
+        unsafe {
+            Vec::from(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                self.ptr, self.len,
+            )))
+        }
     }
 }
 
@@ -272,18 +275,21 @@ mod tests {
 
     /// A tracker that captures stack traces, as a
     /// `DUCKDB_DEBUG_ALLOCATION` build has.
-    fn capturing() -> DebugTracker { DebugTracker::new(true) }
+    fn capturing() -> DebugTracker {
+        DebugTracker::new(true)
+    }
 
     /// A tracker that tracks bytes only, as every other DEBUG
     /// build has.
-    fn counting() -> DebugTracker { DebugTracker::new(false) }
+    fn counting() -> DebugTracker {
+        DebugTracker::new(false)
+    }
 
     /// The bytes of a report Rust owns, read the way C++ reads
     /// them: through the pointer and the length, not through
     /// the value.
     fn report_text(report: OwnedBytes) -> String {
-        if report.len == 0
-        {
+        if report.len == 0 {
             return String::new();
         }
         // SAFETY: `report` came from `leak_report`, which built
@@ -470,8 +476,7 @@ mod tests {
                 .map(|thread| {
                     scope.spawn(move || {
                         let mut pointers = Vec::with_capacity(ALLOCATIONS as usize);
-                        for allocation in 0..ALLOCATIONS
-                        {
+                        for allocation in 0..ALLOCATIONS {
                             let pointer = 0x1000 + thread as u64 * ALLOCATIONS + allocation;
                             tracker_ref.track_allocate(pointer, SIZE, b"concurrent stack");
                             pointers.push(pointer);
@@ -486,14 +491,15 @@ mod tests {
                 .collect()
         });
 
-        assert_eq!(tracker.outstanding_bytes(), THREADS as u64 * ALLOCATIONS * SIZE);
+        assert_eq!(
+            tracker.outstanding_bytes(),
+            THREADS as u64 * ALLOCATIONS * SIZE
+        );
 
         std::thread::scope(|scope| {
-            for thread_pointers in &pointers
-            {
+            for thread_pointers in &pointers {
                 scope.spawn(move || {
-                    for &pointer in thread_pointers
-                    {
+                    for &pointer in thread_pointers {
                         assert!(tracker_ref.track_free(pointer, SIZE));
                     }
                 });
@@ -543,7 +549,10 @@ mod tests {
             }
         }
 
-        let mut backend = CustomBackend { tracker: DebugTracker::new(true), counter: 0 };
+        let mut backend = CustomBackend {
+            tracker: DebugTracker::new(true),
+            counter: 0,
+        };
         assert_eq!(backend.counter, 0);
 
         backend.allocate(0x1000, 4096);

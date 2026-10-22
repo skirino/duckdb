@@ -26,21 +26,16 @@ use crate::serializer::idx_t;
 pub fn encode_unsigned_leb128(target: &mut [u8], value: u64) -> idx_t {
     let mut offset = 0usize;
     let mut v = value;
-    loop
-    {
-        let byte = v as u8 & 0x7F;
+    loop {
+        let byte = v as u8 & 0x7f;
         v >>= 7;
-        if v != 0
-        {
+        if v != 0 {
             target[offset] = byte | 0x80;
-        }
-        else
-        {
+        } else {
             target[offset] = byte;
         }
         offset += 1;
-        if v == 0
-        {
+        if v == 0 {
             break;
         }
     }
@@ -69,22 +64,18 @@ pub fn decode_unsigned_leb128(source: &[u8], result: &mut u64) -> idx_t {
     let mut value: u64 = 0;
     let mut offset: idx_t = 0;
 
-    loop
-    {
-        if offset as usize >= source.len()
-        {
+    loop {
+        if offset as usize >= source.len() {
             panic!("Failed to decode LEB128 integer: data may be corrupt (truncated)");
         }
-        if shift >= 64
-        {
+        if shift >= 64 {
             panic!("Failed to decode LEB128 integer: data may be corrupt");
         }
         let byte = source[offset as usize] as u64;
         offset += 1;
-        value |= (byte & 0x7F) << shift;
+        value |= (byte & 0x7f) << shift;
         shift += 7;
-        if byte & 0x80 == 0
-        {
+        if byte & 0x80 == 0 {
             break;
         }
     }
@@ -108,20 +99,16 @@ pub fn encode_signed_leb128(target: &mut [u8], value: i64) -> idx_t {
     let mut offset = 0usize;
     let mut v = value;
 
-    loop
-    {
-        let byte = v as u8 & 0x7F;
+    loop {
+        let byte = v as u8 & 0x7f;
         v >>= 7;
 
         // Determine whether more bytes are needed
-        if (v == 0 && (byte & 0x40) == 0) || (v == -1 && (byte & 0x40) != 0)
-        {
+        if (v == 0 && (byte & 0x40) == 0) || (v == -1 && (byte & 0x40) != 0) {
             target[offset] = byte;
             offset += 1;
             break;
-        }
-        else
-        {
+        } else {
             target[offset] = byte | 0x80;
             offset += 1;
         }
@@ -152,29 +139,24 @@ pub fn decode_signed_leb128(source: &[u8], result: &mut i64) -> idx_t {
     let mut value: u64 = 0;
     let mut offset: idx_t = 0;
 
-    loop
-    {
-        if offset as usize >= source.len()
-        {
+    loop {
+        if offset as usize >= source.len() {
             panic!("Failed to decode LEB128 integer: data may be corrupt (truncated)");
         }
-        if shift >= max_shift
-        {
+        if shift >= max_shift {
             panic!("Failed to decode LEB128 integer: data may be corrupt");
         }
         let byte = source[offset as usize] as u64;
         offset += 1;
-        value |= (byte & 0x7F) << shift;
+        value |= (byte & 0x7f) << shift;
         shift += 7;
-        if byte & 0x80 == 0
-        {
+        if byte & 0x80 == 0 {
             break;
         }
     }
 
     // Sign extend if needed
-    if shift < max_shift && (source[offset as usize - 1] & 0x40) != 0
-    {
+    if shift < max_shift && (source[offset as usize - 1] & 0x40) != 0 {
         // Sign extend: set all higher bits
         let all_ones: u64 = !0;
         value |= all_ones << shift;

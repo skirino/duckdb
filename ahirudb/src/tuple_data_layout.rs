@@ -106,11 +106,12 @@ pub struct LogicalType {
 }
 
 impl LogicalType {
-    pub fn new(id: LogicalTypeId) -> Self { LogicalType { id } }
+    pub fn new(id: LogicalTypeId) -> Self {
+        LogicalType { id }
+    }
 
     pub fn internal_type(&self) -> PhysicalType {
-        match self.id
-        {
+        match self.id {
             LogicalTypeId::BOOLEAN => PhysicalType::INT8,
             LogicalTypeId::TINYINT => PhysicalType::INT8,
             LogicalTypeId::SMALLINT => PhysicalType::INT16,
@@ -138,7 +139,10 @@ impl LogicalType {
     }
 
     pub fn is_nested(&self) -> bool {
-        matches!(self.id, LogicalTypeId::STRUCT | LogicalTypeId::LIST | LogicalTypeId::ARRAY)
+        matches!(
+            self.id,
+            LogicalTypeId::STRUCT | LogicalTypeId::LIST | LogicalTypeId::ARRAY
+        )
     }
 }
 
@@ -180,8 +184,7 @@ fn type_is_constant_size(physical_type: PhysicalType) -> bool {
 
 /// Returns the size of a physical r#type in bytes
 fn get_type_id_size(physical_type: PhysicalType) -> idx_t {
-    match physical_type
-    {
+    match physical_type {
         PhysicalType::INT8 | PhysicalType::UINT8 => 1,
         PhysicalType::INT16 | PhysicalType::UINT16 => 2,
         PhysicalType::INT32 | PhysicalType::UINT32 => 4,
@@ -200,17 +203,16 @@ fn get_type_id_size(physical_type: PhysicalType) -> idx_t {
 }
 
 /// Aligns a value up to the given alignment
-fn align_value(value: idx_t, alignment: idx_t) -> idx_t { value.div_ceil(alignment) * alignment }
+fn align_value(value: idx_t, alignment: idx_t) -> idx_t {
+    value.div_ceil(alignment) * alignment
+}
 
 /// Returns the validity mask size in bytes given the number of columns and
 /// whether nulls are allowed
 fn validity_mask_size(column_count: idx_t, cannot_have_null: bool) -> idx_t {
-    if cannot_have_null
-    {
+    if cannot_have_null {
         0
-    }
-    else
-    {
+    } else {
         column_count.div_ceil(8)
     }
 }
@@ -357,55 +359,89 @@ impl TupleDataLayout {
     }
 
     /// Returns the number of data columns
-    pub fn column_count(&self) -> idx_t { self.types.len() as idx_t }
+    pub fn column_count(&self) -> idx_t {
+        self.types.len() as idx_t
+    }
 
     /// Returns a list of the column types for this data chunk
-    pub fn get_types(&self) -> &Vec<LogicalType> { &self.types }
+    pub fn get_types(&self) -> &Vec<LogicalType> {
+        &self.types
+    }
 
     /// Returns a list of the aggregates for this data chunk
-    pub fn get_aggregates(&self) -> &Vec<AggregateObject> { &self.aggregates }
+    pub fn get_aggregates(&self) -> &Vec<AggregateObject> {
+        &self.aggregates
+    }
 
     /// Gets the sort key type of this layout (if applicable)
-    pub fn get_sort_key_type(&self) -> SortKeyType { self.sort_key_type }
+    pub fn get_sort_key_type(&self) -> SortKeyType {
+        self.sort_key_type
+    }
 
     /// Returns the offset to the start of the aggregates
-    pub fn get_aggr_offset(&self) -> idx_t { self.flag_width + self.data_width }
+    pub fn get_aggr_offset(&self) -> idx_t {
+        self.flag_width + self.data_width
+    }
 
     /// Returns whether this is a sort key layout
-    pub fn is_sort_key_layout(&self) -> bool { self.sort_key_type != SortKeyType::INVALID }
+    pub fn is_sort_key_layout(&self) -> bool {
+        self.sort_key_type != SortKeyType::INVALID
+    }
 
     /// Returns the total width required for each row, including padding
-    pub fn get_row_width(&self) -> idx_t { self.row_width }
+    pub fn get_row_width(&self) -> idx_t {
+        self.row_width
+    }
 
     /// Returns the offset to the start of the data
-    pub fn get_data_offset(&self) -> idx_t { self.flag_width }
+    pub fn get_data_offset(&self) -> idx_t {
+        self.flag_width
+    }
 
     /// Returns the total width required for the data, including padding
-    pub fn get_data_width(&self) -> idx_t { self.data_width }
+    pub fn get_data_width(&self) -> idx_t {
+        self.data_width
+    }
 
     /// Returns the total width required for the aggregates, including padding
-    pub fn get_aggr_width(&self) -> idx_t { self.aggr_width }
+    pub fn get_aggr_width(&self) -> idx_t {
+        self.aggr_width
+    }
 
     /// Returns the total width required for sorting
-    pub fn get_sort_width(&self) -> idx_t { self.sort_width }
+    pub fn get_sort_width(&self) -> idx_t {
+        self.sort_width
+    }
 
     /// Returns bytes that are skippable during sorting
-    pub fn get_sort_skippable_bytes(&self) -> &Vec<idx_t> { &self.sort_skippable_bytes }
+    pub fn get_sort_skippable_bytes(&self) -> &Vec<idx_t> {
+        &self.sort_skippable_bytes
+    }
 
     /// Returns the column offsets into each row
-    pub fn get_offsets(&self) -> &Vec<idx_t> { &self.offsets }
+    pub fn get_offsets(&self) -> &Vec<idx_t> {
+        &self.offsets
+    }
 
     /// Returns the indices of the variable columns
-    pub fn get_variable_columns(&self) -> &Vec<idx_t> { &self.variable_columns }
+    pub fn get_variable_columns(&self) -> &Vec<idx_t> {
+        &self.variable_columns
+    }
 
     /// Gets offset to where heap size is stored
-    pub fn get_heap_size_offset(&self) -> idx_t { self.heap_size_offset }
+    pub fn get_heap_size_offset(&self) -> idx_t {
+        self.heap_size_offset
+    }
 
     /// Returns whether any of the aggregates have a destructor
-    pub fn has_destructor(&self) -> bool { !self.aggr_destructor_idxs.is_empty() }
+    pub fn has_destructor(&self) -> bool {
+        !self.aggr_destructor_idxs.is_empty()
+    }
 
     /// Returns the indices of the aggregates that have destructors
-    pub fn get_aggregate_destructor_indices(&self) -> &Vec<idx_t> { &self.aggr_destructor_idxs }
+    pub fn get_aggregate_destructor_indices(&self) -> &Vec<idx_t> {
+        &self.aggr_destructor_idxs
+    }
 
     /// Returns whether none of the columns have NULLs
     pub fn cannot_have_null(&self) -> bool {
@@ -413,7 +449,9 @@ impl TupleDataLayout {
     }
 
     /// Returns whether all columns in this layout are constant size
-    pub fn all_constant(&self) -> bool { self.all_constant }
+    pub fn all_constant(&self) -> bool {
+        self.all_constant
+    }
 
     /// Returns whether any of the columns can have NULLs
     pub fn can_have_null(&self) -> bool {
@@ -421,10 +459,14 @@ impl TupleDataLayout {
     }
 
     /// Returns whether any of the columns are nested
-    pub fn has_nested_types(&self) -> bool { self.types.iter().any(|t| t.is_nested()) }
+    pub fn has_nested_types(&self) -> bool {
+        self.types.iter().any(|t| t.is_nested())
+    }
 
     /// Returns the number of aggregates
-    pub fn aggregate_count(&self) -> idx_t { self.aggregates.len() as idx_t }
+    pub fn aggregate_count(&self) -> idx_t {
+        self.aggregates.len() as idx_t
+    }
 
     /// Initializes the TupleDataLayout with the specified types and aggregates
     pub fn initialize(
@@ -449,51 +491,40 @@ impl TupleDataLayout {
         self.row_width = self.flag_width;
 
         // Iterate using logical_type to avoid Rust keyword conflict
-        for (col_idx, logical_type) in self.types.iter().enumerate()
-        {
+        for (col_idx, logical_type) in self.types.iter().enumerate() {
             let physical_type = logical_type.internal_type();
-            if physical_type == PhysicalType::STRUCT
-            {
+            if physical_type == PhysicalType::STRUCT {
                 // Struct layout computation happens in C++, not Rust.
                 // For standalone Rust use, this would recursively build
                 // struct_layouts. For bridge mode, struct sizes
                 // are passed from C++ via ColumnDesc.
                 self.all_constant = false;
                 self.variable_columns.push(col_idx);
-            }
-            else if !type_is_constant_size(physical_type)
-            {
+            } else if !type_is_constant_size(physical_type) {
                 self.all_constant = false;
                 self.variable_columns.push(col_idx);
             }
         }
 
         // This enables pointer recomputation for out-of-core.
-        if nestedness_type == TupleDataNestednessType::TOP_LEVEL_LAYOUT && !self.all_constant
-        {
+        if nestedness_type == TupleDataNestednessType::TOP_LEVEL_LAYOUT && !self.all_constant {
             self.heap_size_offset = self.row_width;
             self.row_width += std::mem::size_of::<idx_t>(); // sizeof(idx_t)
         }
 
         // Data columns. No alignment required.
-        for col_idx in 0..self.types.len()
-        {
+        for col_idx in 0..self.types.len() {
             self.offsets.push(self.row_width);
             let physical_type = self.types[col_idx].internal_type();
-            if type_is_constant_size(physical_type) || physical_type == PhysicalType::VARCHAR
-            {
+            if type_is_constant_size(physical_type) || physical_type == PhysicalType::VARCHAR {
                 self.row_width += get_type_id_size(physical_type);
-            }
-            else if physical_type == PhysicalType::STRUCT
-            {
+            } else if physical_type == PhysicalType::STRUCT {
                 // STRUCT in standalone Rust: use pointer size since actual
                 // struct layout is computed in C++ for bridge
                 // mode. For full standalone support, child
                 // types would need to be extracted.
                 self.row_width += std::mem::size_of::<idx_t>();
-            }
-            else
-            {
+            } else {
                 // Variable size types use pointers to the actual data (can be
                 // swizzled).
                 self.row_width += std::mem::size_of::<idx_t>();
@@ -502,32 +533,27 @@ impl TupleDataLayout {
 
         // Alignment padding for aggregates
         let align = !self.aggregates.is_empty();
-        if align
-        {
+        if align {
             self.row_width = align_value(self.row_width, std::mem::align_of::<idx_t>());
         }
         self.data_width = self.row_width - self.flag_width;
 
         // Aggregate fields.
         self.aggregates = aggregates_p;
-        for aggregate in self.aggregates.iter()
-        {
+        for aggregate in self.aggregates.iter() {
             self.offsets.push(self.row_width);
             self.row_width += aggregate.payload_size;
         }
         self.aggr_width = self.row_width - self.data_width - self.flag_width;
 
         // Alignment padding for the next row
-        if align
-        {
+        if align {
             self.row_width = align_value(self.row_width, std::mem::align_of::<idx_t>());
         }
 
         // Check aggregates for destructors
-        for (aggr_idx, aggr) in self.aggregates.iter().enumerate()
-        {
-            if aggr.has_destructor
-            {
+        for (aggr_idx, aggr) in self.aggregates.iter().enumerate() {
+            if aggr.has_destructor {
                 self.aggr_destructor_idxs.push(aggr_idx);
             }
         }
@@ -583,8 +609,7 @@ impl TupleDataLayout {
         // Compute row width
         let mut sort_width: idx_t = 0;
         let mut all_valid_and_truly_constant = true;
-        for _order in orders
-        {
+        for _order in orders {
             // const auto &order = orders[order_idx];
             // const auto &logical_type = order.expression->GetReturnType();
             // const auto physical_type = logical_type.InternalType();
@@ -598,28 +623,21 @@ impl TupleDataLayout {
             {
                 // We don't have to sort by this byte, all values are valid
                 self.sort_skippable_bytes.push(sort_width);
-            }
-            else
-            {
+            } else {
                 all_valid_and_truly_constant = false;
             }
 
-            if type_is_constant_size(physical_type)
-            {
+            if type_is_constant_size(physical_type) {
                 // NULL byte + fixed-width r#type
                 sort_width += 1 + get_type_id_size(physical_type);
-            }
-            else if r#type.id == LogicalTypeId::VARCHAR
-            {
+            } else if r#type.id == LogicalTypeId::VARCHAR {
                 // NULL byte + variable-length r#type
                 // In real code, we'd check
                 // StringStats::HasMaxStringLength(*order.stats)
                 // For now, treat as variable
                 sort_width = usize::MAX;
                 break;
-            }
-            else
-            {
+            } else {
                 // We don't know how long the key will be
                 sort_width = usize::MAX;
                 break;
@@ -627,68 +645,51 @@ impl TupleDataLayout {
         }
 
         // Set row width and sort key r#type accordingly
-        let temp_row_width = if r#type.id == LogicalTypeId::BIGINT
-        {
+        let temp_row_width = if r#type.id == LogicalTypeId::BIGINT {
             8
-        }
-        else
-        {
+        } else {
             sort_width
         };
-        let temp_row_width = if sort_width != usize::MAX && has_payload
-        {
+        let temp_row_width = if sort_width != usize::MAX && has_payload {
             temp_row_width + 8
-        }
-        else
-        {
+        } else {
             temp_row_width
         };
 
         // Round the key up to the nearest layout that
         // DUCKDB_FOR_EACH_SORT_KEY_TYPE still keeps.
-        let (row_width, sort_key_type) = match temp_row_width
-        {
+        let (row_width, sort_key_type) = match temp_row_width {
             w if w <= 8 => (8, SortKeyType::NO_PAYLOAD_FIXED_8),
             w if w <= 16 => (
                 16,
-                if has_payload
-                {
+                if has_payload {
                     SortKeyType::PAYLOAD_FIXED_16
-                }
-                else
-                {
+                } else {
                     SortKeyType::NO_PAYLOAD_FIXED_16
                 },
             ),
             w if w <= 24 => (
                 24,
-                if has_payload
-                {
+                if has_payload {
                     SortKeyType::PAYLOAD_FIXED_24
-                }
-                else
-                {
+                } else {
                     SortKeyType::NO_PAYLOAD_FIXED_24
                 },
             ),
             w if w <= 32 => (
                 32,
-                if has_payload
-                {
+                if has_payload {
                     SortKeyType::PAYLOAD_FIXED_32
-                }
-                else
-                {
+                } else {
                     SortKeyType::NO_PAYLOAD_FIXED_32
                 },
             ),
-            _ =>
-            {
+            _ => {
                 self.all_constant = false;
                 // heap_size_offset is set by C++ when using sort key layouts
                 // 32 is the fixed row_width for all FIXED_32 layouts
                 (32, SortKeyType::PAYLOAD_VARIABLE_32)
-            },
+            }
         };
 
         self.row_width = row_width;
@@ -697,7 +698,9 @@ impl TupleDataLayout {
 }
 
 impl Default for TupleDataLayout {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -743,8 +746,7 @@ fn get_type_id_size_cpp(physical_type: u8) -> usize {
     // BOOL=1, UINT8=2, INT8=3, UINT16=4, INT16=5, UINT32=6, INT32=7,
     // UINT64=8, INT64=9, FLOAT=11, DOUBLE=12, INTERVAL=21, LIST=23, STRUCT=24,
     // VARCHAR=200, UINT128=203, INT128=204
-    match physical_type
-    {
+    match physical_type {
         1..=3 => 1,      // BOOL, UINT8, INT8
         4 | 5 => 2,      // UINT16, INT16
         6 | 7 => 4,      // UINT32, INT32
@@ -776,25 +778,19 @@ pub fn compute_layout(
     let num_columns = columns.len();
     let cannot_have_null = validity_cannot_have_null != 0;
 
-    let flag_width = if cannot_have_null
-    {
+    let flag_width = if cannot_have_null {
         0
-    }
-    else
-    {
+    } else {
         (num_columns + 7).div_ceil(8)
     };
     let mut row_width = flag_width;
 
     let mut all_constant = true;
     let mut var_count = 0usize;
-    for (col_idx, col) in columns.iter().enumerate()
-    {
-        if col.is_constant == 0
-        {
+    for (col_idx, col) in columns.iter().enumerate() {
+        if col.is_constant == 0 {
             all_constant = false;
-            if var_count < variable_columns_out.len()
-            {
+            if var_count < variable_columns_out.len() {
                 variable_columns_out[var_count] = col_idx;
                 var_count += 1;
             }
@@ -802,46 +798,35 @@ pub fn compute_layout(
     }
 
     let mut heap_size_offset = 0usize;
-    if is_top_level != 0 && !all_constant
-    {
+    if is_top_level != 0 && !all_constant {
         heap_size_offset = row_width;
         row_width += std::mem::size_of::<usize>();
     }
 
     let mut off_idx = 0usize;
-    for col in columns.iter()
-    {
-        if off_idx < offsets_out.len()
-        {
+    for col in columns.iter() {
+        if off_idx < offsets_out.len() {
             offsets_out[off_idx] = row_width;
             off_idx += 1;
         }
         let pt = col.physical_type;
-        if type_is_constant_size_cpp(pt) || pt == 200
-        {
+        if type_is_constant_size_cpp(pt) || pt == 200 {
             row_width += get_type_id_size_cpp(pt);
-        }
-        else if col.is_struct != 0
-        {
+        } else if col.is_struct != 0 {
             row_width += col.struct_size;
-        }
-        else
-        {
+        } else {
             row_width += std::mem::size_of::<usize>();
         }
     }
 
     let align = !aggr_payload_sizes.is_empty();
-    if align
-    {
+    if align {
         row_width = align_value_cpp(row_width, std::mem::align_of::<usize>());
     }
     let data_width = row_width - flag_width;
 
-    for &ps in aggr_payload_sizes.iter()
-    {
-        if off_idx < offsets_out.len()
-        {
+    for &ps in aggr_payload_sizes.iter() {
+        if off_idx < offsets_out.len() {
             offsets_out[off_idx] = row_width;
             off_idx += 1;
         }
@@ -849,16 +834,13 @@ pub fn compute_layout(
     }
     let aggr_width = row_width - data_width - flag_width;
 
-    if align
-    {
+    if align {
         row_width = align_value_cpp(row_width, std::mem::align_of::<usize>());
     }
 
     let mut di_count = 0usize;
-    for (i, &hd) in aggr_has_destructor.iter().enumerate()
-    {
-        if hd != 0 && di_count < aggr_destructor_idxs_out.len()
-        {
+    for (i, &hd) in aggr_has_destructor.iter().enumerate() {
+        if hd != 0 && di_count < aggr_destructor_idxs_out.len() {
             aggr_destructor_idxs_out[di_count] = i;
             di_count += 1;
         }
@@ -882,7 +864,9 @@ pub fn compute_layout(
 // ----------------------------------------------------------------------------
 
 impl Clone for TupleDataLayout {
-    fn clone(&self) -> Self { self.copy() }
+    fn clone(&self) -> Self {
+        self.copy()
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -905,8 +889,10 @@ mod tests {
     #[test]
     fn test_initialize_basic() {
         let mut layout = TupleDataLayout::new();
-        let types =
-            vec![LogicalType::new(LogicalTypeId::INTEGER), LogicalType::new(LogicalTypeId::BIGINT)];
+        let types = vec![
+            LogicalType::new(LogicalTypeId::INTEGER),
+            LogicalType::new(LogicalTypeId::BIGINT),
+        ];
         let aggregates = Vec::new();
         layout.initialize(
             types,

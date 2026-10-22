@@ -25,12 +25,13 @@ pub(crate) struct Selection<'a> {
 
 impl<'a> Selection<'a> {
     /// Builds a view over `entries`, which is empty for the identity selection.
-    pub(crate) fn new(entries: &'a [u32]) -> Self { Self { entries } }
+    pub(crate) fn new(entries: &'a [u32]) -> Self {
+        Self { entries }
+    }
 
     /// `SelectionVector::get_index`, for a row that must exist.
     pub(crate) fn index(&self, row: usize) -> Result<usize, String> {
-        if self.entries.is_empty()
-        {
+        if self.entries.is_empty() {
             return Ok(row);
         }
         self.entries
@@ -49,12 +50,13 @@ pub(crate) struct Validity<'a> {
 
 impl<'a> Validity<'a> {
     /// Builds a view over `words`, which is empty when there can be no NULLs.
-    pub(crate) fn new(words: &'a [u64]) -> Self { Self { words } }
+    pub(crate) fn new(words: &'a [u64]) -> Self {
+        Self { words }
+    }
 
     /// `ValidityMask::RowIsValid`.
     pub(crate) fn row_is_valid(&self, row: usize) -> Result<bool, String> {
-        if self.words.is_empty()
-        {
+        if self.words.is_empty() {
             return Ok(true);
         }
         let word = row / u64::BITS as usize;

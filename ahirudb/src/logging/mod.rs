@@ -24,28 +24,10 @@ pub mod logging;
 #[cfg(test)]
 mod test_support;
 
-pub use log_manager::{
-    CreatedLogger,
-    LogManager,
-    StorageSwitchError,
-    StorageSwitchErrorKind,
-};
-pub use log_storage::{
-    CLogStorage,
-    LoggingTargetTable,
-};
-pub use logger::{
-    LoggerKind,
-    MutableLogger,
-    ThreadSafeLogger,
-};
+pub use log_manager::{CreatedLogger, LogManager, StorageSwitchError, StorageSwitchErrorKind};
+pub use log_storage::{CLogStorage, LoggingTargetTable};
+pub use logger::{LoggerKind, MutableLogger, ThreadSafeLogger};
 pub use logging::{
-    LogConfig,
-    LogConfigSnapshot,
-    LogFilter,
-    LogLevel,
-    LogMode,
-    RegisteredLoggingContextLayout,
-    current_timestamp,
-    log_config_snapshot,
+    LogConfig, LogConfigSnapshot, LogFilter, LogLevel, LogMode, RegisteredLoggingContextLayout,
+    current_timestamp, log_config_snapshot,
 };

@@ -7,12 +7,8 @@
 //! serializing/deserializing lists and structs in the binary format.
 
 use crate::serializer::{
-    DeserializeInDeserializer,
-    SerializeInSerializer,
-    deserializer::Deserializer,
-    field_id_t,
-    idx_t,
-    serializer::Serializer,
+    DeserializeInDeserializer, SerializeInSerializer, deserializer::Deserializer, field_id_t,
+    idx_t, serializer::Serializer,
 };
 
 /// A helper for serializing list elements.
@@ -31,7 +27,11 @@ pub struct ListSerializer<'a> {
 impl<'a> ListSerializer<'a> {
     /// Create a new ListSerializer.
     pub fn new(serializer: &'a mut dyn Serializer, count: idx_t) -> Self {
-        ListSerializer { serializer, idx: 0, count }
+        ListSerializer {
+            serializer,
+            idx: 0,
+            count,
+        }
     }
 
     /// Write the current element.
@@ -61,10 +61,14 @@ impl<'a> ListSerializer<'a> {
     }
 
     /// Get the current index.
-    pub fn get_idx(&self) -> idx_t { self.idx }
+    pub fn get_idx(&self) -> idx_t {
+        self.idx
+    }
 
     /// Check if we've reached the end of the list.
-    pub fn is_done(&self) -> bool { self.idx >= self.count }
+    pub fn is_done(&self) -> bool {
+        self.idx >= self.count
+    }
 }
 
 /// A helper for deserializing list elements.
@@ -83,7 +87,11 @@ pub struct ListDeserializer<'a> {
 impl<'a> ListDeserializer<'a> {
     /// Create a new ListDeserializer.
     pub fn new(deserializer: &'a mut dyn Deserializer, count: idx_t) -> Self {
-        ListDeserializer { deserializer, idx: 0, count }
+        ListDeserializer {
+            deserializer,
+            idx: 0,
+            count,
+        }
     }
 
     /// Read the current element.
@@ -117,10 +125,14 @@ impl<'a> ListDeserializer<'a> {
     }
 
     /// Get the current index.
-    pub fn get_idx(&self) -> idx_t { self.idx }
+    pub fn get_idx(&self) -> idx_t {
+        self.idx
+    }
 
     /// Check if we've reached the end of the list.
-    pub fn is_done(&self) -> bool { self.idx >= self.count }
+    pub fn is_done(&self) -> bool {
+        self.idx >= self.count
+    }
 }
 
 /// Serialize a list of elements.
@@ -147,8 +159,7 @@ pub fn write_list<F>(
     serializer.on_property_begin(field_id, tag);
     serializer.on_list_begin(count);
     let mut func = func;
-    for i in 0..count
-    {
+    for i in 0..count {
         func(serializer, i);
     }
     serializer.on_list_end();
@@ -177,8 +188,7 @@ pub fn read_list<F>(
     deserializer.on_property_begin(field_id, tag);
     let count = deserializer.on_list_begin();
     let mut func = func;
-    for i in 0..count
-    {
+    for i in 0..count {
         func(deserializer, i);
     }
     deserializer.on_list_end();
@@ -215,15 +225,8 @@ pub fn deserialize_struct<T: DeserializeInDeserializer>(deserializer: &mut dyn D
 mod tests {
     use super::*;
     use crate::serializer::{
-        BinaryDeserializer,
-        BinarySerializer,
-        SerializationData,
-        SerializationOptions,
-        hugeint_t,
-        memory_stream::MemoryStream,
-        string,
-        string_t,
-        uhugeint_t,
+        BinaryDeserializer, BinarySerializer, SerializationData, SerializationOptions, hugeint_t,
+        memory_stream::MemoryStream, string, string_t, uhugeint_t,
     };
 
     #[derive(Debug)]
@@ -244,11 +247,17 @@ mod tests {
     }
 
     impl Serializer for TestSerializer {
-        fn get_options(&self) -> &SerializationOptions { &self.options }
+        fn get_options(&self) -> &SerializationOptions {
+            &self.options
+        }
 
-        fn get_serialization_data(&self) -> &SerializationData { &self.data }
+        fn get_serialization_data(&self) -> &SerializationData {
+            &self.data
+        }
 
-        fn set_serialization_data(&mut self, data: &SerializationData) { self.data = data.clone(); }
+        fn set_serialization_data(&mut self, data: &SerializationData) {
+            self.data = data.clone();
+        }
 
         fn write_null(&mut self) {}
 
@@ -268,7 +277,9 @@ mod tests {
 
         fn write_uint32(&mut self, _: u32) {}
 
-        fn write_int64(&mut self, value: i64) { self.written.push(value); }
+        fn write_int64(&mut self, value: i64) {
+            self.written.push(value);
+        }
 
         fn write_uint64(&mut self, _: u64) {}
 
@@ -347,50 +358,100 @@ mod tests {
 
     impl TestDeserializer {
         fn new(list_count: idx_t, read_values: Vec<i64>) -> Self {
-            TestDeserializer { data: SerializationData::default(), list_count, read_values }
+            TestDeserializer {
+                data: SerializationData::default(),
+                list_count,
+                read_values,
+            }
         }
     }
 
     impl Deserializer for TestDeserializer {
-        fn get_serialization_data(&self) -> &SerializationData { &self.data }
+        fn get_serialization_data(&self) -> &SerializationData {
+            &self.data
+        }
 
-        fn set_serialization_data(&mut self, data: &SerializationData) { self.data = data.clone(); }
+        fn set_serialization_data(&mut self, data: &SerializationData) {
+            self.data = data.clone();
+        }
 
-        fn read_bool(&mut self) -> bool { false }
-        fn read_char(&mut self) -> char { 'a' }
-        fn read_int8(&mut self) -> i8 { 0 }
-        fn read_uint8(&mut self) -> u8 { 0 }
-        fn read_int16(&mut self) -> i16 { 0 }
-        fn read_uint16(&mut self) -> u16 { 0 }
-        fn read_int32(&mut self) -> i32 { 0 }
-        fn read_uint32(&mut self) -> u32 { 0 }
+        fn read_bool(&mut self) -> bool {
+            false
+        }
+        fn read_char(&mut self) -> char {
+            'a'
+        }
+        fn read_int8(&mut self) -> i8 {
+            0
+        }
+        fn read_uint8(&mut self) -> u8 {
+            0
+        }
+        fn read_int16(&mut self) -> i16 {
+            0
+        }
+        fn read_uint16(&mut self) -> u16 {
+            0
+        }
+        fn read_int32(&mut self) -> i32 {
+            0
+        }
+        fn read_uint32(&mut self) -> u32 {
+            0
+        }
         fn read_int64(&mut self) -> i64 {
-            if self.read_values.is_empty()
-            {
+            if self.read_values.is_empty() {
                 0
-            }
-            else
-            {
+            } else {
                 self.read_values.remove(0)
             }
         }
-        fn read_uint64(&mut self) -> u64 { 0 }
-        fn read_hugeint(&mut self) -> hugeint_t { hugeint_t { upper: 0, lower: 0 } }
-        fn read_uhugeint(&mut self) -> uhugeint_t { uhugeint_t { upper: 0, lower: 0 } }
-        fn read_float(&mut self) -> f32 { 0.0 }
-        fn read_double(&mut self) -> f64 { 0.0 }
-        fn read_string_t(&mut self) -> string_t { string_t { data: vec![], size: 0 } }
-        fn read_string(&mut self) -> string { string { data: String::new() } }
-        fn read_data_ptr(&mut self, _: idx_t) -> Vec<u8> { Vec::new() }
+        fn read_uint64(&mut self) -> u64 {
+            0
+        }
+        fn read_hugeint(&mut self) -> hugeint_t {
+            hugeint_t { upper: 0, lower: 0 }
+        }
+        fn read_uhugeint(&mut self) -> uhugeint_t {
+            uhugeint_t { upper: 0, lower: 0 }
+        }
+        fn read_float(&mut self) -> f32 {
+            0.0
+        }
+        fn read_double(&mut self) -> f64 {
+            0.0
+        }
+        fn read_string_t(&mut self) -> string_t {
+            string_t {
+                data: vec![],
+                size: 0,
+            }
+        }
+        fn read_string(&mut self) -> string {
+            string {
+                data: String::new(),
+            }
+        }
+        fn read_data_ptr(&mut self, _: idx_t) -> Vec<u8> {
+            Vec::new()
+        }
         fn on_object_begin(&mut self) {}
         fn on_object_end(&mut self) {}
-        fn on_list_begin(&mut self) -> idx_t { self.list_count }
+        fn on_list_begin(&mut self) -> idx_t {
+            self.list_count
+        }
         fn on_list_end(&mut self) {}
-        fn on_nullable_begin(&mut self) -> bool { false }
+        fn on_nullable_begin(&mut self) -> bool {
+            false
+        }
         fn on_nullable_end(&mut self) {}
-        fn on_property_begin(&mut self, _: field_id_t, _: *const u8) -> bool { true }
+        fn on_property_begin(&mut self, _: field_id_t, _: *const u8) -> bool {
+            true
+        }
         fn on_property_end(&mut self) {}
-        fn on_optional_property_begin(&mut self, _: field_id_t, _: *const u8) -> bool { false }
+        fn on_optional_property_begin(&mut self, _: field_id_t, _: *const u8) -> bool {
+            false
+        }
         fn on_optional_property_end(&mut self, _: bool) {}
         fn read_property(&mut self, _: field_id_t, _: *const u8, _: *mut u8, _: idx_t) -> bool {
             false

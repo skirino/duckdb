@@ -62,7 +62,9 @@ pub trait CustomData: std::fmt::Debug + 'static {
 }
 
 impl Clone for Box<dyn CustomData> {
-    fn clone(&self) -> Box<dyn CustomData> { self.clone_box() }
+    fn clone(&self) -> Box<dyn CustomData> {
+        self.clone_box()
+    }
 }
 
 impl PartialEq for dyn CustomData {
@@ -113,7 +115,9 @@ impl Default for SerializationData {
 
 impl SerializationData {
     /// Push a client context onto the contexts stack.
-    pub fn set_context(&mut self, context: *mut std::ffi::c_void) { self.contexts.push(context); }
+    pub fn set_context(&mut self, context: *mut std::ffi::c_void) {
+        self.contexts.push(context);
+    }
 
     /// Get the top client context.
     pub fn get_context(&self) -> *mut std::ffi::c_void {
@@ -122,10 +126,14 @@ impl SerializationData {
     }
 
     /// Pop the top client context.
-    pub fn unset_context(&mut self) { self.contexts.pop(); }
+    pub fn unset_context(&mut self) {
+        self.contexts.pop();
+    }
 
     /// Push a database instance onto the databases stack.
-    pub fn set_database(&mut self, db: *mut std::ffi::c_void) { self.databases.push(db); }
+    pub fn set_database(&mut self, db: *mut std::ffi::c_void) {
+        self.databases.push(db);
+    }
 
     /// Get the top database instance.
     pub fn get_database(&self) -> *mut std::ffi::c_void {
@@ -134,10 +142,14 @@ impl SerializationData {
     }
 
     /// Pop the top database instance.
-    pub fn unset_database(&mut self) { self.databases.pop(); }
+    pub fn unset_database(&mut self) {
+        self.databases.pop();
+    }
 
     /// Push a catalog onto the catalogs stack.
-    pub fn set_catalog(&mut self, catalog: *mut std::ffi::c_void) { self.catalogs.push(catalog); }
+    pub fn set_catalog(&mut self, catalog: *mut std::ffi::c_void) {
+        self.catalogs.push(catalog);
+    }
 
     /// Get the top catalog.
     pub fn get_catalog(&self) -> *mut std::ffi::c_void {
@@ -146,10 +158,14 @@ impl SerializationData {
     }
 
     /// Pop the top catalog.
-    pub fn unset_catalog(&mut self) { self.catalogs.pop(); }
+    pub fn unset_catalog(&mut self) {
+        self.catalogs.pop();
+    }
 
     /// Push an enum value onto the enums stack.
-    pub fn set_enum(&mut self, value: idx_t) { self.enums.push(value); }
+    pub fn set_enum(&mut self, value: idx_t) {
+        self.enums.push(value);
+    }
 
     /// Get the top enum value.
     pub fn get_enum(&self) -> idx_t {
@@ -158,7 +174,9 @@ impl SerializationData {
     }
 
     /// Pop the top enum value.
-    pub fn unset_enum(&mut self) { self.enums.pop(); }
+    pub fn unset_enum(&mut self) {
+        self.enums.pop();
+    }
 
     /// Push a bound parameter map reference onto the parameter_data stack.
     pub fn set_parameter_data(&mut self, param_data: *mut std::ffi::c_void) {
@@ -167,12 +185,17 @@ impl SerializationData {
 
     /// Get the top bound parameter map reference.
     pub fn get_parameter_data(&self) -> *mut std::ffi::c_void {
-        debug_assert!(!self.parameter_data.is_empty(), "Parameter data stack is empty");
+        debug_assert!(
+            !self.parameter_data.is_empty(),
+            "Parameter data stack is empty"
+        );
         self.parameter_data[self.parameter_data.len() - 1]
     }
 
     /// Pop the top bound parameter map reference.
-    pub fn unset_parameter_data(&mut self) { self.parameter_data.pop(); }
+    pub fn unset_parameter_data(&mut self) {
+        self.parameter_data.pop();
+    }
 
     /// Push a LogicalType reference onto the types stack.
     pub fn set_type(&mut self, logical_type: *mut std::ffi::c_void) {
@@ -186,7 +209,9 @@ impl SerializationData {
     }
 
     /// Pop the top LogicalType reference.
-    pub fn unset_type(&mut self) { self.types.pop(); }
+    pub fn unset_type(&mut self) {
+        self.types.pop();
+    }
 
     /// Push a function children reference onto the function_children stack.
     pub fn set_function_children(&mut self, children: *mut std::ffi::c_void) {
@@ -195,12 +220,17 @@ impl SerializationData {
 
     /// Get the top function children reference.
     pub fn get_function_children(&self) -> *mut std::ffi::c_void {
-        debug_assert!(!self.function_children.is_empty(), "Function children stack is empty");
+        debug_assert!(
+            !self.function_children.is_empty(),
+            "Function children stack is empty"
+        );
         self.function_children[self.function_children.len() - 1]
     }
 
     /// Pop the top function children reference.
-    pub fn unset_function_children(&mut self) { self.function_children.pop(); }
+    pub fn unset_function_children(&mut self) {
+        self.function_children.pop();
+    }
 
     /// Push a CompressionInfo reference onto the compression_infos stack.
     pub fn set_compression_info(&mut self, compression_info: *mut std::ffi::c_void) {
@@ -209,12 +239,17 @@ impl SerializationData {
 
     /// Get the top CompressionInfo reference.
     pub fn get_compression_info(&self) -> *mut std::ffi::c_void {
-        debug_assert!(!self.compression_infos.is_empty(), "Compression info stack is empty");
+        debug_assert!(
+            !self.compression_infos.is_empty(),
+            "Compression info stack is empty"
+        );
         self.compression_infos[self.compression_infos.len() - 1]
     }
 
     /// Pop the top CompressionInfo reference.
-    pub fn unset_compression_info(&mut self) { self.compression_infos.pop(); }
+    pub fn unset_compression_info(&mut self) {
+        self.compression_infos.pop();
+    }
 
     /// Set a custom data entry.
     pub fn set_custom<T: CustomData + 'static>(&mut self, data: &T) {
@@ -232,7 +267,11 @@ impl SerializationData {
             .get(&TypeId::of::<T>())
             .expect("no stack for custom data type");
         let top = customs.last().expect("empty stack for custom data");
-        debug_assert_eq!(top.get_type_id(), TypeId::of::<T>(), "custom data type mismatch");
+        debug_assert_eq!(
+            top.get_type_id(),
+            TypeId::of::<T>(),
+            "custom data type mismatch"
+        );
         unsafe {
             // SAFETY: the stack is keyed by TypeId::of::<T>() and the debug
             // assert re-checks the stored value's type, so `top` is
@@ -250,8 +289,7 @@ impl SerializationData {
 
     /// Unset (pop) the top custom data entry of type T.
     pub fn unset_custom<T: CustomData + 'static>(&mut self) {
-        if let Some(customs) = self.customs.get_mut(&TypeId::of::<T>())
-        {
+        if let Some(customs) = self.customs.get_mut(&TypeId::of::<T>()) {
             customs.pop();
         }
     }
@@ -261,7 +299,9 @@ impl SerializationData {
 pub struct SerializationDataError(String);
 
 impl std::fmt::Display for SerializationDataError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.0) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
 impl std::fmt::Debug for SerializationDataError {
@@ -315,11 +355,17 @@ mod tests {
     }
 
     impl CustomData for TestCustom {
-        fn get_type(&self) -> &'static str { "TestCustom" }
+        fn get_type(&self) -> &'static str {
+            "TestCustom"
+        }
 
-        fn clone_box(&self) -> Box<dyn CustomData> { Box::new(self.clone()) }
+        fn clone_box(&self) -> Box<dyn CustomData> {
+            Box::new(self.clone())
+        }
 
-        fn get_type_id(&self) -> TypeId { TypeId::of::<TestCustom>() }
+        fn get_type_id(&self) -> TypeId {
+            TypeId::of::<TestCustom>()
+        }
     }
 
     #[test]

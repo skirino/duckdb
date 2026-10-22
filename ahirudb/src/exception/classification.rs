@@ -21,7 +21,10 @@ pub(crate) fn invalidates_transaction(exception_type: ExceptionType) -> bool {
 /// Whether this exception type invalidates the entire database.
 /// Matching `Exception::InvalidatesDatabase`.
 pub(crate) fn invalidates_database(exception_type: ExceptionType) -> bool {
-    matches!(exception_type, ExceptionType::DATA_CORRUPTION | ExceptionType::FATAL)
+    matches!(
+        exception_type,
+        ExceptionType::DATA_CORRUPTION | ExceptionType::FATAL
+    )
 }
 
 /// Whether this exception type can occur during query execution.
@@ -52,8 +55,7 @@ mod tests {
             ExceptionType::PARSER,
             ExceptionType::PERMISSION,
             ExceptionType::RESOURCE_IN_USE,
-        ]
-        {
+        ] {
             assert!(
                 !invalidates_transaction(exception_type),
                 "{exception_type:?} should not invalidate the transaction"
@@ -68,7 +70,10 @@ mod tests {
     fn only_corruption_and_fatal_invalidate_the_database() {
         let invalidating: Vec<ExceptionType> =
             every_type().filter(|t| invalidates_database(*t)).collect();
-        assert_eq!(vec![ExceptionType::FATAL, ExceptionType::DATA_CORRUPTION], invalidating);
+        assert_eq!(
+            vec![ExceptionType::FATAL, ExceptionType::DATA_CORRUPTION],
+            invalidating
+        );
     }
 
     #[test]

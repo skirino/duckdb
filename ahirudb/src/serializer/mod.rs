@@ -39,7 +39,7 @@ pub type field_id_t = u16;
 pub type idx_t = u64;
 
 /// Marker for the end of a serialized message.
-pub const MESSAGE_TERMINATOR_FIELD_ID: field_id_t = 0xFFFF;
+pub const MESSAGE_TERMINATOR_FIELD_ID: field_id_t = 0xffff;
 
 /// A type representing a huge integer (int64 upper + uint64 lower, like C++
 /// `hugeint_t`).
@@ -64,9 +64,13 @@ pub struct string_t {
 }
 
 impl string_t {
-    pub fn get_data(&self) -> &[u8] { &self.data[..self.size] }
+    pub fn get_data(&self) -> &[u8] {
+        &self.data[..self.size]
+    }
 
-    pub fn get_size(&self) -> usize { self.size }
+    pub fn get_size(&self) -> usize {
+        self.size
+    }
 }
 
 /// A string type used in serialization.
@@ -76,58 +80,42 @@ pub struct string {
 }
 
 impl string {
-    pub fn length(&self) -> usize { self.data.len() }
+    pub fn length(&self) -> usize {
+        self.data.len()
+    }
 
-    pub fn get_data(&self) -> *const u8 { self.data.as_ptr() }
+    pub fn get_data(&self) -> *const u8 {
+        self.data.as_ptr()
+    }
 }
 
 pub mod cpp_bridge;
 pub mod encoding_util;
-pub mod write_stream;
-pub mod read_stream;
 pub mod memory_stream;
+pub mod read_stream;
 pub mod serialization_data;
+pub mod write_stream;
 // The inner module mirrors the C++ `serializer.hpp` file name.
-#[allow(clippy::module_inception)]
-pub mod serializer;
 pub mod deserializer;
 pub mod list;
+#[allow(clippy::module_inception)]
+pub mod serializer;
 
 pub use cpp_bridge::{
-    CppBinaryDeserializer,
-    CppBinarySerializer,
-    clear_pending_error,
-    has_pending_error,
-    pending_error_len,
-    pending_error_ptr,
+    CppBinaryDeserializer, CppBinarySerializer, clear_pending_error, has_pending_error,
+    pending_error_len, pending_error_ptr,
 };
-pub use deserializer::{
-    BinaryDeserializer,
-    DeserializeInDeserializer,
-    Deserializer,
-};
+pub use deserializer::{BinaryDeserializer, DeserializeInDeserializer, Deserializer};
 pub use encoding_util::{
-    decode_signed_leb128,
-    decode_unsigned_leb128,
-    encode_signed_leb128,
-    encode_unsigned_leb128,
+    decode_signed_leb128, decode_unsigned_leb128, encode_signed_leb128, encode_unsigned_leb128,
 };
 pub use list::{
-    ListDeserializer,
-    ListSerializer,
-    deserialize_struct,
-    read_list,
-    serialize_struct,
-    write_list,
+    ListDeserializer, ListSerializer, deserialize_struct, read_list, serialize_struct, write_list,
 };
 pub use memory_stream::MemoryStream;
 pub use read_stream::ReadStream;
 pub use serialization_data::SerializationData;
 pub use serializer::{
-    BinarySerializer,
-    SerializationOptions,
-    SerializeInSerializer,
-    Serializer,
-    StorageCompatibility,
+    BinarySerializer, SerializationOptions, SerializeInSerializer, Serializer, StorageCompatibility,
 };
 pub use write_stream::WriteStream;
