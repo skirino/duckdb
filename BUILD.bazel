@@ -2072,8 +2072,10 @@ sql_logic_test_list(
     kind = "fast",
 )
 
+# The corpus-wide slow list; not a test itself, the groups below run it. It is
+# the oracle sql_aggregate_slow_coverage_test checks the groups against.
 sql_logic_test_list(
-    name = "sql_aggregate_slow_testlist",
+    name = "sql_aggregate_all_slow_testlist",
     globs = glob(["test/sql/aggregate/**"]),
     kind = "slow",
 )
@@ -2084,11 +2086,41 @@ subdirectory_test(
     testlist = ":sql_aggregate_fast_testlist",
 )
 
-subdirectory_test(
-    name = "sql_aggregate_slow_test",
-    args = ["-f", "sql_aggregate_slow_testlist.txt"],
+# The slow corpus runs as one group per directory, so Bazel can run the groups
+# concurrently instead of in one long serial test. aggregates/ holds over half
+# the files, so it splits along its arg_min_max and all_types name families
+# plus a remainder. A new file matches some broad pattern (or the remainder),
+# so coverage does not depend on assigning it.
+sql_aggregate_slow_testlists = sql_logic_test_groups(
+    prefix = "sql_aggregate",
+    kind = "slow",
     size = "large",
-    testlist = ":sql_aggregate_slow_testlist",
+    groups = {
+        "aggregates_arg_min_max": glob([
+            "test/sql/aggregate/aggregates/arg_*",
+            "test/sql/aggregate/aggregates/test_arg_min_max*",
+        ]),
+        "aggregates_all_types": glob(["test/sql/aggregate/aggregates/*_test_all_types*"]),
+        "aggregates": glob(["test/sql/aggregate/aggregates/*"], exclude = [
+            "test/sql/aggregate/aggregates/arg_*",
+            "test/sql/aggregate/aggregates/test_arg_min_max*",
+            "test/sql/aggregate/aggregates/*_test_all_types*",
+        ]),
+        "distinct_grouped": glob(["test/sql/aggregate/distinct/grouped/**"]),
+        "distinct_other": glob([
+            "test/sql/aggregate/distinct/*",
+            "test/sql/aggregate/distinct/ungrouped/**",
+        ]),
+        "external": glob(["test/sql/aggregate/external/**"]),
+        "group": glob(["test/sql/aggregate/group/**"]),
+        "grouping_sets": glob(["test/sql/aggregate/grouping_sets/**"]),
+    },
+)
+
+sql_logic_test_coverage_test(
+    name = "sql_aggregate_slow_coverage_test",
+    oracle = ":sql_aggregate_all_slow_testlist",
+    testlists = sql_aggregate_slow_testlists,
 )
 
 sql_logic_test_list(
@@ -2309,8 +2341,10 @@ sql_logic_test_list(
     kind = "fast",
 )
 
+# The corpus-wide slow list; not a test itself, the groups below run it. It is
+# the oracle sql_copy_slow_coverage_test checks the groups against.
 sql_logic_test_list(
-    name = "sql_copy_slow_testlist",
+    name = "sql_copy_all_slow_testlist",
     globs = glob(["test/sql/copy/**"]),
     kind = "slow",
 )
@@ -2332,12 +2366,47 @@ subdirectory_test(
     fixture_tree = "data_fixture_tree",
 )
 
-subdirectory_test(
-    name = "sql_copy_slow_test",
-    args = ["-f", "sql_copy_slow_testlist.txt"],
+# The slow corpus runs as one group per directory, so Bazel can run the groups
+# concurrently instead of in one long serial test. `csv` and `parquet` hold
+# most of the files, so their subdirectories are groups of their own, and the
+# many files directly under `csv/` split along the `test_*` prefix. A new file
+# matches some broad pattern (or the excluded remainder), so coverage does not
+# depend on assigning it.
+sql_copy_slow_testlists = sql_logic_test_groups(
+    prefix = "sql_copy",
+    kind = "slow",
     size = "large",
-    testlist = ":sql_copy_slow_testlist",
     fixture_tree = "data_fixture_tree",
+    groups = {
+        "csv_root_test": glob(["test/sql/copy/csv/test_*"]),
+        "csv_root": glob(["test/sql/copy/csv/*"], exclude = [
+            "test/sql/copy/csv/test_*",
+        ]),
+        "csv_auto": glob(["test/sql/copy/csv/auto/**"]),
+        "csv_batched_write": glob(["test/sql/copy/csv/batched_write/**"]),
+        "csv_glob": glob(["test/sql/copy/csv/glob/**"]),
+        "csv_parallel": glob(["test/sql/copy/csv/parallel/**"]),
+        "csv_other": glob([
+            "test/sql/copy/csv/code_cov/**",
+            "test/sql/copy/csv/rejects/**",
+            "test/sql/copy/csv/unquoted_escape/**",
+        ]),
+        "parquet_batched_write": glob(["test/sql/copy/parquet/batched_write/**"]),
+        "parquet_writer": glob(["test/sql/copy/parquet/writer/**"]),
+        "parquet_root": glob([
+            "test/sql/copy/parquet/*",
+            "test/sql/copy/parquet/read_ahead/**",
+        ]),
+        "encryption": glob(["test/sql/copy/encryption/**"]),
+        "partitioned": glob(["test/sql/copy/partitioned/**"]),
+        "root": glob(["test/sql/copy/*"]),
+    },
+)
+
+sql_logic_test_coverage_test(
+    name = "sql_copy_slow_coverage_test",
+    oracle = ":sql_copy_all_slow_testlist",
+    testlists = sql_copy_slow_testlists,
 )
 
 sql_logic_test_list(
@@ -2684,8 +2753,10 @@ sql_logic_test_list(
     kind = "fast",
 )
 
+# The corpus-wide slow list; not a test itself, the groups below run it. It is
+# the oracle sql_index_slow_coverage_test checks the groups against.
 sql_logic_test_list(
-    name = "sql_index_slow_testlist",
+    name = "sql_index_all_slow_testlist",
     globs = glob(["test/sql/index/**"]),
     kind = "slow",
 )
@@ -2697,12 +2768,34 @@ subdirectory_test(
     testlist = ":sql_index_fast_testlist",
 )
 
-subdirectory_test(
-    name = "sql_index_slow_test",
-    args = ["-f", "sql_index_slow_testlist.txt"],
+# Every slow file lives under test/sql/index/art/, so the corpus runs as one
+# group per art/ subdirectory -- except types/, whose five files each cost
+# about as much as a whole directory elsewhere and so run one group per file.
+# The coverage test below fails if a slow file appears elsewhere in the tree
+# without a group.
+sql_index_slow_testlists = sql_logic_test_groups(
+    prefix = "sql_index",
+    kind = "slow",
     size = "large",
     deps = [":test_cpp_sql_index"],
-    testlist = ":sql_index_slow_testlist",
+    groups = {
+        "art_constraints": glob(["test/sql/index/art/constraints/**"]),
+        "art_create_drop": glob(["test/sql/index/art/create_drop/**"]),
+        "art_insert_update_delete": glob(["test/sql/index/art/insert_update_delete/**"]),
+        "art_issues": glob(["test/sql/index/art/issues/**"]),
+        "art_memory": glob(["test/sql/index/art/memory/**"]),
+        "art_multi_column": glob(["test/sql/index/art/multi_column/**"]),
+        "art_nodes": glob(["test/sql/index/art/nodes/**"]),
+        "art_storage": glob(["test/sql/index/art/storage/**"]),
+        "art_types": glob(["test/sql/index/art/types/**"]),
+        "art_vacuum": glob(["test/sql/index/art/vacuum/**"]),
+    },
+)
+
+sql_logic_test_coverage_test(
+    name = "sql_index_slow_coverage_test",
+    oracle = ":sql_index_all_slow_testlist",
+    testlists = sql_index_slow_testlists,
 )
 
 subdirectory_test(
@@ -2968,17 +3061,41 @@ subdirectory_test(
     testlist = ":sql_ordinality_slow_testlist",
 )
 
+# The corpus-wide slow list; not a test itself, the groups below run it. It is
+# the oracle sql_outofcore_slow_coverage_test checks the groups against.
 sql_logic_test_list(
-    name = "sql_outofcore_slow_testlist",
+    name = "sql_outofcore_all_slow_testlist",
     globs = glob(["test/sql/outofcore/**"]),
     kind = "slow",
 )
 
-subdirectory_test(
-    name = "sql_outofcore_slow_test",
-    args = ["-f", "sql_outofcore_slow_testlist.txt"],
+# The corpus is ten flat files, so the split is per measured cost: the three
+# joins dominate and run alone (asof) or pairwise (ie, hash+window), and the
+# rest rolls up into `root`.
+sql_outofcore_slow_testlists = sql_logic_test_groups(
+    prefix = "sql_outofcore",
+    kind = "slow",
     size = "large",
-    testlist = ":sql_outofcore_slow_testlist",
+    groups = {
+        "asof_join": glob(["test/sql/outofcore/out_of_core_asof_join.test_slow"]),
+        "ie_join": glob(["test/sql/outofcore/out_of_core_ie_join.test_slow"]),
+        "hash_join_window": glob([
+            "test/sql/outofcore/out_of_core_hash_join.test_slow",
+            "test/sql/outofcore/out_of_core_window.test_slow",
+        ]),
+        "root": glob(["test/sql/outofcore/*"], exclude = [
+            "test/sql/outofcore/out_of_core_asof_join.test_slow",
+            "test/sql/outofcore/out_of_core_hash_join.test_slow",
+            "test/sql/outofcore/out_of_core_ie_join.test_slow",
+            "test/sql/outofcore/out_of_core_window.test_slow",
+        ]),
+    },
+)
+
+sql_logic_test_coverage_test(
+    name = "sql_outofcore_slow_coverage_test",
+    oracle = ":sql_outofcore_all_slow_testlist",
+    testlists = sql_outofcore_slow_testlists,
 )
 
 sql_logic_test_list(
@@ -2999,8 +3116,10 @@ sql_logic_test_list(
     kind = "fast",
 )
 
+# The corpus-wide slow list; not a test itself, the groups below run it. It is
+# the oracle sql_parallelism_slow_coverage_test checks the groups against.
 sql_logic_test_list(
-    name = "sql_parallelism_slow_testlist",
+    name = "sql_parallelism_all_slow_testlist",
     globs = glob(["test/sql/parallelism/**"]),
     kind = "slow",
 )
@@ -3011,11 +3130,40 @@ subdirectory_test(
     testlist = ":sql_parallelism_fast_testlist",
 )
 
-subdirectory_test(
-    name = "sql_parallelism_slow_test",
-    args = ["-f", "sql_parallelism_slow_testlist.txt"],
+# The interquery files are flat, so they split along their `concurrent_*`
+# name families; the remainder without such a prefix rolls up into
+# `interquery`. A new file matches some broad pattern (or the remainder), so
+# coverage does not depend on assigning it.
+sql_parallelism_slow_testlists = sql_logic_test_groups(
+    prefix = "sql_parallelism",
+    kind = "slow",
     size = "large",
-    testlist = ":sql_parallelism_slow_testlist",
+    groups = {
+        "interquery_checkpoint": glob(["test/sql/parallelism/interquery/concurrent_checkpoint*"]),
+        "interquery_append": glob([
+            "test/sql/parallelism/interquery/concurrent_append_*",
+            "test/sql/parallelism/interquery/concurrent_batch_append*",
+        ]),
+        "interquery_reads": glob(["test/sql/parallelism/interquery/concurrent_reads_*"]),
+        "interquery_update": glob(["test/sql/parallelism/interquery/concurrent_update_*"]),
+        "interquery_concurrent": glob(["test/sql/parallelism/interquery/concurrent_*"], exclude = [
+            "test/sql/parallelism/interquery/concurrent_append_*",
+            "test/sql/parallelism/interquery/concurrent_batch_append*",
+            "test/sql/parallelism/interquery/concurrent_checkpoint*",
+            "test/sql/parallelism/interquery/concurrent_reads_*",
+            "test/sql/parallelism/interquery/concurrent_update_*",
+        ]),
+        "interquery": glob(["test/sql/parallelism/interquery/*"], exclude = [
+            "test/sql/parallelism/interquery/concurrent_*",
+        ]),
+        "intraquery": glob(["test/sql/parallelism/intraquery/**"]),
+    },
+)
+
+sql_logic_test_coverage_test(
+    name = "sql_parallelism_slow_coverage_test",
+    oracle = ":sql_parallelism_all_slow_testlist",
+    testlists = sql_parallelism_slow_testlists,
 )
 
 duckdb_library(
@@ -3877,8 +4025,10 @@ sql_logic_test_list(
     kind = "fast",
 )
 
+# The corpus-wide slow list; not a test itself, the groups below run it. It is
+# the oracle sql_window_slow_coverage_test checks the groups against.
 sql_logic_test_list(
-    name = "sql_window_slow_testlist",
+    name = "sql_window_all_slow_testlist",
     globs = glob(["test/sql/window/**"]),
     kind = "slow",
 )
@@ -3889,11 +4039,30 @@ subdirectory_test(
     testlist = ":sql_window_fast_testlist",
 )
 
-subdirectory_test(
-    name = "sql_window_slow_test",
-    args = ["-f", "sql_window_slow_testlist.txt"],
+# test_window_sort alone is about half the corpus; the quantile and distinct
+# files are the next heaviest, and the rest rolls up into `root`.
+sql_window_slow_testlists = sql_logic_test_groups(
+    prefix = "sql_window",
+    kind = "slow",
     size = "large",
-    testlist = ":sql_window_slow_testlist",
+    groups = {
+        "sort": glob(["test/sql/window/test_window_sort.test_slow"]),
+        "quantile_distinct": glob([
+            "test/sql/window/test_quantile_window.test_slow",
+            "test/sql/window/test_window_distinct.test_slow",
+        ]),
+        "root": glob(["test/sql/window/*"], exclude = [
+            "test/sql/window/test_quantile_window.test_slow",
+            "test/sql/window/test_window_distinct.test_slow",
+            "test/sql/window/test_window_sort.test_slow",
+        ]),
+    },
+)
+
+sql_logic_test_coverage_test(
+    name = "sql_window_slow_coverage_test",
+    oracle = ":sql_window_all_slow_testlist",
+    testlists = sql_window_slow_testlists,
 )
 
 sql_logic_test_list(

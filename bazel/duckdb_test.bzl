@@ -170,7 +170,8 @@ def subdirectory_test(name, args, size = "medium", testlist = None, deps = [],
         data = trees + ([testlist] if testlist else []),
     )
 
-def sql_logic_test_groups(prefix, groups, kind, size = "medium", deps = []):
+def sql_logic_test_groups(prefix, groups, kind, size = "medium", deps = [],
+                          fixture_tree = None):
     """One list+test pair per group; `groups` maps a group name to its glob list.
 
     The groups partition one subdirectory's corpus, so Bazel runs them as
@@ -187,6 +188,7 @@ def sql_logic_test_groups(prefix, groups, kind, size = "medium", deps = []):
             size = size,
             deps = deps,
             testlist = ":" + list_name,
+            fixture_tree = fixture_tree,
         )
         testlists.append(":" + list_name)
     return testlists
