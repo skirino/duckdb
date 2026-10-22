@@ -18,6 +18,14 @@
 #include "duckdb/storage/buffer/block_handle.hpp"
 #include "duckdb/storage/buffer/temporary_file_information.hpp"
 
+namespace ahirudb {
+namespace buffer {
+namespace memory_usage {
+struct MemoryUsage;
+}
+} // namespace buffer
+} // namespace ahirudb
+
 namespace duckdb {
 
 class TemporaryMemoryManager;
@@ -132,37 +140,20 @@ protected:
 		static constexpr idx_t MEMORY_USAGE_CACHE_COUNT = 64;
 		static constexpr idx_t MEMORY_USAGE_CACHE_THRESHOLD = 32 << 10;
 		static constexpr idx_t TOTAL_MEMORY_USAGE_INDEX = MEMORY_TAG_COUNT;
-		using MemoryUsageCounters = array<atomic<int64_t>, MEMORY_TAG_COUNT + 1>;
-
-		//! global memory usage counters
-		MemoryUsageCounters memory_usage;
-		//! cache memory usage to improve performance
-		array<MemoryUsageCounters, MEMORY_USAGE_CACHE_COUNT> memory_usage_caches;
 
 		MemoryUsage();
+		~MemoryUsage();
+		MemoryUsage(const MemoryUsage &) = delete;
+		MemoryUsage &operator=(const MemoryUsage &) = delete;
 
-		idx_t GetUsedMemory(MemoryUsageCaches cache) {
-			return GetUsedMemory(TOTAL_MEMORY_USAGE_INDEX, cache);
-		}
-
-		idx_t GetUsedMemory(MemoryTag tag, MemoryUsageCaches cache) {
-			return GetUsedMemory((idx_t)tag, cache);
-		}
-
-		idx_t GetUsedMemory(idx_t index, MemoryUsageCaches cache) {
-			if (cache == MemoryUsageCaches::NO_FLUSH) {
-				auto used_memory = memory_usage[index].load(std::memory_order_relaxed);
-				return used_memory > 0 ? static_cast<idx_t>(used_memory) : 0;
-			}
-			int64_t cached = 0;
-			for (auto &cache : memory_usage_caches) {
-				cached += cache[index].exchange(0, std::memory_order_relaxed);
-			}
-			auto used_memory = memory_usage[index].fetch_add(cached, std::memory_order_relaxed) + cached;
-			return used_memory > 0 ? static_cast<idx_t>(used_memory) : 0;
-		}
+		idx_t GetUsedMemory(MemoryUsageCaches cache);
+		idx_t GetUsedMemory(MemoryTag tag, MemoryUsageCaches cache);
+		idx_t GetUsedMemory(idx_t index, MemoryUsageCaches cache);
 
 		void UpdateUsedMemory(MemoryTag tag, int64_t size);
+
+	private:
+		ahirudb::buffer::memory_usage::MemoryUsage *ptr;
 	};
 
 	//! The lock for changing the memory limit

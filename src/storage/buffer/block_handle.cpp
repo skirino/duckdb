@@ -1,5 +1,6 @@
 #include "duckdb/storage/buffer/block_handle.hpp"
 
+#include "buffer_rust_bridge.hpp"
 #include "duckdb/common/file_buffer.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/storage/block.hpp"
@@ -68,7 +69,8 @@ void BlockMemory::ChangeMemoryUsage(BlockLock &l, int64_t delta) {
 	// FIXME: Too clever ATM. The crux here is that the unsigned overflow is defined.
 	// FIXME: It overflows twice to lead to the correct subtraction.
 	D_ASSERT(delta < 0);
-	memory_usage += static_cast<idx_t>(delta);
+	memory_usage.store(ahirudb::buffer::cast::add_signed(memory_usage.load(std::memory_order_relaxed), delta),
+	                  std::memory_order_relaxed);
 	GetMemoryCharge().Resize(GetMemoryUsage());
 }
 
@@ -188,7 +190,7 @@ unique_ptr<Block> AllocateBlock(BlockManager &block_manager, unique_ptr<FileBuff
 		// Reusable buffer: reuse it.
 		if (reusable_buffer->GetBufferType() == FileBufferType::BLOCK) {
 			// Reuse the entire buffer.
-			auto &block = reinterpret_cast<Block &>(*reusable_buffer);
+			auto &block = static_cast<Block &>(*reusable_buffer);
 			block.id = block_id;
 			return unique_ptr_cast<FileBuffer, Block>(std::move(reusable_buffer));
 		}
@@ -208,7 +210,9 @@ BufferHandle BlockHandle::LoadFromBuffer(BlockLock &l, data_ptr_t data, unique_p
 	D_ASSERT(memory.GetState() != BlockState::BLOCK_LOADED);
 	D_ASSERT(memory.GetReaders() == 0);
 	auto block = AllocateBlock(block_manager, std::move(reusable_buffer), block_id);
-	memcpy(block->InternalBuffer(), data, block->AllocSize());
+	ThrowOnBufferError(ahirudb::buffer::block_copy::copy_block(
+	    RustBytes(block->InternalBuffer(), block->AllocSize()),
+	    RustBytes(data, block->AllocSize()), block->AllocSize()));
 	memory.GetBuffer() = std::move(block);
 	memory.SetState(BlockState::BLOCK_LOADED);
 	memory.SetReaders(1);

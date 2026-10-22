@@ -1,5 +1,6 @@
 #include "duckdb/storage/block_manager.hpp"
 
+#include "buffer_rust_bridge.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/storage/buffer/block_handle.hpp"
 #include "duckdb/storage/buffer/buffer_pool.hpp"
@@ -70,7 +71,9 @@ shared_ptr<BlockHandle> BlockManager::ConvertToPersistent(QueryContext context, 
 		// continue
 		auto old_block_copy = buffer_manager.AllocateMemory(old_block->GetMemory().GetMemoryTag(), this, false);
 		auto copy_pin = buffer_manager.Pin(old_block_copy);
-		memcpy(copy_pin.GetDataMutable(), old_handle.Ptr(), GetBlockSize());
+		ThrowOnBufferError(ahirudb::buffer::block_copy::copy_block(
+		    RustBytes(copy_pin.GetDataMutable(), GetBlockSize()), RustBytes(old_handle.Ptr(), GetBlockSize()),
+		    GetBlockSize()));
 		old_block = std::move(old_block_copy);
 		old_handle = std::move(copy_pin);
 	}

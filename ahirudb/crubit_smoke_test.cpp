@@ -401,6 +401,37 @@ int main() {
 		      "an unknown optimizer name yields the -1 sentinel");
 	}
 
+	// --- the buffer module -----------------------------------------------
+	{
+		// Memory usage tracker create/update/flush.
+		auto usage = ahirudb::buffer::memory_usage::new_memory_usage();
+		usage->update_used_memory(0, 1000, 0);
+		Check(usage->get_used_memory(ahirudb::buffer::memory_usage::TOTAL_MEMORY_USAGE_INDEX, true) == 1000,
+		      "memory usage flush returns the charged bytes");
+		ahirudb::buffer::memory_usage::delete_memory_usage(usage);
+
+		// Checked conversion refuses an out-of-range value.
+		Check(!ahirudb::buffer::cast::checked_i64_from_idx(~0ULL).has_value(),
+		      "checked_i64_from_idx refuses an out-of-range value");
+		Check(ahirudb::buffer::cast::checked_idx_from_i64(-1) == std::nullopt,
+		      "checked_idx_from_i64 refuses a negative value");
+
+		// Dead-node counter never wraps.
+		auto counter = ahirudb::buffer::dead_nodes::new_dead_counter();
+		counter->increment();
+		counter->decrement();
+		counter->decrement(); // saturates at 0
+		Check(counter->get() == 0, "dead-node counter saturates instead of wrapping");
+		ahirudb::buffer::dead_nodes::delete_dead_counter(counter);
+
+		// Slice copy refuses an out-of-range length.
+		std::uint8_t dst[4] = {0, 0, 0, 0};
+		std::uint8_t src[2] = {1, 2};
+		auto refused = ahirudb::buffer::block_copy::copy_block(
+		    rs_std::SliceRef<std::uint8_t>(dst, 4), rs_std::SliceRef<const std::uint8_t>(src, 2), 4);
+		Check(!refused.has_value(), "block_copy refuses a short source");
+	}
+
 	if (failures == 0) {
 		std::printf("ahirudb bindings OK\n");
 	}

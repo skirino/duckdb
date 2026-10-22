@@ -1,4 +1,5 @@
 #include "duckdb/storage/buffer/buffer_pool.hpp"
+#include "buffer_rust_bridge.hpp"
 #include "duckdb/storage/buffer_manager.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/thread.hpp"
@@ -64,7 +65,14 @@ struct EvictionQueue {
 public:
 	explicit EvictionQueue(const vector<FileBufferType> &file_buffer_types_p)
 	    : file_buffer_types(file_buffer_types_p), debug_eviction_queue_sleep(0), evict_queue_insertions(0),
-	      total_dead_nodes(0), purge_consumer_token(q), purge_producer_token(q) {
+	      total_dead_nodes(ahirudb::buffer::dead_nodes::new_dead_counter()), purge_consumer_token(q),
+	      purge_producer_token(q) {
+	}
+	~EvictionQueue() {
+		if (total_dead_nodes) {
+			ahirudb::buffer::dead_nodes::delete_dead_counter(total_dead_nodes);
+			total_dead_nodes = nullptr;
+		}
 	}
 
 public:
@@ -80,11 +88,11 @@ public:
 
 	//! Increment the dead node counter in the purge queue.
 	inline void IncrementDeadNodes() {
-		total_dead_nodes++;
+		total_dead_nodes->increment();
 	}
 	//! Decrement the dead node counter in the purge queue.
 	inline void DecrementDeadNodes() {
-		total_dead_nodes--;
+		total_dead_nodes->decrement();
 	}
 	bool HasFileBufferType(const FileBufferType &type) const {
 		return std::find(file_buffer_types.begin(), file_buffer_types.end(), type) != file_buffer_types.end();
@@ -93,7 +101,7 @@ public:
 		return q.size_approx();
 	}
 	idx_t GetDeadNodes() const {
-		return total_dead_nodes.load(std::memory_order_relaxed);
+		return total_dead_nodes ? total_dead_nodes->get() : 0;
 	}
 	idx_t GetTotalInsertions() const {
 		return evict_queue_insertions.load(std::memory_order_relaxed);
@@ -128,7 +136,7 @@ private:
 	atomic<idx_t> evict_queue_insertions;
 	//! Total dead nodes in the eviction queue. There are two scenarios in which a node dies: (1) we destroy its block
 	//! handle, or (2) we insert a newer version into the eviction queue.
-	atomic<idx_t> total_dead_nodes;
+	ahirudb::buffer::dead_nodes::DeadNodeCounter *total_dead_nodes;
 
 	//! Locked, if a queue purge is currently active or we're trying to forcefully evict a node.
 	//! Only lets a single thread enter the purge phase.
@@ -199,7 +207,7 @@ void EvictionQueue::Purge() {
 			break;
 		}
 
-		idx_t approx_dead_nodes = total_dead_nodes;
+		idx_t approx_dead_nodes = total_dead_nodes->get();
 		approx_dead_nodes = approx_dead_nodes > approx_q_size ? approx_q_size : approx_dead_nodes;
 		idx_t approx_alive_nodes = approx_q_size - approx_dead_nodes;
 
@@ -241,7 +249,7 @@ void EvictionQueue::PurgeIteration(const idx_t purge_size) {
 		}
 	}
 
-	total_dead_nodes -= dead_count;
+	total_dead_nodes->subtract(dead_count);
 
 	// Re-enqueue alive nodes via producer token — goes into a dedicated sub-queue
 	// that the consumer token has already passed
@@ -574,42 +582,31 @@ vector<EvictionQueueInformation> BufferPool::GetEvictionQueueInfo() const {
 }
 
 BufferPool::MemoryUsage::MemoryUsage() {
-	for (auto &v : memory_usage) {
-		v = 0;
-	}
-	for (auto &cache : memory_usage_caches) {
-		for (auto &v : cache) {
-			v = 0;
-		}
+	ptr = ahirudb::buffer::memory_usage::new_memory_usage();
+}
+
+BufferPool::MemoryUsage::~MemoryUsage() {
+	if (ptr) {
+		ahirudb::buffer::memory_usage::delete_memory_usage(ptr);
+		ptr = nullptr;
 	}
 }
 
+idx_t BufferPool::MemoryUsage::GetUsedMemory(MemoryUsageCaches cache) {
+	return GetUsedMemory(MEMORY_TAG_COUNT, cache);
+}
+
+idx_t BufferPool::MemoryUsage::GetUsedMemory(MemoryTag tag, MemoryUsageCaches cache) {
+	return GetUsedMemory((idx_t)tag, cache);
+}
+
+idx_t BufferPool::MemoryUsage::GetUsedMemory(idx_t index, MemoryUsageCaches cache) {
+	return ptr->get_used_memory(index, cache == MemoryUsageCaches::FLUSH);
+}
+
 void BufferPool::MemoryUsage::UpdateUsedMemory(MemoryTag tag, int64_t size) {
-	auto tag_idx = (idx_t)tag;
-	if ((idx_t)AbsValue(size) < MEMORY_USAGE_CACHE_THRESHOLD) {
-		// update cache and update global counter when cache exceeds threshold
-		// Get corresponding cache slot based on current CPU core index
-		// Two threads may access the same cache simultaneously,
-		// ensuring correctness through atomic operations
-		auto cache_idx = (idx_t)TaskScheduler::GetEstimatedCPUId() % MEMORY_USAGE_CACHE_COUNT;
-		auto &cache = memory_usage_caches[cache_idx];
-		auto new_tag_size = cache[tag_idx].fetch_add(size, std::memory_order_relaxed) + size;
-		if ((idx_t)AbsValue(new_tag_size) >= MEMORY_USAGE_CACHE_THRESHOLD) {
-			// cached tag memory usage exceeds threshold
-			auto tag_size = cache[tag_idx].exchange(0, std::memory_order_relaxed);
-			memory_usage[tag_idx].fetch_add(tag_size, std::memory_order_relaxed);
-		}
-		auto new_total_size = cache[TOTAL_MEMORY_USAGE_INDEX].fetch_add(size, std::memory_order_relaxed) + size;
-		if ((idx_t)AbsValue(new_total_size) >= MEMORY_USAGE_CACHE_THRESHOLD) {
-			// cached total memory usage exceeds threshold
-			auto total_size = cache[TOTAL_MEMORY_USAGE_INDEX].exchange(0, std::memory_order_relaxed);
-			memory_usage[TOTAL_MEMORY_USAGE_INDEX].fetch_add(total_size, std::memory_order_relaxed);
-		}
-	} else {
-		// update global counter
-		memory_usage[tag_idx].fetch_add(size, std::memory_order_relaxed);
-		memory_usage[TOTAL_MEMORY_USAGE_INDEX].fetch_add(size, std::memory_order_relaxed);
-	}
+	auto cache_idx = (idx_t)TaskScheduler::GetEstimatedCPUId() % MEMORY_USAGE_CACHE_COUNT;
+	ptr->update_used_memory(static_cast<uint8_t>(tag), size, cache_idx);
 }
 
 } // namespace duckdb

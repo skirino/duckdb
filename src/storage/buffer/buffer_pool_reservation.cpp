@@ -1,5 +1,6 @@
 #include "duckdb/storage/buffer/buffer_pool_reservation.hpp"
 
+#include "buffer_rust_bridge.hpp"
 #include "duckdb/storage/buffer/buffer_pool.hpp"
 
 namespace duckdb {
@@ -13,7 +14,10 @@ BufferPoolReservation::BufferPoolReservation(BufferPoolReservation &&src) noexce
 }
 
 BufferPoolReservation &BufferPoolReservation::operator=(BufferPoolReservation &&src) noexcept {
-	pool.UpdateUsedMemory(tag, -UnsafeNumericCast<int64_t>(size));
+	auto release = ahirudb::buffer::reservation::move_assign_release(size);
+	if (release.has_value()) {
+		pool.UpdateUsedMemory(tag, *release);
+	}
 	tag = src.tag;
 	size = src.size;
 	src.size = 0;
@@ -25,13 +29,19 @@ BufferPoolReservation::~BufferPoolReservation() {
 }
 
 void BufferPoolReservation::Resize(idx_t new_size) {
-	auto delta = UnsafeNumericCast<int64_t>(new_size) - UnsafeNumericCast<int64_t>(size);
-	pool.UpdateUsedMemory(tag, delta);
+	auto delta = ahirudb::buffer::reservation::resize_delta(size, new_size);
+	if (!delta.has_value()) {
+		throw InternalException("BufferPoolReservation::Resize: size conversion failed");
+	}
+	pool.UpdateUsedMemory(tag, *delta);
 	size = new_size;
 }
 
 void BufferPoolReservation::Merge(BufferPoolReservation src) {
-	size += src.size;
+	auto merged = ahirudb::buffer::reservation::merge_size(size, src.size);
+	if (merged.has_value()) {
+		size = *merged;
+	}
 	src.size = 0;
 }
 

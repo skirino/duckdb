@@ -1,6 +1,7 @@
 //! ahirudb - Rust crate for DuckDB
 
 pub mod allocator;
+pub mod buffer;
 pub mod enums;
 pub mod exception;
 pub mod logging;

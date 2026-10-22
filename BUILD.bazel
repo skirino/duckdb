@@ -156,6 +156,7 @@ duckdb_library(
             "src/transaction/**/*.cpp",
         ],
         exclude = [
+            "src/storage/buffer/**/*.cpp",
             "src/common/allocator/allocator.cpp",
             # The bridge includes crubit/ahirudb.h, which needs C++20; it belongs
             # to //:duckdb_allocator, which compiles with crubit_copts().
@@ -194,7 +195,7 @@ duckdb_library(
         ],
     ),
     # duckdb_library's `deps` replaces the default rather than extending it.
-    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_enums", ":duckdb_row_operations", ":duckdb_sort", ":duckdb_serializer"],
+    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_buffer", ":duckdb_enums", ":duckdb_row_operations", ":duckdb_sort", ":duckdb_serializer"],
 )
 
 # src/logging is a library of its own because it is the one that calls into the ahirudb crate: log_rust_bridge.cpp
@@ -240,6 +241,16 @@ duckdb_rust_bridge_library(
     hdrs = ["src/common/allocator/allocator_rust_bridge.hpp"],
     include_root = "src/common/allocator",
     extra_deps = [":duckdb_exception"],
+)
+
+# src/storage/buffer reaches the Rust buffer module for memory accounting,
+# checked conversions, raw copies and dead-node bookkeeping.
+duckdb_rust_bridge_library(
+    name = "duckdb_buffer",
+    srcs = glob(["src/storage/buffer/**/*.cpp"]),
+    hdrs = ["src/storage/buffer/buffer_rust_bridge.hpp"],
+    include_root = "src/storage/buffer",
+    extra_deps = [":duckdb_exception", ":duckdb_allocator"],
 )
 
 # src/common/enums reaches the Rust enums module for the string <-> enum conversions, and enums_rust_bridge.cpp
@@ -604,6 +615,7 @@ cc_library(
         ":duckdb_multi_file",
         ":duckdb_exception",
         ":duckdb_allocator",
+        ":duckdb_buffer",
         ":duckdb_types_row",
         ":core_functions_extension_init",
         ":core_functions",
