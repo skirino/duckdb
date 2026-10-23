@@ -1,16 +1,5 @@
 # The C++ to Rust migration, in order
 
-Which module moves to Rust when, and why that order. `looping/tasks/` holds one
-task file per module; this file is the roadmap they come from, and the place where
-a fact about the tree goes so that it does not have to be repeated in every task.
-
-`design.md` picks the lexicographically first file in `looping/tasks/` and plans
-it. A module's task file is therefore written shortly before the module is
-reached, not written out years ahead: the base layer moves underneath later
-tasks, and Crubit's constraints change as more of the engine exists in Rust. So
-only Phase 1 has task files; later phases have rows here, and a task file is
-written when its phase comes up.
-
 ## Ordering rule
 
 Port the base layer first, and work outward.
@@ -32,13 +21,12 @@ Within that, two other things decide order:
 
 ## Task file conventions
 
-- `NNN_<module>_module.md`, numbered in migration order. The number only orders
-  the queue; the lexicographic sort in `design.md` is what actually picks the
-  next one, so the numbers must stay zero-padded to three digits.
+- `tmp/NNN_${task_title}/task.md`, numbered in migration order. The number only orders
+  the queue.
 - Each task file states the goal, the scope as paths, facts specific to that
   module, and acceptance. Anything true of every port lives here instead.
 - A module's headers stay out of `src/include` if it pulls in Rust bindings, and
-  private headers need to be in `hdrs` to reach the sandbox. See task 002.
+  private headers need to be in `hdrs` to reach the sandbox.
 
 ## How a port is built and verified
 
