@@ -10,7 +10,7 @@
 use std::os::raw::c_void;
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TrackerState {
     Empty = 0,
     SingleKey = 1,
@@ -18,7 +18,7 @@ pub enum TrackerState {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct PartitionEntry {
     pub bin_idx: u64,
     pub offset: u32,
@@ -26,7 +26,7 @@ pub struct PartitionEntry {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BinOutcome {
     pub mixed: bool,
     pub store_representative: bool,

@@ -5,7 +5,7 @@
 pub const INVALID_INDEX: u64 = u64::MAX;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SortLayout {
     pub projection_column_count: usize,
     pub input_projection_map_count: usize,

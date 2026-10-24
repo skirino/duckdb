@@ -1,4 +1,5 @@
 #include "duckdb/common/sorting/partition_key_tracker.hpp"
+#include "crubit/ahirudb.h"
 
 #include "duckdb/common/radix_partitioning.hpp"
 #include "duckdb/common/vector_operations/vector_operations.hpp"
@@ -34,12 +35,16 @@ void PartitionKeyTracker::Reset(idx_t radix_bits_p) {
 	states.resize(partition_count, PartitionKeyTrackerState::EMPTY);
 	hashes.clear();
 	hashes.resize(partition_count);
+	ahirudb::sort::partition_key_tracker::reset(
+	    rs_std::SliceRef<uint8_t>(reinterpret_cast<uint8_t *>(states.data()), states.size()),
+	    rs_std::SliceRef<uint64_t>(hashes.data(), hashes.size()));
 	representatives.Reset();
 	representatives.SetChildCardinality(partition_count);
 }
 
 bool PartitionKeyTracker::CanBypass(idx_t hash_bin) const {
-	return hash_bin < states.size() && states[hash_bin] == PartitionKeyTrackerState::SINGLE_KEY;
+	return ahirudb::sort::partition_key_tracker::can_bypass(
+	    rs_std::SliceRef<const uint8_t>(reinterpret_cast<const uint8_t *>(states.data()), states.size()), hash_bin);
 }
 
 void PartitionKeyTracker::Update(DataChunk &keys, Vector &input_hashes, PartitionedTupleDataAppendState &append_state,
@@ -91,8 +96,9 @@ void PartitionKeyTracker::Combine(const PartitionKeyTracker &other) {
 }
 
 void PartitionKeyTracker::StoreRepresentative(DataChunk &keys, idx_t row_idx, hash_t hash, idx_t bin_idx) {
-	states[bin_idx] = PartitionKeyTrackerState::SINGLE_KEY;
-	this->hashes[bin_idx] = hash;
+	ahirudb::sort::partition_key_tracker::store_representative_state(
+	    rs_std::SliceRef<uint8_t>(reinterpret_cast<uint8_t *>(states.data()), states.size()),
+	    rs_std::SliceRef<uint64_t>(hashes.data(), hashes.size()), bin_idx, hash);
 	single_value_sel.set_index(0, row_idx);
 	for (idx_t col_idx = 0; col_idx < key_count; col_idx++) {
 		representatives.data[col_idx].Copy(keys.data[col_idx], single_value_sel, 1, 0, bin_idx, 1);
@@ -100,8 +106,9 @@ void PartitionKeyTracker::StoreRepresentative(DataChunk &keys, idx_t row_idx, ha
 }
 
 void PartitionKeyTracker::StoreRepresentative(const PartitionKeyTracker &source, idx_t source_bin, idx_t target_bin) {
-	states[target_bin] = PartitionKeyTrackerState::SINGLE_KEY;
-	hashes[target_bin] = source.hashes[source_bin];
+	ahirudb::sort::partition_key_tracker::store_representative_state(
+	    rs_std::SliceRef<uint8_t>(reinterpret_cast<uint8_t *>(states.data()), states.size()),
+	    rs_std::SliceRef<uint64_t>(hashes.data(), hashes.size()), target_bin, source.hashes[source_bin]);
 	single_value_sel.set_index(0, source_bin);
 	for (idx_t col_idx = 0; col_idx < key_count; col_idx++) {
 		representatives.data[col_idx].Copy(source.representatives.data[col_idx], single_value_sel, 1, 0, target_bin, 1);
@@ -109,7 +116,8 @@ void PartitionKeyTracker::StoreRepresentative(const PartitionKeyTracker &source,
 }
 
 void PartitionKeyTracker::MarkMixed(idx_t bin_idx) {
-	states[bin_idx] = PartitionKeyTrackerState::MULTIPLE_KEYS;
+	ahirudb::sort::partition_key_tracker::mark_mixed(
+	    rs_std::SliceRef<uint8_t>(reinterpret_cast<uint8_t *>(states.data()), states.size()), bin_idx);
 }
 
 template <bool FIXED, bool USE_PARTITION_SEL>
@@ -150,7 +158,9 @@ idx_t PartitionKeyTracker::BuildCandidates(DataChunk &keys, Vector &input_hashes
 			candidate_rep_sel.set_index(candidate_count, bin_idx);
 			candidate_count += hash_match;
 		}
-		states[bin_idx] = hash_mismatch ? PartitionKeyTrackerState::MULTIPLE_KEYS : states[bin_idx];
+		if (hash_mismatch) {
+			MarkMixed(bin_idx);
+		}
 		candidate_count = hash_mismatch ? candidate_start : candidate_count;
 	}
 	return candidate_count;

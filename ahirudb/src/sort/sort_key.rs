@@ -29,7 +29,7 @@ pub const PAYLOAD_VARIABLE_32: u8 = 9;
 // Properties
 // ----------------------------------------------------------------------------
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SortKeyProperties {
     pub parts: usize,
     pub inline_length: usize,

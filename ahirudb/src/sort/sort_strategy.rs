@@ -22,7 +22,7 @@ pub fn select_strategy(has_partition_bys: bool, has_order_bys: bool) -> u8 {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct OrderMaterialization {
     pub sort_ids_count: usize,
     pub computed_columns_count: usize,

@@ -1,4 +1,5 @@
 #include "duckdb/common/sorting/hashed_sort.hpp"
+#include "crubit/ahirudb.h"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/storage/buffer_manager.hpp"
 #include "duckdb/common/sorting/partition_key_tracker.hpp"
@@ -672,13 +673,17 @@ HashedSort::HashedSort(ClientContext &client, const vector<unique_ptr<Expression
 		partition_key_types.push_back(partitions[key_idx].expression->GetReturnType());
 	}
 
+	const idx_t base_payload_count = payload_types.size();
+
 	//	We have to compute ordering expressions ourselves and materialise them.
 	//	To do this, we scan the orders and add generate extra payload columns that we can reference.
+	vector<uint64_t> order_input_columns;
+	order_input_columns.reserve(orders.size());
 	for (auto &order : orders) {
 		auto &expr = *order.expression;
 		if (expr.GetExpressionClass() == ExpressionClass::BOUND_REF) {
 			auto &ref = expr.Cast<BoundReferenceExpression>();
-			sort_ids.emplace_back(ref.Index());
+			order_input_columns.push_back(ref.Index());
 			continue;
 		}
 
@@ -687,22 +692,30 @@ HashedSort::HashedSort(ClientContext &client, const vector<unique_ptr<Expression
 		const auto type = saved->GetReturnType();
 		const auto idx = payload_types.size();
 		order.expression = make_uniq<BoundReferenceExpression>(type, idx);
-		sort_ids.emplace_back(idx);
+		order_input_columns.push_back(ahirudb::sort::sort::INVALID_INDEX);
 		payload_types.emplace_back(type);
 		sort_exprs.emplace_back(std::move(saved));
 	}
-	for (idx_t key_idx = 0; key_idx < partition_key_count; key_idx++) {
-		partition_key_ids.push_back(sort_ids[key_idx]);
+
+	// Materialise the order expressions as payload columns via Rust.
+	vector<uint64_t> sort_ids_buf(orders.size(), 0);
+	vector<uint64_t> computed_buf(orders.size(), 0);
+	auto mat = ahirudb::sort::sort_strategy::materialize_orders(
+	    rs_std::SliceRef<const uint64_t>(order_input_columns.data(), order_input_columns.size()), base_payload_count,
+	    require_payload, rs_std::SliceRef<uint64_t>(sort_ids_buf.data(), sort_ids_buf.size()),
+	    rs_std::SliceRef<uint64_t>(computed_buf.data(), computed_buf.size()));
+	sort_ids.clear();
+	sort_ids.reserve(mat.sort_ids_count);
+	for (idx_t i = 0; i < mat.sort_ids_count; i++) {
+		sort_ids.push_back(sort_ids_buf[i]);
+	}
+	force_payload = mat.force_payload;
+	if (force_payload) {
+		payload_types.emplace_back(LogicalType::BOOLEAN);
 	}
 
-	// If a payload column is required, check whether there is one already
-	if (require_payload) {
-		//	Watch out for duplicate sort keys!
-		unordered_set<column_t> sort_set(sort_ids.begin(), sort_ids.end());
-		force_payload = (sort_set.size() >= payload_types.size());
-		if (force_payload) {
-			payload_types.emplace_back(LogicalType::BOOLEAN);
-		}
+	for (idx_t key_idx = 0; key_idx < partition_key_count; key_idx++) {
+		partition_key_ids.push_back(sort_ids[key_idx]);
 	}
 
 	// Remember the full set of materialised partition columns

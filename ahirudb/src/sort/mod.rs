@@ -16,6 +16,17 @@
 //! The memory movement (radix sort, reorder, merge copy, gather/scatter) stays
 //! in C++ (see the design notes); this module only owns decisions and
 //! arithmetic.
+//!
+//! The following C++ files in `src/common/sort/` remain as bridge shells because
+//! Crubit cannot bridge the underlying constructs, and the reasons are:
+//! - `sort.cpp`, `sorted_run.cpp`, `sorted_run_merger.cpp`: in-place radix sort
+//!   over pinned `TupleDataCollection` blocks, `SortKey<T>` comparisons, and
+//!   block iterators are not bridgeable (generics / raw pointer aliasing).
+//! - `full_sort.cpp`, `hashed_sort.cpp`, `natural_sort.cpp`: virtual dispatch on
+//!   `SortStrategy` subclasses and operator-framework plumbing.
+//! - `partition_key_tracker.cpp`: representative storage in `DataChunk` and
+//!   value comparison via `VectorOperations::DistinctFrom` (arbitrary types).
+//! - `sort_strategy.cpp`: factory dispatch glue.
 
 pub mod partition_key_tracker;
 pub mod sort;

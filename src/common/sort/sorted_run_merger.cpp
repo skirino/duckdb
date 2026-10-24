@@ -1,5 +1,7 @@
 #include "duckdb/common/sorting/sorted_run_merger.hpp"
 #include "duckdb/main/client_context.hpp"
+#include "crubit/ahirudb.h"
+#include <functional>
 
 #include "duckdb/common/mutex.hpp"
 #include "duckdb/common/sorting/sort.hpp"
@@ -14,6 +16,16 @@
 #include "pdqsort.h"
 
 namespace duckdb {
+
+namespace {
+struct BoundaryCompareCtx {
+	std::function<bool(uint64_t, uint64_t, uint64_t, uint64_t)> fn;
+};
+extern "C" bool BoundaryCompareTramp(void *raw_ctx, uint64_t a, uint64_t ta, uint64_t b, uint64_t tb) {
+	auto *c = static_cast<BoundaryCompareCtx *>(raw_ctx);
+	return c->fn(a, ta, b, tb);
+}
+} // namespace
 
 //===--------------------------------------------------------------------===//
 // Sorted Run Merger Utility
@@ -480,79 +492,42 @@ void SortedRunMergerLocalState::TemplatedComputePartitionBoundaries(SortedRunMer
 
 	D_ASSERT(run_boundaries.size() == gstate.num_runs);
 
-	// Check if last partition: boundary is always end of each sorted run
-	if (p_idx == gstate.num_partitions - 1) {
-		for (idx_t run_idx = 0; run_idx < gstate.num_runs; run_idx++) {
-			run_boundaries[run_idx].begin = gstate.merger.sorted_runs[run_idx]->Count();
-		}
-		return;
-	}
-
-	// Initialize "total_remaining", i.e., how much we still need to update the boundaries until we're done
-	idx_t total_remaining = (p_idx.GetIndex() + 1) * gstate.merger.partition_size;
-
-	// Initialize iterators, and track of which runs are actively being used in the computation, i.e., not yet fixed
+	// Build run iterators (needed by the comparison callback).
 	unsafe_vector<BLOCK_ITERATOR> run_iterators;
 	run_iterators.reserve(gstate.num_runs);
-	unsafe_vector<idx_t> active_run_idxs;
-	active_run_idxs.reserve(gstate.num_runs);
 	for (idx_t run_idx = 0; run_idx < gstate.num_runs; run_idx++) {
 		auto &state = states[run_idx];
 		state.SetKeepPinned(false);
 		state.SetPinPayload(false);
-
 		run_iterators.emplace_back(state);
-		const auto &run_boundary = run_boundaries[run_idx];
-		if (run_boundary.begin != run_boundary.end) {
-			active_run_idxs.emplace_back(run_idx);
-		}
-
-		// Reduce total remaining by what we already have (from previous partition)
-		D_ASSERT(run_boundaries[run_idx].begin <= total_remaining);
-		total_remaining -= run_boundaries[run_idx].begin;
 	}
 
-	D_ASSERT(total_remaining <
-	         gstate.merger.total_count); // This is not the last partition, so should be less than total
-	while (total_remaining != 0) {
-		D_ASSERT(!active_run_idxs.empty());
-		const idx_t k = active_run_idxs.size();
-
-		// Compute step size for each run: ceil(total_remaining / k), or less if run has less remaining
-		auto min_idx = active_run_idxs[0];
-		auto min_delta = ComputeBoundaryDelta(total_remaining, k, run_boundaries[min_idx]);
-		reference<SORT_KEY> min_value = run_iterators[min_idx][run_boundaries[min_idx].begin + min_delta - 1];
-		for (idx_t i = 1; i < active_run_idxs.size(); i++) {
-			const auto &active_run_idx = active_run_idxs[i];
-			const auto &run_boundary = run_boundaries[active_run_idx];
-			const auto run_delta = ComputeBoundaryDelta(total_remaining, k, run_boundary);
-			auto &run_value = run_iterators[active_run_idx][run_boundary.begin + run_delta - 1];
-			if (run_value < min_value.get()) {
-				min_idx = active_run_idx;
-				min_delta = run_delta;
-				min_value = run_value;
-			}
-		}
-
-		// Increment boundary begin value of the min run by the delta
-		auto &min_run_boundary = run_boundaries[min_idx];
-		min_run_boundary.begin += min_delta;
-
-		// Erase from active if begin is equal to end
-		if (min_run_boundary.begin == min_run_boundary.end) {
-			auto it = std::find(active_run_idxs.begin(), active_run_idxs.end(), min_idx);
-			D_ASSERT(it != active_run_idxs.end());
-			active_run_idxs.erase(it);
-		}
-
-		// Update total remaining accordingly
-		D_ASSERT(min_delta <= total_remaining);
-		total_remaining -= min_delta;
+	// Convert C++ boundaries into the Rust representation.
+	std::vector<ahirudb::sort::sorted_run_merger::RunBoundary> rust_boundaries(gstate.num_runs);
+	std::vector<uint64_t> run_counts(gstate.num_runs);
+	for (idx_t run_idx = 0; run_idx < gstate.num_runs; run_idx++) {
+		rust_boundaries[run_idx].start = run_boundaries[run_idx].begin;
+		rust_boundaries[run_idx].finish = run_boundaries[run_idx].end;
+		run_counts[run_idx] = gstate.merger.sorted_runs[run_idx]->Count();
 	}
 
-	// End of boundary is meaningless now, just set equal to begin so there's no confusion
-	for (auto &run_boundary : run_boundaries) {
-		run_boundary.end = run_boundary.begin;
+	BoundaryCompareCtx ctx;
+	ctx.fn = [&run_iterators](uint64_t run_a, uint64_t tuple_a, uint64_t run_b, uint64_t tuple_b) -> bool {
+		const auto &ka = run_iterators[run_a][tuple_a];
+		const auto &kb = run_iterators[run_b][tuple_b];
+		return ka < kb;
+	};
+
+	ahirudb::sort::sorted_run_merger::compute_partition_boundaries(
+	    BoundaryCompareTramp, &ctx,
+	    rs_std::SliceRef<ahirudb::sort::sorted_run_merger::RunBoundary>(rust_boundaries.data(), rust_boundaries.size()),
+	    rs_std::SliceRef<const uint64_t>(run_counts.data(), run_counts.size()),
+	    gstate.merger.partition_size, p_idx.GetIndex(), gstate.num_partitions);
+
+	// Copy back.
+	for (idx_t run_idx = 0; run_idx < gstate.num_runs; run_idx++) {
+		run_boundaries[run_idx].begin = rust_boundaries[run_idx].start;
+		run_boundaries[run_idx].end = rust_boundaries[run_idx].finish;
 	}
 }
 

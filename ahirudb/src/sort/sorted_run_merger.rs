@@ -7,10 +7,10 @@
 use std::os::raw::c_void;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct RunBoundary {
-    pub begin: u64,
-    pub end: u64,
+    pub start: u64,
+    pub finish: u64,
 }
 
 pub type CompareRunKeysFn =
@@ -29,8 +29,8 @@ pub fn compute_partition_boundaries(
     if partition_idx == num_partitions.saturating_sub(1) && num_partitions > 0 {
         for (run_idx, rb) in run_boundaries.iter_mut().enumerate() {
             let c = run_counts[run_idx];
-            rb.begin = c;
-            rb.end = c;
+            rb.start = c;
+            rb.finish = c;
         }
         return;
     }
@@ -39,11 +39,11 @@ pub fn compute_partition_boundaries(
 
     let mut active: Vec<u64> = Vec::new();
     for (run_idx, rb) in run_boundaries.iter().enumerate() {
-        if rb.begin != rb.end {
+        if rb.start != rb.finish {
             active.push(run_idx as u64);
         }
         // reduce total_remaining by what we already have
-        total_remaining = total_remaining.saturating_sub(rb.begin);
+        total_remaining = total_remaining.saturating_sub(rb.start);
     }
 
     while total_remaining != 0 {
@@ -55,16 +55,16 @@ pub fn compute_partition_boundaries(
         // find min run
         let mut min_run: u64 = active[0];
         let rb0 = &run_boundaries[min_run as usize];
-        let run_remaining0 = rb0.end - rb0.begin;
+        let run_remaining0 = rb0.finish - rb0.start;
         let delta0 = total_remaining.div_ceil(k).min(run_remaining0);
         let mut min_delta = delta0;
-        let mut min_pos = rb0.begin + min_delta - 1;
+        let mut min_pos = rb0.start + min_delta - 1;
 
         for &ridx in &active[1..] {
             let rb = &run_boundaries[ridx as usize];
-            let run_remaining = rb.end - rb.begin;
+            let run_remaining = rb.finish - rb.start;
             let delta = total_remaining.div_ceil(k).min(run_remaining);
-            let pos = rb.begin + delta - 1;
+            let pos = rb.start + delta - 1;
             // is this run's value < current min value?
             if compare(ctx, ridx, pos, min_run, min_pos) {
                 min_run = ridx;
@@ -73,21 +73,21 @@ pub fn compute_partition_boundaries(
             }
         }
 
-        // increment boundary begin of min run
+        // increment boundary start of min run by the delta
         let mrb = &mut run_boundaries[min_run as usize];
-        mrb.begin += min_delta;
+        mrb.start += min_delta;
 
-        // erase from active if begin == end
-        if mrb.begin == mrb.end {
+        // erase from active if start is equal to finish
+        if mrb.start == mrb.finish {
             active.retain(|&x| x != min_run);
         }
 
         total_remaining = total_remaining.saturating_sub(min_delta);
     }
 
-    // end = begin for all
+    // finish = start for all
     for rb in run_boundaries.iter_mut() {
-        rb.end = rb.begin;
+        rb.finish = rb.start;
     }
 }
 
@@ -109,15 +109,21 @@ mod tests {
     #[test]
     fn last_partition() {
         let mut rb = [
-            RunBoundary { begin: 0, end: 5 },
-            RunBoundary { begin: 0, end: 5 },
+            RunBoundary {
+                start: 0,
+                finish: 5,
+            },
+            RunBoundary {
+                start: 0,
+                finish: 5,
+            },
         ];
         let counts = [5u64, 5];
         compute_partition_boundaries(cmp, std::ptr::null_mut(), &mut rb, &counts, 4, 2, 3);
-        // partition_idx 2 == num_partitions-1 -> begin=end=count
-        assert_eq!(rb[0].begin, 5);
-        assert_eq!(rb[0].end, 5);
-        assert_eq!(rb[1].begin, 5);
+        // partition_idx 2 == num_partitions-1 -> start=finish=count
+        assert_eq!(rb[0].start, 5);
+        assert_eq!(rb[0].finish, 5);
+        assert_eq!(rb[1].start, 5);
     }
 
     #[test]
@@ -130,12 +136,12 @@ mod tests {
         for p in 0..num_partitions {
             let mut rb = [
                 RunBoundary {
-                    begin: prev_begin[0],
-                    end: counts[0],
+                    start: prev_begin[0],
+                    finish: counts[0],
                 },
                 RunBoundary {
-                    begin: prev_begin[1],
-                    end: counts[1],
+                    start: prev_begin[1],
+                    finish: counts[1],
                 },
             ];
             // For non-last, end should be count initially? In real flow end
@@ -150,13 +156,13 @@ mod tests {
                 p as u64,
                 num_partitions as u64,
             );
-            // after: end=begin
-            // next partition begin = this end
-            prev_begin[0] = rb[0].end;
-            prev_begin[1] = rb[1].end;
+            // after: finish=start
+            // next partition start = this finish
+            prev_begin[0] = rb[0].finish;
+            prev_begin[1] = rb[1].finish;
             // invariant: begin <= count
-            assert!(rb[0].begin <= counts[0]);
-            assert!(rb[1].begin <= counts[1]);
+            assert!(rb[0].start <= counts[0]);
+            assert!(rb[1].start <= counts[1]);
         }
         // final begins should be counts
         assert_eq!(prev_begin[0], counts[0]);
