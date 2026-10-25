@@ -539,6 +539,10 @@ crate attributes, which both build paths honour.
 successfully built with `bazel build //...`, and all test targets should succeed
 with `bazel test //...`. Always check whether `bazel build //...` and
 `bazel test //...` succeed when you make any change to the codebase.
+It could take some time, but it's the necessary step. For typical code modifications
+most of compilations can be avoided by build cache hits. For SQL logic tests bazel
+caches are typically not hit due to changes in libduckdb and thus we need to wait
+for the test executions.
 
 ### How C++ reaches Rust
 
@@ -568,9 +572,14 @@ Rust releases, so the nightly it is built with is pinned (`nightly-2026-09-29`,
 the version Crubit pins as its own `rust_version`) rather than tracking
 `nightly`.
 
-## Git operations
+## Misc
 
+- Agents must answer in English. Some agents tend to answer in Chinese; don't use
+  Chinese.
 - Git write operations (git commit, reset, etc.) should not be done.
   - There have been cases where previous meaningful commits are lost due to
     agent activities.
   - Perform these git operations only when explicitly required.
+- If you don't have a compelling reason, don't specify bazel command line flags,
+  since adding one could invalidate bazel caches. Flags that don't affect build
+  results can be used.
