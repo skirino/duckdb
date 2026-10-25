@@ -535,6 +535,11 @@ the problem to fix, not the pattern to copy.
 rules_rust, which does not read the manifest. Crate-wide lints go in `lib.rs` as
 crate attributes, which both build paths honour.
 
+**Keep the builds and tests.** For all git commits, all bazel targets should be
+successfully built with `bazel build //...`, and all test targets should succeed
+with `bazel test //...`. Always check whether `bazel build //...` and
+`bazel test //...` succeed when you make any change to the codebase.
+
 ### How C++ reaches Rust
 
 C++/Rust interop goes through Crubit, which generates a C++ header and a staticlib
