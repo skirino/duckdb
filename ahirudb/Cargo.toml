@@ -6,11 +6,5 @@ edition = "2024"
 [lib]
 crate-type = ["rlib", "staticlib"]
 
-[dependencies]
-# crubit_annotate = { path = "/Users/skirino/code/dbdev/duckdb/build/reldebug/_deps/crubit-src/support/crubit_annotate" }
-
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
-
-[build-dependencies]
-kani-verifier = "0.68.0"
