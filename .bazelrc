@@ -30,7 +30,7 @@ test --spawn_strategy=local
 # configuration. Bazel's own opt flags carry -O2 -DNDEBUG; the rest is what the
 # project's sources expect on top of them.
 common --compilation_mode=opt
-build --cxxopt=-std=c++17
+build --cxxopt=-std=c++20
 build --cxxopt=-Wthread-safety
 build --cxxopt=-mcpu=apple-m1
 

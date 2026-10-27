@@ -3,7 +3,7 @@
 //
 // common/types/row/tuple_data_layout_rust_bridge.hpp
 //
-// Internal glue between the C++ TupleDataLayout and the Rust tuple_data_layout
+// Internal glue between the C++ TupleDataLayout and the Rust tuple_data::layout
 // module in `ahirudb`.
 //
 //===----------------------------------------------------------------------===//

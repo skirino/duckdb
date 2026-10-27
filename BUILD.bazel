@@ -305,12 +305,17 @@ duckdb_rust_bridge_library(
     include_root = "src/common/sort",
 )
 
-# src/common/types/row: tuple_data_layout.cpp now reaches the Rust tuple_data_layout module through
-# tuple_data_layout_rust_bridge.cpp, so it needs crubit copts.
+# src/common/types/row: tuple_data_layout.cpp reaches the Rust tuple_data::layout module through
+# tuple_data_layout_rust_bridge.cpp and the scatter/gather kernels reach the Rust
+# tuple_data::scatter_gather module through tuple_data_scatter_gather_rust_bridge.cpp, so the
+# library needs crubit copts.
 duckdb_rust_bridge_library(
     name = "duckdb_types_row",
     srcs = glob(["src/common/types/row/**/*.cpp"]),
-    hdrs = ["src/common/types/row/tuple_data_layout_rust_bridge.hpp"],
+    hdrs = [
+        "src/common/types/row/tuple_data_layout_rust_bridge.hpp",
+        "src/common/types/row/tuple_data_scatter_gather_rust_bridge.hpp",
+    ],
     include_root = "src/common/types/row",
 )
 

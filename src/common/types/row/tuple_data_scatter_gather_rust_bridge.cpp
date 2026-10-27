@@ -1,14 +1,30 @@
+//===----------------------------------------------------------------------===//
+//                         DuckDB
+//
+// common/types/row/tuple_data_scatter_gather_rust_bridge.cpp
+//
+// The C++ half of the `TupleDataCollection` scatter/gather module: the
+// collection-level entry points, the heap-size computation, and the thin
+// trampolines that reduce a `Vector` and its `TupleDataVectorFormat` to the
+// arrays the Rust kernels in `ahirudb::tuple_data::scatter_gather` read.
+//
+// The kernels themselves — the row writes, the validity bits, the string heap
+// copies and the list/array serialization — live in Rust. What is left here is
+// the recursion through nested types, which follows the per-type function
+// tables, and the type dispatch that builds those tables.
+//
+//===----------------------------------------------------------------------===//
+
+#include "tuple_data_scatter_gather_rust_bridge.hpp"
+
 #include "duckdb/common/enum_util.hpp"
 #include "duckdb/common/smaller_binary.hpp"
 #include "duckdb/common/sorting/sort_key.hpp"
-#include "tuple_data_layout_rust_bridge.hpp"
 #include "duckdb/common/type_visitor.hpp"
 #include "duckdb/common/types/null_value.hpp"
-#include "duckdb/common/types/row/tuple_data_collection.hpp"
 #include "duckdb/common/uhugeint.hpp"
 #include "duckdb/common/vector/array_vector.hpp"
 #include "duckdb/common/vector/constant_vector.hpp"
-#include "duckdb/common/vector/flat_vector.hpp"
 #include "duckdb/common/vector/list_vector.hpp"
 #include "duckdb/common/vector/map_vector.hpp"
 #include "duckdb/common/vector/struct_vector.hpp"
@@ -17,86 +33,13 @@ namespace duckdb {
 
 using ValidityBytes = TupleDataLayout::ValidityBytes;
 
-template <class T>
-static constexpr idx_t TupleDataWithinListFixedSize() {
-	return sizeof(T);
+void ThrowTupleDataScatterGatherError(const ::rs::alloc::string::String &error) {
+	throw InternalException("%s", string(std::string_view(error.as_str())).c_str());
 }
 
-template <>
-constexpr idx_t TupleDataWithinListFixedSize<string_t>() {
-	return sizeof(uint32_t);
-}
-
-template <class T>
-static void TupleDataValueStore(const T &source, data_t *__restrict const &row_location, const idx_t &offset_in_row,
-                                data_ptr_t &) {
-	Store<T>(source, row_location + offset_in_row);
-}
-
-template <>
-inline void TupleDataValueStore(const string_t &source, data_t *__restrict const &row_location,
-                                const idx_t &offset_in_row, data_ptr_t &heap_location) {
-#ifdef DEBUG
-	source.VerifyCharacters();
-#endif
-	if (source.IsInlined()) {
-		Store<string_t>(source, row_location + offset_in_row);
-	} else {
-		// Copy non-inlined part
-		memcpy(heap_location, source.GetPointer(), source.GetSize());
-		// Copy first 8 bytes of string_t
-		memcpy(row_location + offset_in_row, &source, string_t::HEADER_SIZE);
-		// Copy new heap pointer into the correct offset
-		Store<data_ptr_t>(heap_location, row_location + offset_in_row + string_t::HEADER_SIZE);
-		// Increment heap pointer
-		heap_location += source.GetSize();
-	}
-}
-
-template <class T>
-static void TupleDataWithinListValueStore(const T &source, const data_ptr_t &location, data_ptr_t &) {
-	Store<T>(source, location);
-}
-
-template <>
-inline void TupleDataWithinListValueStore(const string_t &source, const data_ptr_t &location,
-                                          data_ptr_t &heap_location) {
-#ifdef DEBUG
-	source.VerifyCharacters();
-#endif
-	Store<uint32_t>(UnsafeNumericCast<uint32_t>(source.GetSize()), location);
-	memcpy(heap_location, source.GetData(), source.GetSize());
-	heap_location += source.GetSize();
-}
-
-template <class T>
-void TupleDataValueVerify(const LogicalType &, const T &) {
-#ifdef DEBUG
-	// NOP
-#endif
-}
-
-template <>
-inline void TupleDataValueVerify(const LogicalType &type, const string_t &value) {
-#ifdef DEBUG
-	if (type.id() == LogicalTypeId::VARCHAR) {
-		value.Verify();
-	}
-#endif
-}
-
-template <class T>
-static T TupleDataWithinListValueLoad(const data_ptr_t &location, data_ptr_t &) {
-	return Load<T>(location);
-}
-
-template <>
-inline string_t TupleDataWithinListValueLoad(const data_ptr_t &location, data_ptr_t &heap_location) {
-	const auto size = Load<uint32_t>(location);
-	string_t result(const_char_ptr_cast(heap_location), size);
-	heap_location += size;
-	return result;
-}
+//------------------------------------------------------------------------------
+// Heap sizes
+//------------------------------------------------------------------------------
 
 static void ResetCombinedListData(vector<TupleDataVectorFormat> &vector_data) {
 #ifdef D_ASSERT_IS_ENABLED
@@ -104,6 +47,8 @@ static void ResetCombinedListData(vector<TupleDataVectorFormat> &vector_data) {
 		vd.combined_list_data = nullptr;
 		ResetCombinedListData(vd.children);
 	}
+#else
+	(void)vector_data;
 #endif
 }
 
@@ -128,8 +73,8 @@ static idx_t StringHeapSize(const string_t &val) {
 #if !DUCKDB_SMALLER_BINARY(tuple_data_heap_sizes)
 template <bool ALL_VALID, bool HAS_APPEND_SEL, bool HAS_SOURCE_SEL>
 #endif
-void ComputeStringHeapSizesInternal(idx_t *const heap_sizes, const UnifiedVectorFormat &source_vector_data,
-                                    const SelectionVector &append_sel, const idx_t append_count) {
+static void ComputeStringHeapSizesInternal(idx_t *const heap_sizes, const UnifiedVectorFormat &source_vector_data,
+                                           const SelectionVector &append_sel, const idx_t append_count) {
 	const auto source_data = UnifiedVectorFormat::GetData<string_t>(source_vector_data);
 	const auto &source_sel = *source_vector_data.sel;
 	const auto &source_validity = source_vector_data.validity;
@@ -389,7 +334,7 @@ void TupleDataCollection::StringWithinCollectionComputeHeapSizes(Vector &heap_si
 		// Size is validity mask and all string sizes
 		auto &heap_size = heap_sizes[i];
 		heap_size += ValidityBytes::SizeInBytes(list_length);
-		heap_size += list_length * TupleDataWithinListFixedSize<string_t>();
+		heap_size += list_length * sizeof(uint32_t);
 
 		// Plus all the actual strings
 		for (idx_t child_i = 0; child_i < list_length; child_i++) {
@@ -604,53 +549,9 @@ void TupleDataCollection::CollectionWithinCollectionComputeHeapSizes(Vector &hea
 	                                 combined_child_list_data);
 }
 
-template <class T>
-static void TemplatedInitializeValidityMask(const data_ptr_t row_locations[], const idx_t append_count) {
-	for (idx_t i = 0; i < append_count; i++) {
-		Store<T>(T(-1), row_locations[i]);
-	}
-}
-
-template <idx_t validity_bytes>
-static void TemplatedInitializeValidityMask(const data_ptr_t row_locations[], const idx_t append_count) {
-	for (idx_t i = 0; i < append_count; i++) {
-		memset(row_locations[i], ~0, validity_bytes);
-	}
-}
-
-static void InitializeValidityMask(const data_ptr_t row_locations[], const idx_t append_count,
-                                   const idx_t validity_bytes) {
-	switch (validity_bytes) {
-	case 1:
-		TemplatedInitializeValidityMask<uint8_t>(row_locations, append_count);
-		break;
-	case 2:
-		TemplatedInitializeValidityMask<uint16_t>(row_locations, append_count);
-		break;
-	case 3:
-		TemplatedInitializeValidityMask<3>(row_locations, append_count);
-		break;
-	case 4:
-		TemplatedInitializeValidityMask<uint32_t>(row_locations, append_count);
-		break;
-	case 5:
-		TemplatedInitializeValidityMask<5>(row_locations, append_count);
-		break;
-	case 6:
-		TemplatedInitializeValidityMask<6>(row_locations, append_count);
-		break;
-	case 7:
-		TemplatedInitializeValidityMask<7>(row_locations, append_count);
-		break;
-	case 8:
-		TemplatedInitializeValidityMask<uint64_t>(row_locations, append_count);
-		break;
-	default:
-		for (idx_t i = 0; i < append_count; i++) {
-			memset(row_locations[i], ~0, validity_bytes);
-		}
-	}
-}
+//------------------------------------------------------------------------------
+// Scatter
+//------------------------------------------------------------------------------
 
 void TupleDataCollection::Scatter(TupleDataChunkState &chunk_state, const DataChunk &new_chunk,
                                   const SelectionVector &append_sel, const idx_t append_count) const {
@@ -675,7 +576,10 @@ void TupleDataCollection::Scatter(TupleDataChunkState &chunk_state, const DataCh
 
 		// Set the validity mask for each row before inserting data
 		if (layout.CanHaveNull()) {
-			InitializeValidityMask(row_locations, append_count, ValidityBytes::SizeInBytes(layout.ColumnCount()));
+			ThrowOnTupleDataError(rust::initialize_validity_mask(
+			    rs_std::SliceRef<const std::uint64_t>(reinterpret_cast<const std::uint64_t *>(row_locations),
+			                                          append_count),
+			    append_count, ValidityBytes::SizeInBytes(layout.ColumnCount())));
 		}
 
 		if (!layout.AllConstant()) {
@@ -716,112 +620,196 @@ void TupleDataCollection::Scatter(TupleDataChunkState &chunk_state, const Vector
 	                          chunk_state.vector_data[column_id].unified, scatter_function.child_functions);
 }
 
-#if DUCKDB_SMALLER_BINARY(tuple_data_scatter)
+//------------------------------------------------------------------------------
+// Scatter kernels
+//------------------------------------------------------------------------------
+
 template <class T>
-#else
-template <class T, bool HAS_APPEND_SEL, bool HAS_SOURCE_SEL, bool ALL_VALID>
-#endif
-static void TupleDataTemplatedScatterInternal(const Vector &, const TupleDataVectorFormat &source_format,
-                                              const SelectionVector &append_sel, const idx_t append_count,
-                                              const TupleDataLayout &layout, Vector &row_locations,
-                                              Vector &heap_locations, const idx_t col_idx, const UnifiedVectorFormat &,
-                                              const vector<TupleDataScatterFunction> &) {
+static void TupleDataTemplatedScatter(const Vector &, const TupleDataVectorFormat &source_format,
+                                      const SelectionVector &append_sel, const idx_t append_count,
+                                      const TupleDataLayout &layout, Vector &row_locations, Vector &, const idx_t col_idx,
+                                      const UnifiedVectorFormat &, const vector<TupleDataScatterFunction> &) {
+	const auto &source_data = source_format.unified;
+	const auto null_value = NullValue<T>();
+	ThrowOnTupleDataError(rust::scatter_fixed(
+	    RustFormatEntries(source_data, sizeof(T)), sizeof(T),
+	    RustBytes(const_data_ptr_cast(&null_value), sizeof(T)), RustSel(*source_data.sel),
+	    RustValidity(source_data.validity), RustSel(append_sel), append_count, RustAddresses(row_locations),
+	    layout.GetRowWidth(), layout.GetOffsets()[col_idx], col_idx));
+}
+
+static void TupleDataStringScatter(const Vector &, const TupleDataVectorFormat &source_format,
+                                   const SelectionVector &append_sel, const idx_t append_count,
+                                   const TupleDataLayout &layout, Vector &row_locations, Vector &heap_locations,
+                                   const idx_t col_idx, const UnifiedVectorFormat &,
+                                   const vector<TupleDataScatterFunction> &) {
+	const auto &source_data = source_format.unified;
+	ThrowOnTupleDataError(rust::scatter_string(
+	    RustFormatEntries(source_data, sizeof(string_t)), RustSel(*source_data.sel), RustValidity(source_data.validity),
+	    RustSel(append_sel), append_count, RustAddresses(row_locations), RustAddressesMut(heap_locations),
+	    layout.GetRowWidth(), layout.GetOffsets()[col_idx], col_idx));
+}
+
+static void TupleDataStructScatter(const Vector &source, const TupleDataVectorFormat &source_format,
+                                   const SelectionVector &append_sel, const idx_t append_count,
+                                   const TupleDataLayout &layout, Vector &row_locations, Vector &heap_locations,
+                                   const idx_t col_idx, const UnifiedVectorFormat &dummy_arg,
+                                   const vector<TupleDataScatterFunction> &child_functions) {
 	// Source
 	const auto &source_data = source_format.unified;
-	const auto &source_sel = *source_data.sel;
-	const auto data = UnifiedVectorFormat::GetData<T>(source_data);
-	const auto &validity = source_data.validity;
 
-#if DUCKDB_SMALLER_BINARY(tuple_data_scatter)
-	const auto HAS_APPEND_SEL = append_sel.IsSet();
-	const auto HAS_SOURCE_SEL = source_sel.IsSet();
-	const auto ALL_VALID = validity.CannotHaveNull();
-#endif
+	// Create a Vector of pointers to the TupleDataLayout of the STRUCT
+	Vector struct_row_locations(LogicalType::POINTER, append_count);
+	ThrowOnTupleDataError(rust::scatter_struct(
+	    RustSel(*source_data.sel), RustValidity(source_data.validity), RustSel(append_sel), append_count,
+	    RustAddresses(row_locations), layout.GetRowWidth(), layout.GetOffsets()[col_idx], col_idx,
+	    RustAddressesMut(struct_row_locations)));
 
-	// Target
-	const auto target_locations = FlatVector::GetData<data_ptr_t>(row_locations);
-	const auto target_heap_locations = FlatVector::GetDataMutable<data_ptr_t>(heap_locations);
-
-	// Precompute mask indexes
-	idx_t entry_idx;
-	idx_t idx_in_entry;
-	ValidityBytes::GetEntryIndex(col_idx, entry_idx, idx_in_entry);
-
-	const auto column_count = layout.ColumnCount();
-	const auto offset_in_row = layout.GetOffsets()[col_idx];
-
-	const auto null_value = NullValue<T>();
-	for (idx_t i = 0; i < append_count; i++) {
-		const auto append_idx = HAS_APPEND_SEL ? append_sel.get_index_unsafe(i) : i;
-		const auto source_idx = HAS_SOURCE_SEL ? source_sel.get_index_unsafe(append_idx) : append_idx;
-		const auto &target_location = target_locations[i];
-		if (ALL_VALID || validity.RowIsValidUnsafe(source_idx)) {
-			TupleDataValueStore<T>(data[source_idx], target_location, offset_in_row, target_heap_locations[i]);
-		} else {
-			D_ASSERT(layout.CanHaveNull());
-			TupleDataValueStore<T>(null_value, target_location, offset_in_row, target_heap_locations[i]);
-			ValidityBytes(target_location, column_count).SetInvalidUnsafe(entry_idx, idx_in_entry);
-		}
+	const auto &struct_layout = layout.GetStructLayout(col_idx);
+	auto &struct_sources = StructVector::GetEntries(source);
+	if (!struct_layout) {
+		// Empty struct: no fields to scatter
+		D_ASSERT(struct_sources.empty());
+		return;
 	}
+	D_ASSERT(struct_layout->ColumnCount() == struct_sources.size());
+
+	// Set the validity of the entries within the STRUCTs
+	ThrowOnTupleDataError(rust::initialize_validity_mask(
+	    RustAddresses(struct_row_locations), append_count,
+	    ValidityBytes::SizeInBytes(struct_layout->ColumnCount())));
+
+	// Recurse through the struct children
+	for (idx_t struct_col_idx = 0; struct_col_idx < struct_layout->ColumnCount(); struct_col_idx++) {
+		auto &struct_source = struct_sources[struct_col_idx];
+		const auto &struct_source_format = source_format.children[struct_col_idx];
+		const auto &struct_scatter_function = child_functions[struct_col_idx];
+		struct_scatter_function.function(struct_source, struct_source_format, append_sel, append_count, *struct_layout,
+		                                 struct_row_locations, heap_locations, struct_col_idx, dummy_arg,
+		                                 struct_scatter_function.child_functions);
+	}
+}
+
+static void TupleDataListScatter(const Vector &source, const TupleDataVectorFormat &source_format,
+                                 const SelectionVector &append_sel, const idx_t append_count,
+                                 const TupleDataLayout &layout, Vector &row_locations, Vector &heap_locations,
+                                 const idx_t col_idx, const UnifiedVectorFormat &,
+                                 const vector<TupleDataScatterFunction> &child_functions) {
+	// The Array vector has fake list_entry_t's set by this point too, so both
+	// collections scatter their header the same way.
+	const auto &source_data = source_format.unified;
+	ThrowOnTupleDataError(rust::scatter_collection(
+	    RustFormatEntries(source_data, sizeof(list_entry_t)), RustSel(*source_data.sel),
+	    RustValidity(source_data.validity), RustSel(append_sel), append_count, RustAddresses(row_locations),
+	    RustAddressesMut(heap_locations), layout.GetRowWidth(), layout.GetOffsets()[col_idx], col_idx));
+
+	// Recurse
+	D_ASSERT(child_functions.size() == 1);
+	auto &child_source = ListVector::GetChild(source);
+	auto &child_format = source_format.children[0];
+	const auto &child_function = child_functions[0];
+	child_function.function(child_source, child_format, append_sel, append_count, layout, row_locations, heap_locations,
+	                        col_idx, source_format.unified, child_function.child_functions);
+}
+
+static void TupleDataArrayScatter(const Vector &source, const TupleDataVectorFormat &source_format,
+                                  const SelectionVector &append_sel, const idx_t append_count,
+                                  const TupleDataLayout &layout, Vector &row_locations, Vector &heap_locations,
+                                  const idx_t col_idx, const UnifiedVectorFormat &,
+                                  const vector<TupleDataScatterFunction> &child_functions) {
+	const auto &source_data = source_format.unified;
+	ThrowOnTupleDataError(rust::scatter_collection(
+	    RustFormatEntries(source_data, sizeof(list_entry_t)), RustSel(*source_data.sel),
+	    RustValidity(source_data.validity), RustSel(append_sel), append_count, RustAddresses(row_locations),
+	    RustAddressesMut(heap_locations), layout.GetRowWidth(), layout.GetOffsets()[col_idx], col_idx));
+
+	// Recurse
+	D_ASSERT(child_functions.size() == 1);
+	auto &child_source = ArrayVector::GetChild(source);
+	auto &child_format = source_format.children[0];
+	const auto &child_function = child_functions[0];
+	child_function.function(child_source, child_format, append_sel, append_count, layout, row_locations, heap_locations,
+	                        col_idx, source_format.unified, child_function.child_functions);
 }
 
 template <class T>
-static void TupleDataTemplatedScatter(const Vector &source, const TupleDataVectorFormat &source_format,
-                                      const SelectionVector &append_sel, const idx_t append_count,
-                                      const TupleDataLayout &layout, Vector &row_locations, Vector &heap_locations,
-                                      const idx_t col_idx, const UnifiedVectorFormat &dummy_arg,
-                                      const vector<TupleDataScatterFunction> &child_functions) {
-#if DUCKDB_SMALLER_BINARY(tuple_data_scatter)
-	TupleDataTemplatedScatterInternal<T>(source, source_format, append_sel, append_count, layout, row_locations,
-	                                     heap_locations, col_idx, dummy_arg, child_functions);
-#else
-	if (append_sel.IsSet()) {
-		if (source_format.unified.sel->IsSet()) {
-			if (source_format.unified.validity.CannotHaveNull()) {
-				TupleDataTemplatedScatterInternal<T, true, true, true>(source, source_format, append_sel, append_count,
-				                                                       layout, row_locations, heap_locations, col_idx,
-				                                                       dummy_arg, child_functions);
-			} else {
-				TupleDataTemplatedScatterInternal<T, true, true, false>(source, source_format, append_sel, append_count,
-				                                                        layout, row_locations, heap_locations, col_idx,
-				                                                        dummy_arg, child_functions);
-			}
-		} else {
-			if (source_format.unified.validity.CannotHaveNull()) {
-				TupleDataTemplatedScatterInternal<T, true, false, true>(source, source_format, append_sel, append_count,
-				                                                        layout, row_locations, heap_locations, col_idx,
-				                                                        dummy_arg, child_functions);
-			} else {
-				TupleDataTemplatedScatterInternal<T, true, false, false>(
-				    source, source_format, append_sel, append_count, layout, row_locations, heap_locations, col_idx,
-				    dummy_arg, child_functions);
-			}
-		}
-	} else {
-		if (source_format.unified.sel->IsSet()) {
-			if (source_format.unified.validity.CannotHaveNull()) {
-				TupleDataTemplatedScatterInternal<T, false, true, true>(source, source_format, append_sel, append_count,
-				                                                        layout, row_locations, heap_locations, col_idx,
-				                                                        dummy_arg, child_functions);
-			} else {
-				TupleDataTemplatedScatterInternal<T, false, true, false>(
-				    source, source_format, append_sel, append_count, layout, row_locations, heap_locations, col_idx,
-				    dummy_arg, child_functions);
-			}
-		} else {
-			if (source_format.unified.validity.CannotHaveNull()) {
-				TupleDataTemplatedScatterInternal<T, false, false, true>(
-				    source, source_format, append_sel, append_count, layout, row_locations, heap_locations, col_idx,
-				    dummy_arg, child_functions);
-			} else {
-				TupleDataTemplatedScatterInternal<T, false, false, false>(
-				    source, source_format, append_sel, append_count, layout, row_locations, heap_locations, col_idx,
-				    dummy_arg, child_functions);
-			}
-		}
-	}
-#endif
+static void TupleDataTemplatedWithinCollectionScatter(const Vector &, const TupleDataVectorFormat &source_format,
+                                                      const SelectionVector &append_sel, const idx_t append_count,
+                                                      const TupleDataLayout &, Vector &, Vector &heap_locations,
+                                                      const idx_t, const UnifiedVectorFormat &list_data,
+                                                      const vector<TupleDataScatterFunction> &) {
+	const auto &source_data = source_format.unified;
+	ThrowOnTupleDataError(rust::scatter_within_fixed(
+	    RustFormatEntries(list_data, sizeof(list_entry_t)), RustSel(*list_data.sel),
+	    RustValidity(list_data.validity), RustFormatEntries(source_data, sizeof(T)), sizeof(T),
+	    RustSel(*source_data.sel), RustValidity(source_data.validity), RustSel(append_sel), append_count,
+	    RustAddressesMut(heap_locations)));
 }
+
+static void TupleDataStringWithinCollectionScatter(const Vector &, const TupleDataVectorFormat &source_format,
+                                                   const SelectionVector &append_sel, const idx_t append_count,
+                                                   const TupleDataLayout &, Vector &, Vector &heap_locations,
+                                                   const idx_t, const UnifiedVectorFormat &list_data,
+                                                   const vector<TupleDataScatterFunction> &) {
+	const auto &source_data = source_format.unified;
+	ThrowOnTupleDataError(rust::scatter_within_string(
+	    RustFormatEntries(list_data, sizeof(list_entry_t)), RustSel(*list_data.sel),
+	    RustValidity(list_data.validity), RustFormatEntries(source_data, sizeof(string_t)),
+	    RustSel(*source_data.sel), RustValidity(source_data.validity), RustSel(append_sel), append_count,
+	    RustAddressesMut(heap_locations)));
+}
+
+static void TupleDataStructWithinCollectionScatter(const Vector &source, const TupleDataVectorFormat &source_format,
+                                                   const SelectionVector &append_sel, const idx_t append_count,
+                                                   const TupleDataLayout &layout, Vector &row_locations,
+                                                   Vector &heap_locations, const idx_t,
+                                                   const UnifiedVectorFormat &list_data,
+                                                   const vector<TupleDataScatterFunction> &child_functions) {
+	const auto &source_data = source_format.unified;
+	ThrowOnTupleDataError(rust::scatter_within_struct(
+	    RustFormatEntries(list_data, sizeof(list_entry_t)), RustSel(*list_data.sel),
+	    RustValidity(list_data.validity), RustSel(*source_data.sel), RustValidity(source_data.validity),
+	    RustSel(append_sel), append_count, RustAddressesMut(heap_locations)));
+
+	// Recurse through the children
+	auto &struct_sources = StructVector::GetEntries(source);
+	for (idx_t struct_col_idx = 0; struct_col_idx < struct_sources.size(); struct_col_idx++) {
+		auto &struct_source = struct_sources[struct_col_idx];
+		auto &struct_format = source_format.children[struct_col_idx];
+		const auto &struct_scatter_function = child_functions[struct_col_idx];
+		struct_scatter_function.function(struct_source, struct_format, append_sel, append_count, layout, row_locations,
+		                                 heap_locations, struct_col_idx, list_data,
+		                                 struct_scatter_function.child_functions);
+	}
+}
+
+template <class COLLECTION_VECTOR>
+static void
+TupleDataCollectionWithinCollectionScatter(const Vector &child_list, const TupleDataVectorFormat &child_list_format,
+                                           const SelectionVector &append_sel, const idx_t append_count,
+                                           const TupleDataLayout &layout, Vector &row_locations, Vector &heap_locations,
+                                           const idx_t col_idx, const UnifiedVectorFormat &list_data,
+                                           const vector<TupleDataScatterFunction> &child_functions) {
+	const auto &child_list_data = child_list_format.unified;
+	ThrowOnTupleDataError(rust::scatter_within_collection(
+	    RustFormatEntries(list_data, sizeof(list_entry_t)), RustSel(*list_data.sel),
+	    RustValidity(list_data.validity), RustFormatEntries(child_list_data, sizeof(list_entry_t)),
+	    RustSel(*child_list_data.sel), RustValidity(child_list_data.validity), RustSel(append_sel), append_count,
+	    RustAddressesMut(heap_locations)));
+
+	// Recurse
+	D_ASSERT(child_functions.size() == 1);
+	auto &child_vec = COLLECTION_VECTOR::GetChild(child_list);
+	auto &child_format = child_list_format.children[0];
+	auto &combined_child_list_data = child_format.combined_list_data->combined_data;
+	const auto &child_function = child_functions[0];
+	child_function.function(child_vec, child_format, append_sel, append_count, layout, row_locations, heap_locations,
+	                        col_idx, combined_child_list_data, child_function.child_functions);
+}
+
+//------------------------------------------------------------------------------
+// Sort key scatter
+//------------------------------------------------------------------------------
 
 template <class T, SortKeyType SORT_KEY_TYPE>
 void TupleDataSortKeyScatter(const Vector &, const TupleDataVectorFormat &source_format,
@@ -865,357 +853,10 @@ void TupleDataSortKeyScatter(const Vector &, const TupleDataVectorFormat &source
 	}
 }
 
-static void TupleDataStructScatter(const Vector &source, const TupleDataVectorFormat &source_format,
-                                   const SelectionVector &append_sel, const idx_t append_count,
-                                   const TupleDataLayout &layout, Vector &row_locations, Vector &heap_locations,
-                                   const idx_t col_idx, const UnifiedVectorFormat &dummy_arg,
-                                   const vector<TupleDataScatterFunction> &child_functions) {
-	// Source
-	const auto &source_data = source_format.unified;
-	const auto &source_sel = *source_data.sel;
-	const auto &validity = source_data.validity;
-
-	// Target
-	const auto target_locations = FlatVector::GetData<data_ptr_t>(row_locations);
-
-	// Precompute mask indexes
-	idx_t entry_idx;
-	idx_t idx_in_entry;
-	ValidityBytes::GetEntryIndex(col_idx, entry_idx, idx_in_entry);
-
-	// Set validity of the STRUCT in this layout
-	if (validity.CanHaveNull()) {
-		D_ASSERT(layout.CanHaveNull());
-		for (idx_t i = 0; i < append_count; i++) {
-			const auto source_idx = source_sel.get_index(append_sel.get_index(i));
-			if (!validity.RowIsValid(source_idx)) {
-				ValidityBytes(target_locations[i], layout.ColumnCount()).SetInvalidUnsafe(entry_idx, idx_in_entry);
-			}
-		}
-	}
-
-	// Create a Vector of pointers to the TupleDataLayout of the STRUCT
-	Vector struct_row_locations(LogicalType::POINTER, append_count);
-	auto struct_target_locations = FlatVector::GetDataMutable<data_ptr_t>(struct_row_locations);
-	const auto offset_in_row = layout.GetOffsets()[col_idx];
-	for (idx_t i = 0; i < append_count; i++) {
-		struct_target_locations[i] = target_locations[i] + offset_in_row;
-	}
-
-	const auto &struct_layout = layout.GetStructLayout(col_idx);
-	auto &struct_sources = StructVector::GetEntries(source);
-	if (!struct_layout) {
-		// Empty struct: no fields to scatter
-		D_ASSERT(struct_sources.empty());
-		return;
-	}
-	D_ASSERT(struct_layout->ColumnCount() == struct_sources.size());
-
-	// Set the validity of the entries within the STRUCTs
-	InitializeValidityMask(struct_target_locations, append_count,
-	                       ValidityBytes::SizeInBytes(struct_layout->ColumnCount()));
-
-	// Recurse through the struct children
-	for (idx_t struct_col_idx = 0; struct_col_idx < struct_layout->ColumnCount(); struct_col_idx++) {
-		auto &struct_source = struct_sources[struct_col_idx];
-		const auto &struct_source_format = source_format.children[struct_col_idx];
-		const auto &struct_scatter_function = child_functions[struct_col_idx];
-		struct_scatter_function.function(struct_source, struct_source_format, append_sel, append_count, *struct_layout,
-		                                 struct_row_locations, heap_locations, struct_col_idx, dummy_arg,
-		                                 struct_scatter_function.child_functions);
-	}
-}
-
-//------------------------------------------------------------------------------
-// List Scatter
-//------------------------------------------------------------------------------
-static void TupleDataListScatter(const Vector &source, const TupleDataVectorFormat &source_format,
-                                 const SelectionVector &append_sel, const idx_t append_count,
-                                 const TupleDataLayout &layout, Vector &row_locations, Vector &heap_locations,
-                                 const idx_t col_idx, const UnifiedVectorFormat &,
-                                 const vector<TupleDataScatterFunction> &child_functions) {
-	// Source
-	const auto &source_data = source_format.unified;
-	const auto &source_sel = *source_data.sel;
-	const auto data = UnifiedVectorFormat::GetDataUnsafe<list_entry_t>(source_data);
-	const auto &validity = source_data.validity;
-
-	// Target
-	const auto target_locations = FlatVector::GetData<data_ptr_t>(row_locations);
-	const auto target_heap_locations = FlatVector::GetDataMutable<data_ptr_t>(heap_locations);
-
-	// Precompute mask indexes
-	idx_t entry_idx;
-	idx_t idx_in_entry;
-	ValidityBytes::GetEntryIndex(col_idx, entry_idx, idx_in_entry);
-
-	// Set validity of the LIST in this layout, and store pointer to where it's stored
-	const auto offset_in_row = layout.GetOffsets()[col_idx];
-	for (idx_t i = 0; i < append_count; i++) {
-		const auto source_idx = source_sel.get_index(append_sel.get_index(i));
-		if (validity.RowIsValid(source_idx)) {
-			auto &target_heap_location = target_heap_locations[i];
-			Store<data_ptr_t>(target_heap_location, target_locations[i] + offset_in_row);
-
-			// Store list length and skip over it
-			Store<uint64_t>(data[source_idx].length, target_heap_location);
-			target_heap_location += sizeof(uint64_t);
-		} else {
-			D_ASSERT(layout.CanHaveNull());
-			ValidityBytes(target_locations[i], layout.ColumnCount()).SetInvalidUnsafe(entry_idx, idx_in_entry);
-		}
-	}
-
-	// Recurse
-	D_ASSERT(child_functions.size() == 1);
-	auto &child_source = ListVector::GetChild(source);
-	auto &child_format = source_format.children[0];
-	const auto &child_function = child_functions[0];
-	child_function.function(child_source, child_format, append_sel, append_count, layout, row_locations, heap_locations,
-	                        col_idx, source_format.unified, child_function.child_functions);
-}
-
-//------------------------------------------------------------------------------
-// Array Scatter
-//------------------------------------------------------------------------------
-static void TupleDataArrayScatter(const Vector &source, const TupleDataVectorFormat &source_format,
-                                  const SelectionVector &append_sel, const idx_t append_count,
-                                  const TupleDataLayout &layout, Vector &row_locations, Vector &heap_locations,
-                                  const idx_t col_idx, const UnifiedVectorFormat &,
-                                  const vector<TupleDataScatterFunction> &child_functions) {
-	// Source
-	// The Array vector has fake list_entry_t's set by this point, so this is fine
-	const auto &source_data = source_format.unified;
-	const auto &source_sel = *source_data.sel;
-	const auto data = UnifiedVectorFormat::GetDataUnsafe<list_entry_t>(source_data);
-	const auto &validity = source_data.validity;
-
-	// Target
-	const auto target_locations = FlatVector::GetData<data_ptr_t>(row_locations);
-	const auto target_heap_locations = FlatVector::GetDataMutable<data_ptr_t>(heap_locations);
-
-	// Precompute mask indexes
-	idx_t entry_idx;
-	idx_t idx_in_entry;
-	ValidityBytes::GetEntryIndex(col_idx, entry_idx, idx_in_entry);
-
-	// Set validity of the LIST in this layout, and store pointer to where it's stored
-	const auto offset_in_row = layout.GetOffsets()[col_idx];
-	for (idx_t i = 0; i < append_count; i++) {
-		const auto source_idx = source_sel.get_index(append_sel.get_index(i));
-		if (validity.RowIsValid(source_idx)) {
-			auto &target_heap_location = target_heap_locations[i];
-			Store<data_ptr_t>(target_heap_location, target_locations[i] + offset_in_row);
-
-			// Store list length and skip over it
-			Store<uint64_t>(data[source_idx].length, target_heap_location);
-			target_heap_location += sizeof(uint64_t);
-		} else {
-			D_ASSERT(layout.CanHaveNull());
-			ValidityBytes(target_locations[i], layout.ColumnCount()).SetInvalidUnsafe(entry_idx, idx_in_entry);
-		}
-	}
-
-	// Recurse
-	D_ASSERT(child_functions.size() == 1);
-	auto &child_source = ArrayVector::GetChild(source);
-	auto &child_format = source_format.children[0];
-	const auto &child_function = child_functions[0];
-	child_function.function(child_source, child_format, append_sel, append_count, layout, row_locations, heap_locations,
-	                        col_idx, source_format.unified, child_function.child_functions);
-}
-
-//------------------------------------------------------------------------------
-// Collection Scatter
-//------------------------------------------------------------------------------
-template <class T>
-static void TupleDataTemplatedWithinCollectionScatter(const Vector &, const TupleDataVectorFormat &source_format,
-                                                      const SelectionVector &append_sel, const idx_t append_count,
-                                                      const TupleDataLayout &, Vector &, Vector &heap_locations,
-                                                      const idx_t, const UnifiedVectorFormat &list_data,
-                                                      const vector<TupleDataScatterFunction> &) {
-	// Parent list data
-	const auto &list_sel = *list_data.sel;
-	const auto list_entries = UnifiedVectorFormat::GetDataUnsafe<list_entry_t>(list_data);
-	const auto &list_validity = list_data.validity;
-
-	// Source
-	const auto &source_data = source_format.unified;
-	const auto &source_sel = *source_data.sel;
-	const auto data = UnifiedVectorFormat::GetData<T>(source_data);
-	const auto &source_validity = source_data.validity;
-
-	// Target
-	const auto target_heap_locations = FlatVector::GetDataMutable<data_ptr_t>(heap_locations);
-
-	for (idx_t i = 0; i < append_count; i++) {
-		const auto list_idx = list_sel.get_index(append_sel.get_index(i));
-		if (!list_validity.RowIsValid(list_idx)) {
-			continue; // Original list entry is invalid - no need to serialize the child
-		}
-
-		// Get the current list entry
-		const auto &list_entry = list_entries[list_idx];
-		const auto &list_offset = list_entry.offset;
-		const auto &list_length = list_entry.length;
-		if (list_length == 0) {
-			continue;
-		}
-
-		// Initialize validity mask and skip heap pointer over it
-		auto &target_heap_location = target_heap_locations[i];
-		ValidityBytes child_mask(target_heap_location, list_length);
-		child_mask.SetAllValid(list_length);
-		target_heap_location += ValidityBytes::SizeInBytes(list_length);
-
-		// Get the start to the fixed-size data and skip the heap pointer over it
-		const auto child_data_location = target_heap_location;
-		target_heap_location += list_length * TupleDataWithinListFixedSize<T>();
-
-		// Store the data and validity belonging to this list entry
-		for (idx_t child_i = 0; child_i < list_length; child_i++) {
-			const auto child_source_idx = source_sel.get_index(list_offset + child_i);
-			if (source_validity.RowIsValid(child_source_idx)) {
-				TupleDataWithinListValueStore<T>(data[child_source_idx],
-				                                 child_data_location + child_i * TupleDataWithinListFixedSize<T>(),
-				                                 target_heap_location);
-			} else {
-				child_mask.SetInvalidUnsafe(child_i);
-			}
-		}
-	}
-}
-
-static void TupleDataStructWithinCollectionScatter(const Vector &source, const TupleDataVectorFormat &source_format,
-                                                   const SelectionVector &append_sel, const idx_t append_count,
-                                                   const TupleDataLayout &layout, Vector &row_locations,
-                                                   Vector &heap_locations, const idx_t,
-                                                   const UnifiedVectorFormat &list_data,
-                                                   const vector<TupleDataScatterFunction> &child_functions) {
-	// Parent list data
-	const auto &list_sel = *list_data.sel;
-	const auto list_entries = UnifiedVectorFormat::GetDataUnsafe<list_entry_t>(list_data);
-	const auto &list_validity = list_data.validity;
-
-	// Source
-	const auto &source_data = source_format.unified;
-	const auto &source_sel = *source_data.sel;
-	const auto &source_validity = source_data.validity;
-
-	// Target
-	const auto target_heap_locations = FlatVector::GetDataMutable<data_ptr_t>(heap_locations);
-
-	// Initialize the validity of the STRUCTs
-	for (idx_t i = 0; i < append_count; i++) {
-		const auto list_idx = list_sel.get_index(append_sel.get_index(i));
-		if (!list_validity.RowIsValid(list_idx)) {
-			continue; // Original list entry is invalid - no need to serialize the child
-		}
-
-		// Get the current list entry
-		const auto &list_entry = list_entries[list_idx];
-		const auto &list_offset = list_entry.offset;
-		const auto &list_length = list_entry.length;
-		if (list_length == 0) {
-			continue;
-		}
-
-		// Initialize validity mask and skip the heap pointer over it
-		auto &target_heap_location = target_heap_locations[i];
-		ValidityBytes child_mask(target_heap_location, list_length);
-		child_mask.SetAllValid(list_length);
-		target_heap_location += ValidityBytes::SizeInBytes(list_length);
-
-		// Store the validity belonging to this list entry
-		for (idx_t child_i = 0; child_i < list_length; child_i++) {
-			const auto child_source_idx = source_sel.get_index(list_offset + child_i);
-			if (!source_validity.RowIsValid(child_source_idx)) {
-				child_mask.SetInvalidUnsafe(child_i);
-			}
-		}
-	}
-
-	// Recurse through the children
-	auto &struct_sources = StructVector::GetEntries(source);
-	for (idx_t struct_col_idx = 0; struct_col_idx < struct_sources.size(); struct_col_idx++) {
-		auto &struct_source = struct_sources[struct_col_idx];
-		auto &struct_format = source_format.children[struct_col_idx];
-		const auto &struct_scatter_function = child_functions[struct_col_idx];
-		struct_scatter_function.function(struct_source, struct_format, append_sel, append_count, layout, row_locations,
-		                                 heap_locations, struct_col_idx, list_data,
-		                                 struct_scatter_function.child_functions);
-	}
-}
-
-template <class COLLECTION_VECTOR>
-static void
-TupleDataCollectionWithinCollectionScatter(const Vector &child_list, const TupleDataVectorFormat &child_list_format,
-                                           const SelectionVector &append_sel, const idx_t append_count,
-                                           const TupleDataLayout &layout, Vector &row_locations, Vector &heap_locations,
-                                           const idx_t col_idx, const UnifiedVectorFormat &list_data,
-                                           const vector<TupleDataScatterFunction> &child_functions) {
-	// Parent list data
-	const auto &list_sel = *list_data.sel;
-	const auto list_entries = UnifiedVectorFormat::GetDataUnsafe<list_entry_t>(list_data);
-	const auto &list_validity = list_data.validity;
-
-	// Source
-	const auto &child_list_data = child_list_format.unified;
-	const auto &child_list_sel = *child_list_data.sel;
-	const auto child_list_entries = UnifiedVectorFormat::GetDataUnsafe<list_entry_t>(child_list_data);
-	const auto &child_list_validity = child_list_data.validity;
-
-	// Target
-	const auto target_heap_locations = FlatVector::GetDataMutable<data_ptr_t>(heap_locations);
-
-	for (idx_t i = 0; i < append_count; i++) {
-		const auto list_idx = list_sel.get_index(append_sel.get_index(i));
-		if (!list_validity.RowIsValid(list_idx)) {
-			continue; // Original list entry is invalid - no need to serialize the child list
-		}
-
-		// Get the current list entry
-		const auto &list_entry = list_entries[list_idx];
-		const auto &list_offset = list_entry.offset;
-		const auto &list_length = list_entry.length;
-		if (list_length == 0) {
-			continue;
-		}
-
-		// Initialize validity mask and skip heap pointer over it
-		auto &target_heap_location = target_heap_locations[i];
-		ValidityBytes child_mask(target_heap_location, list_length);
-		child_mask.SetAllValid(list_length);
-		target_heap_location += ValidityBytes::SizeInBytes(list_length);
-
-		// Get the start to the fixed-size data and skip the heap pointer over it
-		const auto child_data_location = target_heap_location;
-		target_heap_location += list_length * sizeof(uint64_t);
-
-		for (idx_t child_i = 0; child_i < list_length; child_i++) {
-			const auto child_list_idx = child_list_sel.get_index(list_offset + child_i);
-			if (child_list_validity.RowIsValid(child_list_idx)) {
-				const auto &child_list_length = child_list_entries[child_list_idx].length;
-				Store<uint64_t>(child_list_length, child_data_location + child_i * sizeof(uint64_t));
-			} else {
-				child_mask.SetInvalidUnsafe(child_i);
-			}
-		}
-	}
-
-	// Recurse
-	D_ASSERT(child_functions.size() == 1);
-	auto &child_vec = COLLECTION_VECTOR::GetChild(child_list);
-	auto &child_format = child_list_format.children[0];
-	auto &combined_child_list_data = child_format.combined_list_data->combined_data;
-	const auto &child_function = child_functions[0];
-	child_function.function(child_vec, child_format, append_sel, append_count, layout, row_locations, heap_locations,
-	                        col_idx, combined_child_list_data, child_function.child_functions);
-}
-
 //------------------------------------------------------------------------------
 // Get Scatter Function
 //------------------------------------------------------------------------------
+
 template <class T>
 tuple_data_scatter_function_t TupleDataGetScatterFunction(bool within_collection) {
 	return within_collection ? TupleDataTemplatedWithinCollectionScatter<T> : TupleDataTemplatedScatter<T>;
@@ -1223,6 +864,10 @@ tuple_data_scatter_function_t TupleDataGetScatterFunction(bool within_collection
 
 TupleDataScatterFunction TupleDataCollection::GetScatterFunction(const LogicalType &type, bool within_collection) {
 	TupleDataScatterFunction result;
+	if (type.InternalType() == PhysicalType::VARCHAR) {
+		result.function = within_collection ? TupleDataStringWithinCollectionScatter : TupleDataStringScatter;
+		return result;
+	}
 	switch (type.InternalType()) {
 	case PhysicalType::BOOL:
 		result.function = TupleDataGetScatterFunction<bool>(within_collection);
@@ -1265,9 +910,6 @@ TupleDataScatterFunction TupleDataCollection::GetScatterFunction(const LogicalTy
 		break;
 	case PhysicalType::INTERVAL:
 		result.function = TupleDataGetScatterFunction<interval_t>(within_collection);
-		break;
-	case PhysicalType::VARCHAR:
-		result.function = TupleDataGetScatterFunction<string_t>(within_collection);
 		break;
 	case PhysicalType::STRUCT: {
 		result.function = within_collection ? TupleDataStructWithinCollectionScatter : TupleDataStructScatter;
@@ -1323,6 +965,7 @@ TupleDataScatterFunction TupleDataCollection::GetSortKeyScatterFunction(const Lo
 //-------------------------------------------------------------------------------
 // Gather
 //-------------------------------------------------------------------------------
+
 void TupleDataCollection::Gather(Vector &row_locations, const SelectionVector &scan_sel, const idx_t scan_count,
                                  DataChunk &result, const SelectionVector &target_sel,
                                  vector<unique_ptr<Vector>> &cached_cast_vectors) const {
@@ -1370,148 +1013,71 @@ void TupleDataGatherFunction::Gather(const TupleDataLayout &layout, Vector &row_
 	function(layout, row_locations, col_idx, scan_sel, scan_count, target, target_sel, list_vector, child_functions);
 }
 
-#if DUCKDB_SMALLER_BINARY(tuple_data_gather)
-template <class T>
-#else
-template <class T, bool HAS_SCAN_SEL, bool HAS_TARGET_SEL, bool ALL_VALID>
-#endif
-static void TupleDataTemplatedGatherInternal(const TupleDataLayout &layout, Vector &row_locations, const idx_t col_idx,
-                                             const SelectionVector &scan_sel, const idx_t scan_count, Vector &target,
-                                             const SelectionVector &target_sel, optional_ptr<Vector>,
-                                             const vector<TupleDataGatherFunction> &) {
-#if DUCKDB_SMALLER_BINARY(tuple_data_gather)
-	const bool HAS_SCAN_SEL = scan_sel.IsSet();
-	const bool HAS_TARGET_SEL = target_sel.IsSet();
-	const bool ALL_VALID = layout.CannotHaveNull();
-#endif
-	// Source
-	const auto source_locations = FlatVector::GetData<data_ptr_t>(row_locations);
-
-	// Target
-	auto target_data = FlatVector::GetDataMutable<T>(target);
-	auto &target_validity = FlatVector::ValidityMutable(target);
-
-	// Precompute mask indexes
-	idx_t entry_idx;
-	idx_t idx_in_entry;
-	ValidityBytes::GetEntryIndex(col_idx, entry_idx, idx_in_entry);
-
-	const auto offset_in_row = layout.GetOffsets()[col_idx];
-	const auto column_count = layout.ColumnCount();
-	for (idx_t i = 0; i < scan_count; i++) {
-		const auto source_idx = HAS_SCAN_SEL ? scan_sel.get_index_unsafe(i) : i;
-		const auto target_idx = HAS_TARGET_SEL ? target_sel.get_index_unsafe(i) : i;
-		const auto &source_row = source_locations[source_idx];
-		target_data[target_idx] = Load<T>(source_row + offset_in_row);
-		if (!ALL_VALID &&
-		    !ValidityBytes::RowIsValid(ValidityBytes(source_row, column_count).GetValidityEntryUnsafe(entry_idx),
-		                               idx_in_entry)) {
-			target_validity.SetInvalid(target_idx);
-		} else {
-			TupleDataValueVerify<T>(target.GetType(), target_data[target_idx]);
-		}
-	}
-}
+//------------------------------------------------------------------------------
+// Gather kernels
+//------------------------------------------------------------------------------
 
 template <class T>
 static void TupleDataTemplatedGather(const TupleDataLayout &layout, Vector &row_locations, const idx_t col_idx,
                                      const SelectionVector &scan_sel, const idx_t scan_count, Vector &target,
-                                     const SelectionVector &target_sel, optional_ptr<Vector> list_vector,
-                                     const vector<TupleDataGatherFunction> &child_functions) {
-#if DUCKDB_SMALLER_BINARY(tuple_data_gather)
-	TupleDataTemplatedGatherInternal<T>(layout, row_locations, col_idx, scan_sel, scan_count, target, target_sel,
-	                                    list_vector, child_functions);
-#else
-	if (scan_sel.IsSet()) {
-		if (target_sel.IsSet()) {
-			if (layout.CannotHaveNull()) {
-				TupleDataTemplatedGatherInternal<T, true, true, true>(layout, row_locations, col_idx, scan_sel,
-				                                                      scan_count, target, target_sel, list_vector,
-				                                                      child_functions);
-			} else {
-				TupleDataTemplatedGatherInternal<T, true, true, false>(layout, row_locations, col_idx, scan_sel,
-				                                                       scan_count, target, target_sel, list_vector,
-				                                                       child_functions);
-			}
-		} else {
-			if (layout.CannotHaveNull()) {
-				TupleDataTemplatedGatherInternal<T, true, false, true>(layout, row_locations, col_idx, scan_sel,
-				                                                       scan_count, target, target_sel, list_vector,
-				                                                       child_functions);
-			} else {
-				TupleDataTemplatedGatherInternal<T, true, false, false>(layout, row_locations, col_idx, scan_sel,
-				                                                        scan_count, target, target_sel, list_vector,
-				                                                        child_functions);
-			}
-		}
-	} else {
-		if (target_sel.IsSet()) {
-			if (layout.CannotHaveNull()) {
-				TupleDataTemplatedGatherInternal<T, false, true, true>(layout, row_locations, col_idx, scan_sel,
-				                                                       scan_count, target, target_sel, list_vector,
-				                                                       child_functions);
-			} else {
-				TupleDataTemplatedGatherInternal<T, false, true, false>(layout, row_locations, col_idx, scan_sel,
-				                                                        scan_count, target, target_sel, list_vector,
-				                                                        child_functions);
-			}
-		} else {
-			if (layout.CannotHaveNull()) {
-				TupleDataTemplatedGatherInternal<T, false, false, true>(layout, row_locations, col_idx, scan_sel,
-				                                                        scan_count, target, target_sel, list_vector,
-				                                                        child_functions);
-			} else {
-				TupleDataTemplatedGatherInternal<T, false, false, false>(layout, row_locations, col_idx, scan_sel,
-				                                                         scan_count, target, target_sel, list_vector,
-				                                                         child_functions);
-			}
-		}
-	}
-#endif
+                                     const SelectionVector &target_sel, optional_ptr<Vector>,
+                                     const vector<TupleDataGatherFunction> &) {
+	ThrowOnTupleDataError(rust::gather_fixed(
+	    RustAddresses(row_locations), RustSel(scan_sel), RustSel(target_sel), scan_count, RustTargetEntries(target, sizeof(T)),
+	    RustTargetValidity(target), sizeof(T), layout.GetOffsets()[col_idx], col_idx, layout.CanHaveNull()));
+}
+
+static void TupleDataStringGather(const TupleDataLayout &layout, Vector &row_locations, const idx_t col_idx,
+                                  const SelectionVector &scan_sel, const idx_t scan_count, Vector &target,
+                                  const SelectionVector &target_sel, optional_ptr<Vector>,
+                                  const vector<TupleDataGatherFunction> &) {
+	ThrowOnTupleDataError(rust::gather_string(
+	    RustAddresses(row_locations), RustSel(scan_sel), RustSel(target_sel), scan_count,
+	    RustTargetEntries(target, sizeof(string_t)), RustTargetValidity(target), layout.GetOffsets()[col_idx], col_idx,
+	    layout.CanHaveNull()));
 }
 
 template <class T, SortKeyType SORT_KEY_TYPE>
-void TupleDataSortKeyGather(const TupleDataLayout &layout, Vector &row_locations, const idx_t col_idx,
-                            const SelectionVector &scan_sel, const idx_t scan_count, Vector &target,
-                            const SelectionVector &target_sel, optional_ptr<Vector>,
+void TupleDataSortKeyGather(const TupleDataLayout &, Vector &, const idx_t, const SelectionVector &, const idx_t,
+                            Vector &, const SelectionVector &, optional_ptr<Vector>,
                             const vector<TupleDataGatherFunction> &) {
 	throw NotImplementedException("Unimplemented type for TupleDataSortKeyGather");
+}
+
+template <class T>
+static void TupleDataTemplatedWithinCollectionGather(const TupleDataLayout &, Vector &heap_locations,
+                                                     const idx_t list_size_before, const SelectionVector &scan_sel,
+                                                     const idx_t scan_count, Vector &target,
+                                                     const SelectionVector &target_sel, optional_ptr<Vector> list_vector,
+                                                     const vector<TupleDataGatherFunction> &) {
+	auto &list_vector_ref = *list_vector;
+	ThrowOnTupleDataError(rust::gather_within_fixed(
+	    RustAddresses(heap_locations), scan_count, RustSel(target_sel), RustTargetEntries(target, sizeof(T)),
+	    RustTargetValidity(target), RustTargetEntries(list_vector_ref, sizeof(list_entry_t)),
+	    RustValidity(FlatVector::Validity(list_vector_ref)), sizeof(T), list_size_before));
+}
+
+static void TupleDataStringWithinCollectionGather(const TupleDataLayout &, Vector &heap_locations,
+                                                  const idx_t list_size_before, const SelectionVector &scan_sel,
+                                                  const idx_t scan_count, Vector &target,
+                                                  const SelectionVector &target_sel, optional_ptr<Vector> list_vector,
+                                                  const vector<TupleDataGatherFunction> &) {
+	auto &list_vector_ref = *list_vector;
+	ThrowOnTupleDataError(rust::gather_within_string(
+	    RustAddresses(heap_locations), scan_count, RustSel(target_sel), RustTargetEntries(target, sizeof(string_t)),
+	    RustTargetValidity(target), RustTargetEntries(list_vector_ref, sizeof(list_entry_t)),
+	    RustValidity(FlatVector::Validity(list_vector_ref)), list_size_before));
 }
 
 static void TupleDataStructGather(const TupleDataLayout &layout, Vector &row_locations, const idx_t col_idx,
                                   const SelectionVector &scan_sel, const idx_t scan_count, Vector &target,
                                   const SelectionVector &target_sel, optional_ptr<Vector> dummy_vector,
                                   const vector<TupleDataGatherFunction> &child_functions) {
-	// Source
-	const auto source_locations = FlatVector::GetData<data_ptr_t>(row_locations);
-
-	// Target
-	auto &target_validity = FlatVector::ValidityMutable(target);
-
-	// Precompute mask indexes
-	idx_t entry_idx;
-	idx_t idx_in_entry;
-	ValidityBytes::GetEntryIndex(col_idx, entry_idx, idx_in_entry);
-
-	// Get validity of the struct and create a Vector of pointers to the start of the TupleDataLayout of the STRUCT
+	// Create a Vector of pointers to the start of the TupleDataLayout of the STRUCT
 	Vector struct_row_locations(LogicalType::POINTER);
-	auto struct_source_locations = FlatVector::GetDataMutable<data_ptr_t>(struct_row_locations);
-	const auto offset_in_row = layout.GetOffsets()[col_idx];
-	for (idx_t i = 0; i < scan_count; i++) {
-		const auto source_idx = scan_sel.get_index(i);
-		const auto &source_row = source_locations[source_idx];
-
-		// Set the validity
-		if (layout.CanHaveNull() &&
-		    !ValidityBytes::RowIsValid(
-		        ValidityBytes(source_row, layout.ColumnCount()).GetValidityEntryUnsafe(entry_idx), idx_in_entry)) {
-			const auto target_idx = target_sel.get_index(i);
-			target_validity.SetInvalid(target_idx);
-		}
-
-		// Set the pointer
-		struct_source_locations[source_idx] = source_row + offset_in_row;
-	}
+	ThrowOnTupleDataError(rust::gather_struct(
+	    RustAddresses(row_locations), RustSel(scan_sel), RustSel(target_sel), scan_count, RustTargetValidity(target),
+	    layout.GetOffsets()[col_idx], col_idx, layout.CanHaveNull(), RustAddressesMut(struct_row_locations)));
 
 	// Get the struct layout and struct entries
 	const auto &struct_layout = layout.GetStructLayout(col_idx);
@@ -1532,55 +1098,18 @@ static void TupleDataStructGather(const TupleDataLayout &layout, Vector &row_loc
 	}
 }
 
-//------------------------------------------------------------------------------
-// List Gather
-//------------------------------------------------------------------------------
 static void TupleDataListGather(const TupleDataLayout &layout, Vector &row_locations, const idx_t col_idx,
                                 const SelectionVector &scan_sel, const idx_t scan_count, Vector &target,
                                 const SelectionVector &target_sel, optional_ptr<Vector>,
                                 const vector<TupleDataGatherFunction> &child_functions) {
-	// Source
-	const auto source_locations = FlatVector::GetData<data_ptr_t>(row_locations);
-
-	// Target
-	const auto target_list_entries = FlatVector::GetDataMutableUnsafe<list_entry_t>(target);
-	auto &target_list_validity = FlatVector::ValidityMutable(target);
-
-	// Precompute mask indexes
-	idx_t entry_idx;
-	idx_t idx_in_entry;
-	ValidityBytes::GetEntryIndex(col_idx, entry_idx, idx_in_entry);
-
 	// Load pointers to the data from the row
 	Vector heap_locations(LogicalType::POINTER);
-	const auto source_heap_locations = FlatVector::GetDataMutable<data_ptr_t>(heap_locations);
 
-	const auto offset_in_row = layout.GetOffsets()[col_idx];
 	auto list_size_before = ListVector::GetListSize(target);
-	uint64_t target_list_offset = list_size_before;
-	for (idx_t i = 0; i < scan_count; i++) {
-		const auto &source_row = source_locations[scan_sel.get_index(i)];
-
-		const auto target_idx = target_sel.get_index(i);
-		if (layout.CannotHaveNull() ||
-		    ValidityBytes::RowIsValid(ValidityBytes(source_row, layout.ColumnCount()).GetValidityEntryUnsafe(entry_idx),
-		                              idx_in_entry)) {
-			auto &source_heap_location = source_heap_locations[i];
-			source_heap_location = Load<data_ptr_t>(source_row + offset_in_row);
-
-			// Load list size and skip over
-			const auto list_length = Load<uint64_t>(source_heap_location);
-			source_heap_location += sizeof(uint64_t);
-
-			// Initialize list entry, and increment offset
-			auto &target_list_entry = target_list_entries[target_idx];
-			target_list_entry.offset = target_list_offset;
-			target_list_entry.length = list_length;
-			target_list_offset += list_length;
-		} else {
-			target_list_validity.SetInvalid(target_idx);
-		}
-	}
+	auto target_list_offset = ThrowOnTupleDataError(rust::gather_collection(
+	    RustAddresses(row_locations), RustSel(scan_sel), RustSel(target_sel), scan_count,
+	    RustTargetEntries(target, sizeof(list_entry_t)), RustTargetValidity(target), RustAddressesMut(heap_locations),
+	    layout.GetOffsets()[col_idx], col_idx, layout.CanHaveNull(), list_size_before));
 	ListVector::Reserve(target, target_list_offset);
 	ListVector::SetListSize(target, target_list_offset);
 
@@ -1591,102 +1120,16 @@ static void TupleDataListGather(const TupleDataLayout &layout, Vector &row_locat
 	                      ListVector::GetChildMutable(target), target_sel, &target);
 }
 
-//------------------------------------------------------------------------------
-// Collection Gather
-//------------------------------------------------------------------------------
-template <class T>
-static void
-TupleDataTemplatedWithinCollectionGather(const TupleDataLayout &, Vector &heap_locations, const idx_t list_size_before,
-                                         const SelectionVector &, const idx_t scan_count, Vector &target,
-                                         const SelectionVector &target_sel, optional_ptr<Vector> list_vector,
-                                         const vector<TupleDataGatherFunction> &) {
-	// List parent
-	const auto list_entries = FlatVector::GetDataUnsafe<list_entry_t>(*list_vector);
-	const auto &list_validity = FlatVector::Validity(*list_vector);
-
-	// Source
-	const auto source_heap_locations = FlatVector::GetDataMutable<data_ptr_t>(heap_locations);
-
-	// Target
-	const auto target_data = FlatVector::GetDataMutable<T>(target);
-	auto &target_validity = FlatVector::ValidityMutable(target);
-
-	uint64_t target_offset = list_size_before;
-	for (idx_t i = 0; i < scan_count; i++) {
-		const auto target_idx = target_sel.get_index(i);
-		if (!list_validity.RowIsValid(target_idx)) {
-			continue;
-		}
-
-		const auto &list_length = list_entries[target_idx].length;
-		if (list_length == 0) {
-			continue;
-		}
-
-		// Initialize validity mask
-		auto &source_heap_location = source_heap_locations[i];
-		ValidityBytes source_mask(source_heap_location, list_length);
-		source_heap_location += ValidityBytes::SizeInBytes(list_length);
-
-		// Get the start to the fixed-size data and skip the heap pointer over it
-		const auto source_data_location = source_heap_location;
-		source_heap_location += list_length * TupleDataWithinListFixedSize<T>();
-
-		// Load the child validity and data belonging to this list entry
-		for (idx_t child_i = 0; child_i < list_length; child_i++) {
-			if (source_mask.RowIsValidUnsafe(child_i)) {
-				auto &target_value = target_data[target_offset + child_i];
-				target_value = TupleDataWithinListValueLoad<T>(
-				    source_data_location + child_i * TupleDataWithinListFixedSize<T>(), source_heap_location);
-				TupleDataValueVerify(target.GetType(), target_value);
-			} else {
-				target_validity.SetInvalid(target_offset + child_i);
-			}
-		}
-		target_offset += list_length;
-	}
-}
-
 static void TupleDataStructWithinCollectionGather(const TupleDataLayout &layout, Vector &heap_locations,
                                                   const idx_t list_size_before, const SelectionVector &scan_sel,
                                                   const idx_t scan_count, Vector &target,
                                                   const SelectionVector &target_sel, optional_ptr<Vector> list_vector,
                                                   const vector<TupleDataGatherFunction> &child_functions) {
-	// List parent
-	const auto list_entries = FlatVector::GetDataUnsafe<list_entry_t>(*list_vector);
-	const auto &list_validity = FlatVector::Validity(*list_vector);
-
-	// Source
-	const auto source_heap_locations = FlatVector::GetDataMutable<data_ptr_t>(heap_locations);
-
-	// Target
-	auto &target_validity = FlatVector::ValidityMutable(target);
-
-	uint64_t target_offset = list_size_before;
-	for (idx_t i = 0; i < scan_count; i++) {
-		const auto target_idx = target_sel.get_index(i);
-		if (!list_validity.RowIsValid(target_idx)) {
-			continue;
-		}
-
-		const auto &list_length = list_entries[target_idx].length;
-		if (list_length == 0) {
-			continue;
-		}
-
-		// Initialize validity mask and skip over it
-		auto &source_heap_location = source_heap_locations[i];
-		ValidityBytes source_mask(source_heap_location, list_length);
-		source_heap_location += ValidityBytes::SizeInBytes(list_length);
-
-		// Load the child validity belonging to this list entry
-		for (idx_t child_i = 0; child_i < list_length; child_i++) {
-			if (!source_mask.RowIsValidUnsafe(child_i)) {
-				target_validity.SetInvalid(target_offset + child_i);
-			}
-		}
-		target_offset += list_length;
-	}
+	auto &list_vector_ref = *list_vector;
+	ThrowOnTupleDataError(rust::gather_within_struct(
+	    RustAddresses(heap_locations), scan_count, RustSel(target_sel), RustTargetValidity(target),
+	    RustTargetEntries(list_vector_ref, sizeof(list_entry_t)), RustValidity(FlatVector::Validity(list_vector_ref)),
+	    list_size_before));
 
 	// Recurse
 	auto &struct_targets = StructVector::GetEntries(target);
@@ -1704,70 +1147,22 @@ static void TupleDataCollectionWithinCollectionGather(const TupleDataLayout &lay
                                                       const SelectionVector &target_sel,
                                                       optional_ptr<Vector> list_vector,
                                                       const vector<TupleDataGatherFunction> &child_functions) {
-	// List parent
-	const auto list_entries = FlatVector::GetDataUnsafe<list_entry_t>(*list_vector);
-	const auto &list_validity = FlatVector::Validity(*list_vector);
-
-	// Source
-	const auto source_heap_locations = FlatVector::GetDataMutable<data_ptr_t>(heap_locations);
-
-	// Target
-	const auto target_list_entries = FlatVector::GetDataMutableUnsafe<list_entry_t>(target);
-	auto &target_validity = FlatVector::ValidityMutable(target);
+	auto &list_vector_ref = *list_vector;
+	const auto &list_validity = FlatVector::Validity(list_vector_ref);
 	const auto child_list_size_before = ListVector::GetListSize(target);
 
 	// We need to create a vector that has the combined list sizes (hugeint_t has same size as list_entry_t)
 	Vector combined_list_vector(LogicalType::HUGEINT);
 	FlatVector::SetValidity(combined_list_vector, list_validity); // Has same validity as list parent
-	const auto combined_list_entries = FlatVector::GetDataMutableUnsafe<list_entry_t>(combined_list_vector);
 
-	uint64_t target_offset = list_size_before;
-	uint64_t target_child_offset = child_list_size_before;
-	for (idx_t i = 0; i < scan_count; i++) {
-		const auto target_idx = target_sel.get_index(i);
-		if (!list_validity.RowIsValid(target_idx)) {
-			continue;
-		}
+	auto child_list_size = ThrowOnTupleDataError(rust::gather_within_collection(
+	    RustAddresses(heap_locations), scan_count, RustSel(target_sel), RustTargetEntries(target, sizeof(list_entry_t)),
+	    RustTargetEntries(combined_list_vector, sizeof(list_entry_t)), RustTargetValidity(target),
+	    RustTargetEntries(list_vector_ref, sizeof(list_entry_t)), RustValidity(list_validity), list_size_before,
+	    child_list_size_before));
 
-		// Set the offset of the combined list entry
-		auto &combined_list_entry = combined_list_entries[target_idx];
-		combined_list_entry.offset = target_child_offset;
-
-		const auto &list_length = list_entries[target_idx].length;
-		if (list_length == 0) {
-			combined_list_entry.length = 0;
-			continue;
-		}
-
-		// Initialize validity mask and skip over it
-		auto &source_heap_location = source_heap_locations[i];
-		ValidityBytes source_mask(source_heap_location, list_length);
-		source_heap_location += ValidityBytes::SizeInBytes(list_length);
-
-		// Get the start to the fixed-size data and skip the heap pointer over it
-		const auto source_data_location = source_heap_location;
-		source_heap_location += list_length * sizeof(uint64_t);
-
-		// Load the child validity and data belonging to this list entry
-		for (idx_t child_i = 0; child_i < list_length; child_i++) {
-			if (source_mask.RowIsValidUnsafe(child_i)) {
-				auto &target_list_entry = target_list_entries[target_offset + child_i];
-				target_list_entry.offset = target_child_offset;
-				target_list_entry.length = Load<uint64_t>(source_data_location + child_i * sizeof(uint64_t));
-				target_child_offset += target_list_entry.length;
-			} else {
-				target_validity.SetInvalid(target_offset + child_i);
-			}
-		}
-
-		// Set the length of the combined list entry
-		combined_list_entry.length = target_child_offset - combined_list_entry.offset;
-
-		target_offset += list_length;
-	}
-
-	ListVector::Reserve(target, target_child_offset);
-	ListVector::SetListSize(target, target_child_offset);
+	ListVector::Reserve(target, child_list_size);
+	ListVector::SetListSize(target, child_list_size);
 
 	// Recurse
 	D_ASSERT(child_functions.size() == 1);
@@ -1819,6 +1214,7 @@ static void TupleDataCastToArrayStructGather(const TupleDataLayout &layout, Vect
 //------------------------------------------------------------------------------
 // Get Gather Function
 //------------------------------------------------------------------------------
+
 template <class T>
 tuple_data_gather_function_t TupleDataGetGatherFunction(bool within_collection) {
 	return within_collection ? TupleDataTemplatedWithinCollectionGather<T> : TupleDataTemplatedGather<T>;
@@ -1827,6 +1223,10 @@ tuple_data_gather_function_t TupleDataGetGatherFunction(bool within_collection) 
 static TupleDataGatherFunction TupleDataGetGatherFunctionInternal(const LogicalType &type, bool within_collection) {
 	tuple_data_gather_function_t function = nullptr;
 	vector<TupleDataGatherFunction> child_functions;
+	if (type.InternalType() == PhysicalType::VARCHAR) {
+		function = within_collection ? TupleDataStringWithinCollectionGather : TupleDataStringGather;
+		return TupleDataGatherFunction(function);
+	}
 	switch (type.InternalType()) {
 	case PhysicalType::BOOL:
 		function = TupleDataGetGatherFunction<bool>(within_collection);
@@ -1869,9 +1269,6 @@ static TupleDataGatherFunction TupleDataGetGatherFunctionInternal(const LogicalT
 		break;
 	case PhysicalType::INTERVAL:
 		function = TupleDataGetGatherFunction<interval_t>(within_collection);
-		break;
-	case PhysicalType::VARCHAR:
-		function = TupleDataGetGatherFunction<string_t>(within_collection);
 		break;
 	case PhysicalType::STRUCT: {
 		function = within_collection ? TupleDataStructWithinCollectionGather : TupleDataStructGather;

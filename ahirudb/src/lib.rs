@@ -12,8 +12,3 @@ pub mod sort;
 pub mod storage;
 pub mod tuple_data;
 pub mod vector;
-
-// Backward compatibility
-pub mod tuple_data_layout {
-    pub use crate::tuple_data::layout::*;
-}

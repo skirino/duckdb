@@ -66,8 +66,18 @@ cc_library(
 # include it.
 cc_library(
     name = "support_runtime",
-    srcs = ["crubit_headers/support/rs_std/waker.cc"],
-    hdrs = ["crubit_headers/support/rs_std/waker.h"],
+    srcs = [
+        "crubit_headers/support/internal/check_no_mutable_aliasing.cc",
+        "crubit_headers/support/rs_std/waker.cc",
+    ],
+    hdrs = [
+        "crubit_headers/support/internal/check.h",
+        "crubit_headers/support/internal/check_no_mutable_aliasing.h",
+        "crubit_headers/support/rs_std/waker.h",
+    ],
+    # The aliasing check is C++20 (<span>, designated initializers) where the
+    # rest of this build is C++17, and rule copts come after --cxxopt.
+    copts = ["-std=c++20"],
     includes = ["crubit_headers"],
 )
 
@@ -92,17 +102,21 @@ components = ["rustc-dev", "llvm-tools", "rust-src", "rustfmt"]
 # what //bazel:crubit_bindings.bzl strips to lay the tree out again, so nothing
 # else may be placed beside it.
 #
-# `rs_std/waker.cc` comes along as well. The generated bindings' use of
+# Two more files come along as well. The generated bindings' use of
 # `rs_std::Vec` and friends reaches the Rust `crubit_support` crate, and the
 # codegen unit holding `crubit_alloc` also holds `dyn_erased_future`'s
-# implementations, which call the four functions `waker.cc` defines. Which of
-# Crubit's C++ runtime sources a link needs therefore depends on where the
-# generator happened to put them, so that one file is copied whole here and the
-# list is re-checked against the next release, rather than being spelled out as
-# a part-by-part recipe of what this one happened to need.
+# implementations, which call the four functions `waker.cc` defines. The
+# bindings' mutable-argument aliasing checks reach `CheckNoMutableAliasingSpans`
+# whenever a call passes more than three pointers, which is out of line in
+# `check_no_mutable_aliasing.cc`. Which of Crubit's C++ runtime sources a link
+# needs therefore depends on where the generator happened to put them, so those
+# files are copied whole here and the list is re-checked against the next
+# release, rather than being spelled out as a part-by-part recipe of what this
+# one happened to need.
 _COPY_SOURCES = """
-  mkdir -p '{repo}/crubit_headers/support/rs_std' &&
-  cp '{support}/rs_std/waker.cc' '{repo}/crubit_headers/support/rs_std/'
+  mkdir -p '{repo}/crubit_headers/support/rs_std' '{repo}/crubit_headers/support/internal' &&
+  cp '{support}/rs_std/waker.cc' '{repo}/crubit_headers/support/rs_std/' &&
+  cp '{support}/internal/check_no_mutable_aliasing.cc' '{repo}/crubit_headers/support/internal/'
 """
 _COPY_HEADERS = """
   cd '{support}' &&
