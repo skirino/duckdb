@@ -576,7 +576,7 @@ the version Crubit pins as its own `rust_version`) rather than tracking
 
 - Agents must answer in English. Some agents tend to answer in Chinese; don't use
   Chinese.
-- Git write operations (git commit, reset, etc.) should not be done.
+- Most of Git write operations (especially `git reset`) should not be done.
   - There have been cases where previous meaningful commits are lost due to
     agent activities.
   - Perform these git operations only when explicitly required.
