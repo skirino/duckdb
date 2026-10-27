@@ -1,7 +1,0 @@
-{
-  "name": "test_utils",
-  "git_url": "https://github.com/duckdb/bwc-test-utils",
-  "git_tag": "61e38820957b51bfbc734e8b6c0403feb7e4883b",
-  "submodules": [],
-  "apply_patches": true
-}

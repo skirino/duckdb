@@ -1,9 +1,0 @@
-{
-  "name": "postgres_scanner",
-  "git_url": "https://github.com/duckdb/duckdb-postgres",
-  "git_tag": "bc6aab54dea43be1f4e218aa7cca06d915ad18ea",
-  "submodules": [
-    "database-connector"
-  ],
-  "apply_patches": true
-}

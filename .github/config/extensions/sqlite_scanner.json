@@ -1,7 +1,0 @@
-{
-  "name": "sqlite_scanner",
-  "git_url": "https://github.com/duckdb/duckdb-sqlite",
-  "git_tag": "b71ddb382f14634d1eed5706289ff6c4449b8787",
-  "submodules": [],
-  "apply_patches": true
-}

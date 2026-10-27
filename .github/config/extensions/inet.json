@@ -1,7 +1,0 @@
-{
-  "name": "inet",
-  "git_url": "https://github.com/duckdb/duckdb-inet",
-  "git_tag": "fe7f60bb60245197680fb07ecd1629a1dc3d91c8",
-  "submodules": [],
-  "apply_patches": true
-}

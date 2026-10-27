@@ -1,7 +1,0 @@
-{
-  "name": "vss",
-  "git_url": "https://github.com/duckdb/duckdb-vss",
-  "git_tag": "76675a648a900e3109da96e9ae245ba8cc9a45e8",
-  "submodules": [],
-  "apply_patches": true
-}

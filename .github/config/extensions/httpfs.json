@@ -1,7 +1,0 @@
-{
-  "name": "httpfs",
-  "git_url": "https://github.com/duckdb/duckdb-httpfs",
-  "git_tag": "ac145d8e83d1f3be97b978487cdf08c03f60df8c",
-  "submodules": [],
-  "apply_patches": false
-}

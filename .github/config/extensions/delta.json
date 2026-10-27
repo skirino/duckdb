@@ -1,9 +1,0 @@
-{
-  "name": "delta",
-  "git_url": "https://github.com/duckdb/duckdb-delta",
-  "git_tag": "ee65aa33c23149af3ecfaf12b7aa011b006a9075",
-  "submodules": [
-    "extension-ci-tools"
-  ],
-  "apply_patches": true
-}

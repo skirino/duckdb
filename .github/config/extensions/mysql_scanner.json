@@ -1,9 +1,0 @@
-{
-  "name": "mysql_scanner",
-  "git_url": "https://github.com/duckdb/duckdb-mysql",
-  "git_tag": "fe2af21e9434f7aec30bc2a4641337e69d84ab2a",
-  "submodules": [
-    "database-connector"
-  ],
-  "apply_patches": true
-}

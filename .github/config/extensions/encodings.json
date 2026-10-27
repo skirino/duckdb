@@ -1,7 +1,0 @@
-{
-  "name": "encodings",
-  "git_url": "https://github.com/duckdb/duckdb-encodings",
-  "git_tag": "f3e4d03ecf18406ef86fe5833a7ad55d8f93520f",
-  "submodules": [],
-  "apply_patches": true
-}

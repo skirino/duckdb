@@ -1,7 +1,0 @@
-{
-  "name": "unity_catalog",
-  "git_url": "https://github.com/duckdb/unity_catalog",
-  "git_tag": "b593157d114ce57c044eb8adc48ab164f2e10c11",
-  "submodules": [],
-  "apply_patches": true
-}

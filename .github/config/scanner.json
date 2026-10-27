@@ -1,6 +1,0 @@
-[
-  "mysql_scanner",
-  "odbc_scanner",
-  "postgres_scanner",
-  "sqlite_scanner"
-]

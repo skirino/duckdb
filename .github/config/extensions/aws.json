@@ -1,7 +1,0 @@
-{
-  "name": "aws",
-  "git_url": "https://github.com/duckdb/duckdb-aws",
-  "git_tag": "5a35e2d64cd8eadf1dfc2397f9beff472e95780d",
-  "submodules": [],
-  "apply_patches": false
-}

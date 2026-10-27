@@ -1,7 +1,0 @@
-{
-  "name": "spatial",
-  "git_url": "https://github.com/duckdb/duckdb-spatial",
-  "git_tag": "686950e980a0629c5ffbc788b498681e2b06e75e",
-  "submodules": [],
-  "apply_patches": true
-}

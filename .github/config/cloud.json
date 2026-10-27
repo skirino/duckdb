@@ -1,9 +1,0 @@
-[
-  "json",
-  "parquet",
-  "aws",
-  "azure",
-  "ducklake",
-  "httpfs",
-  "iceberg"
-]
