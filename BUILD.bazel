@@ -157,6 +157,9 @@ duckdb_library(
         ],
         exclude = [
             "src/storage/buffer/**/*.cpp",
+            # src/storage/metadata has a target of its own, below: its bridge
+            # includes crubit/ahirudb.h and compiles with crubit_copts().
+            "src/storage/metadata/**/*.cpp",
             "src/common/allocator/allocator.cpp",
             # The bridge includes crubit/ahirudb.h, which needs C++20; it belongs
             # to //:duckdb_allocator, which compiles with crubit_copts().
@@ -195,7 +198,7 @@ duckdb_library(
         ],
     ),
     # duckdb_library's `deps` replaces the default rather than extending it.
-    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_buffer", ":duckdb_enums", ":duckdb_row_operations", ":duckdb_sort", ":duckdb_serializer"],
+    deps = DUCKDB_LIB_DEPS + [":duckdb_exception", ":duckdb_allocator", ":duckdb_buffer", ":duckdb_enums", ":duckdb_metadata", ":duckdb_row_operations", ":duckdb_sort", ":duckdb_serializer"],
 )
 
 # src/logging is a library of its own because it is the one that calls into the ahirudb crate: log_rust_bridge.cpp
@@ -251,6 +254,17 @@ duckdb_rust_bridge_library(
     hdrs = ["src/storage/buffer/buffer_rust_bridge.hpp"],
     include_root = "src/storage/buffer",
     extra_deps = [":duckdb_exception", ":duckdb_allocator"],
+)
+
+# src/storage/metadata reaches the Rust metadata module for the pointer
+# arithmetic, the free-list bitmask bookkeeping and the block-boundary
+# streaming the writer and reader do. metadata_rust_bridge.cpp includes
+# crubit/ahirudb.h to do it.
+duckdb_rust_bridge_library(
+    name = "duckdb_metadata",
+    srcs = glob(["src/storage/metadata/**/*.cpp"]),
+    hdrs = ["src/storage/metadata/metadata_rust_bridge.hpp"],
+    include_root = "src/storage/metadata",
 )
 
 # src/common/enums reaches the Rust enums module for the string <-> enum conversions, and enums_rust_bridge.cpp

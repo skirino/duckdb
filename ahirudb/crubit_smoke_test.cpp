@@ -18,8 +18,10 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -430,6 +432,177 @@ int main() {
 		auto refused = ahirudb::buffer::block_copy::copy_block(
 		    rs_std::SliceRef<std::uint8_t>(dst, 4), rs_std::SliceRef<const std::uint8_t>(src, 2), 4);
 		Check(!refused.has_value(), "block_copy refuses a short source");
+	}
+
+	// --- the metadata module ---------------------------------------------
+	// The pure arithmetic kernels of src/storage/metadata, reached through
+	// the bridge. These cannot construct a real MetadataManager (that needs
+	// a BlockManager/BufferManager), so the smoke test pins the arithmetic:
+	// a wrong bitfield, a wrong block-boundary split, or a wrong transition
+	// flag shows up here as a wrong answer rather than a silent no-op.
+	{
+		namespace pointer = ahirudb::storage::metadata::pointer;
+		namespace bridge = ahirudb::storage::metadata::bridge;
+		namespace writer = ahirudb::storage::metadata::writer;
+		namespace reader = ahirudb::storage::metadata::reader;
+
+		const std::uint64_t METADATA_BLOCK_SIZE = 4096;
+
+		// --- pointer encoding -------------------------------------------------
+		// get_disk_pointer packs block index (low 56 bits) and sub-block
+		// index (high 8 bits); the shell reads them back through the
+		// accessors the C++ original exposed.
+		const auto meta = bridge::get_disk_pointer(7, 3, 100);
+		Check(meta.get_block_id() == 7, "get_disk_pointer encodes the block id");
+		Check(meta.get_block_index() == 3, "get_disk_pointer encodes the sub-block index");
+		Check(meta.offset == 100, "get_disk_pointer carries its offset");
+		Check(meta.is_valid(), "a freshly built pointer is valid");
+
+		// to_block_pointer / from_block_pointer round-trip through a
+		// metadata block size. The C++ shell uses this pair to move
+		// between the on-disk MetaBlockPointer and the BlockPointer the
+		// block manager understands.
+		const auto block = bridge::to_block_pointer(meta, METADATA_BLOCK_SIZE);
+		Check(block.has_value(), "to_block_pointer accepts an in-range pointer");
+		Check(block.value().block_id == 7, "the round-trip keeps the block id");
+		Check(block.value().offset == 3 * METADATA_BLOCK_SIZE + 100,
+		      "the round-trip keeps the block-local offset");
+		const auto back = bridge::from_block_pointer(block.value(), METADATA_BLOCK_SIZE);
+		Check(back.has_value(), "from_block_pointer accepts the round-tripped block pointer");
+		Check(back.value() == meta, "to/from_block_pointer are complementary");
+
+		// An out-of-range sub-block index is refused by to_block_pointer.
+		const auto bad_meta = bridge::get_disk_pointer(0, 64, 0);
+		Check(!bridge::to_block_pointer(bad_meta, METADATA_BLOCK_SIZE).has_value(),
+		      "to_block_pointer refuses a sub-block index past the 64-block capacity");
+
+		// --- free-list bitmask ------------------------------------------------
+		// free_blocks_to_integer packs a list of sub-blocks into a u64;
+		// blocks_from_integer / free_blocks_from_integer unpack it again.
+		// The C++ shell round-trips the free list through these on every
+		// metadata block load and flush.
+		const std::uint8_t free_blocks[] = {0, 63, 31};
+		const std::uint64_t free_integer = bridge::free_blocks_to_integer(free_blocks, 3);
+		Check((free_integer == ((1ULL << 0) | (1ULL << 63) | (1ULL << 31))),
+		      "free_blocks_to_integer packs the listed sub-blocks");
+
+		const auto unpacked = bridge::blocks_from_integer(free_integer);
+		Check(unpacked.count == 3, "blocks_from_integer unpacks the same number of blocks");
+		{
+			std::uint64_t repacked = 0;
+			for (std::uintptr_t i = 0; i < unpacked.count; i++) {
+				repacked |= 1ULL << unpacked.data[i];
+			}
+			Check(repacked == free_integer, "blocks_from_integer round-trips the bitmask");
+		}
+		bridge::free_block_list(unpacked);
+
+		// free_blocks_from_integer(0) is the empty list, not a zero bitmask.
+		const auto empty = bridge::free_blocks_from_integer(0);
+		Check(empty.count == 0, "free_blocks_from_integer(0) is empty");
+		bridge::free_block_list(empty);
+
+		// --- metadata block size ----------------------------------------------
+		// The default storage block (262144) packs 64 metadata blocks of
+		// 4096 bytes each, the value the C++ shell installs on startup.
+		Check(bridge::get_metadata_block_size(262144) == 4096,
+		      "the default storage block yields 4096-byte metadata blocks");
+		Check(bridge::get_metadata_block_size(0) == 0, "a zero block size yields zero metadata blocks");
+
+		// --- writer / reader plans are complementary --------------------------
+		// A write plan and a matching read plan cover the same byte range
+		// with the same number of block-boundary transitions. This is the
+		// core invariant the block-chain streaming relies on.
+		{
+			const std::uint64_t cases[][3] = {
+				{0, METADATA_BLOCK_SIZE, 100},                          // single block
+				{0, METADATA_BLOCK_SIZE, METADATA_BLOCK_SIZE},          // exactly one block
+				{0, METADATA_BLOCK_SIZE, METADATA_BLOCK_SIZE + 512},    // two blocks
+				{0, METADATA_BLOCK_SIZE, 2 * METADATA_BLOCK_SIZE + 1024}, // three blocks
+				{100, METADATA_BLOCK_SIZE, 50},                         // offset within block
+				{100, METADATA_BLOCK_SIZE, METADATA_BLOCK_SIZE - 50},   // fills to end of block
+			};
+			for (const auto &c : cases) {
+				const auto write_list = bridge::compute_write_data(c[0], c[1], c[2], METADATA_BLOCK_SIZE);
+				const auto read_list = bridge::compute_read_data(c[0], c[1], c[2], METADATA_BLOCK_SIZE, 8);
+
+				std::uint64_t write_total = 0, read_total = 0;
+				std::uintptr_t write_transitions = 0, read_transitions = 0;
+				for (std::uintptr_t i = 0; i < write_list.count; i++) {
+					write_total += write_list.segments[i].copy_amount;
+					if (write_list.segments[i].next_block_after) {
+						write_transitions++;
+					}
+				}
+				for (std::uintptr_t i = 0; i < read_list.count; i++) {
+					read_total += read_list.segments[i].copy_amount;
+					if (read_list.segments[i].next_block_after) {
+						read_transitions++;
+					}
+				}
+				Check(write_total == c[2], "the write plan covers the full write size");
+				Check(read_total == c[2], "the read plan covers the full write size");
+				Check(write_transitions == read_transitions,
+				      "the write and read plans cross the same number of boundaries");
+				bridge::free_write_segment_list(write_list);
+				bridge::free_read_segment_list(read_list);
+			}
+		}
+
+		// A write that fits in one block produces a single non-transitioning
+		// segment; the matching read does too.
+		{
+			const auto write_list = bridge::compute_write_data(0, METADATA_BLOCK_SIZE, 100, METADATA_BLOCK_SIZE);
+			const auto read_list = bridge::compute_read_data(0, METADATA_BLOCK_SIZE, 100, METADATA_BLOCK_SIZE, 8);
+			Check(write_list.count == 1, "a single-block write is one segment");
+			Check(!write_list.segments[0].next_block_after, "a single-block write does not transition");
+			Check(read_list.count == 1, "a single-block read is one segment");
+			Check(!read_list.segments[0].next_block_after, "a single-block read does not transition");
+			bridge::free_write_segment_list(write_list);
+			bridge::free_read_segment_list(read_list);
+		}
+
+		// A write that crosses one boundary produces two segments with one
+		// transition each; the read plan matches.
+		{
+			const auto write_list = bridge::compute_write_data(0, METADATA_BLOCK_SIZE, METADATA_BLOCK_SIZE + 512, METADATA_BLOCK_SIZE);
+			const auto read_list = bridge::compute_read_data(0, METADATA_BLOCK_SIZE, METADATA_BLOCK_SIZE + 512, METADATA_BLOCK_SIZE, 8);
+			Check(write_list.count == 2, "a two-block write is two segments");
+			Check(write_list.segments[0].next_block_after, "the first write segment transitions");
+			Check(!write_list.segments[1].next_block_after, "the last write segment does not transition");
+			Check(read_list.count == 2, "a two-block read is two segments");
+			Check(read_list.segments[0].next_block_after, "the first read segment transitions");
+			Check(!read_list.segments[1].next_block_after, "the last read segment does not transition");
+			bridge::free_write_segment_list(write_list);
+			bridge::free_read_segment_list(read_list);
+		}
+
+		// --- next-block state --------------------------------------------------
+		// After NextBlock the writer lands at offset 8 (sizeof(idx_t)) with
+		// the full metadata block as capacity; the reader clamps a sub-8
+		// next_offset up to 8 on its first transition.
+		const auto next_state = bridge::compute_next_block_state(METADATA_BLOCK_SIZE);
+		Check(next_state.offset == 8, "NextBlock installs offset 8");
+		Check(next_state.capacity == METADATA_BLOCK_SIZE, "NextBlock installs the metadata block capacity");
+
+		const auto read_next = bridge::compute_read_next_block_state(20, METADATA_BLOCK_SIZE);
+		Check(std::get<0>(read_next) == 20 && std::get<1>(read_next) == METADATA_BLOCK_SIZE,
+		      "ReadNextBlock keeps a next_offset of 20");
+		const auto read_next_clamped = bridge::compute_read_next_block_state(4, METADATA_BLOCK_SIZE);
+		Check(std::get<0>(read_next_clamped) == 8, "ReadNextBlock clamps a sub-8 next_offset to 8");
+
+		// --- chain link --------------------------------------------------------
+		// The block chain is terminal only at the -1 sentinel.
+		Check(bridge::chain_link_is_terminal(~0ULL), "the terminator is u64::MAX");
+		Check(!bridge::chain_link_is_terminal(0), "block 0 is not terminal");
+		Check(!bridge::chain_link_is_terminal(42), "block 42 is not terminal");
+
+		// --- modified-bit tracking --------------------------------------------
+		// ClearModifiedBlocks clears one bit; BlockHasBeenCleared reads it.
+		const std::uint64_t modified = 0b111;
+		Check(bridge::clear_modified_bit(modified, 1) == 0b101, "ClearModifiedBlocks clears bit 1");
+		Check(bridge::bit_is_cleared(0b101, 1), "BlockHasBeenCleared sees bit 1 as cleared");
+		Check(!bridge::bit_is_cleared(0b101, 0), "BlockHasBeenCleared sees bit 0 as set");
 	}
 
 	if (failures == 0) {

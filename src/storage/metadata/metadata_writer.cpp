@@ -1,4 +1,14 @@
+//===----------------------------------------------------------------------===//
+//                         DuckDB
+//
+// storage/metadata/metadata_writer.cpp
+//
+//===----------------------------------------------------------------------===//
+
 #include "duckdb/storage/metadata/metadata_writer.hpp"
+#include "metadata_rust_bridge.hpp"
+
+#include "duckdb/main/client_context.hpp"
 
 namespace duckdb {
 
@@ -26,7 +36,8 @@ MetaBlockPointer MetadataWriter::GetMetaBlockPointer() {
 		NextBlock();
 		D_ASSERT(capacity > 0);
 	}
-	return manager.GetDiskPointer(block.pointer, UnsafeNumericCast<uint32_t>(offset));
+	auto rust_ptr = rust::metadata::bridge::writer_get_meta_block_pointer(block.pointer.block_index, block.pointer.index, UnsafeNumericCast<uint32_t>(offset));
+	return rust::ToCppMetaBlockPointer(rust_ptr);
 }
 
 void MetadataWriter::SetWrittenPointers(optional_ptr<vector<MetaBlockPointer>> written_pointers_p) {
@@ -52,8 +63,9 @@ void MetadataWriter::NextBlock() {
 	// now update the block id of the block
 	block = std::move(new_handle);
 	current_pointer = block.pointer;
-	offset = sizeof(idx_t);
-	capacity = GetManager().GetMetadataBlockSize();
+	auto state = rust::metadata::bridge::compute_next_block_state(GetManager().GetMetadataBlockSize());
+	offset = state.offset;
+	capacity = state.capacity;
 	Store<idx_t>(static_cast<idx_t>(-1), BasePtr());
 	if (written_pointers) {
 		written_pointers->push_back(manager.GetDiskPointer(current_pointer));
@@ -61,22 +73,20 @@ void MetadataWriter::NextBlock() {
 }
 
 void MetadataWriter::WriteData(const_data_ptr_t buffer, idx_t write_size) {
-	while (offset + write_size > capacity) {
-		// we need to make a new block
-		// first copy what we can
-		D_ASSERT(offset <= capacity);
-		idx_t copy_amount = capacity - offset;
-		if (copy_amount > 0) {
-			memcpy(Ptr(), buffer, copy_amount);
-			buffer += copy_amount;
-			offset += copy_amount;
-			write_size -= copy_amount;
+	auto rust_segments = rust::metadata::bridge::compute_write_data(offset, capacity, write_size, GetManager().GetMetadataBlockSize());
+	for (size_t i = 0; i < rust_segments.count; i++) {
+		auto &seg = rust_segments.segments[i];
+		if (seg.copy_amount > 0) {
+			memcpy(Ptr(), buffer, seg.copy_amount);
+			buffer += seg.copy_amount;
+			offset += seg.copy_amount;
+			write_size -= seg.copy_amount;
 		}
-		// move forward to the next block
-		NextBlock();
+		if (seg.next_block_after) {
+			NextBlock();
+		}
 	}
-	memcpy(Ptr(), buffer, write_size);
-	offset += write_size;
+	rust::metadata::bridge::free_write_segment_list(rust_segments);
 }
 
 void MetadataWriter::Flush() {

@@ -1,4 +1,14 @@
+//===----------------------------------------------------------------------===//
+//                         DuckDB
+//
+// storage/metadata/metadata_reader.cpp
+//
+//===----------------------------------------------------------------------===//
+
 #include "duckdb/storage/metadata/metadata_reader.hpp"
+#include "metadata_rust_bridge.hpp"
+
+#include "duckdb/main/client_context.hpp"
 
 namespace duckdb {
 
@@ -12,6 +22,9 @@ MetadataReader::MetadataReader(MetadataManager &manager, BlockPointer pointer)
     : MetadataReader(manager, MetadataManager::FromBlockPointer(pointer, manager.GetMetadataBlockSize())) {
 }
 
+MetadataReader::~MetadataReader() {
+}
+
 MetadataPointer MetadataReader::FromDiskPointer(MetaBlockPointer pointer) {
 	if (type == BlockReaderType::EXISTING_BLOCKS) {
 		return manager.FromDiskPointer(pointer);
@@ -20,37 +33,33 @@ MetadataPointer MetadataReader::FromDiskPointer(MetaBlockPointer pointer) {
 	}
 }
 
-MetadataReader::~MetadataReader() {
-}
-
 void MetadataReader::ReadData(data_ptr_t buffer, idx_t read_size) {
 	ReadData(QueryContext(), buffer, read_size);
 }
 
 void MetadataReader::ReadData(QueryContext context, data_ptr_t buffer, idx_t read_size) {
-	while (offset + read_size > capacity) {
-		// cannot read entire entry from block
-		// first read what we can from this block
-		idx_t to_read = capacity - offset;
-		if (to_read > 0) {
-			memcpy(buffer, Ptr(), to_read);
-			read_size -= to_read;
-			buffer += to_read;
-			offset += to_read;
+	auto rust_segments = rust::metadata::bridge::compute_read_data(offset, capacity, read_size, GetMetadataManager().GetMetadataBlockSize(), next_offset);
+	for (size_t i = 0; i < rust_segments.count; i++) {
+		auto &seg = rust_segments.segments[i];
+		if (seg.copy_amount > 0) {
+			memcpy(buffer, Ptr(), seg.copy_amount);
+			read_size -= seg.copy_amount;
+			buffer += seg.copy_amount;
+			offset += seg.copy_amount;
 		}
-		// then move to the next block
-		ReadNextBlock(context);
+		if (seg.next_block_after) {
+			ReadNextBlock(context);
+		}
 	}
-	// we have enough left in this block to read from the buffer
-	memcpy(buffer, Ptr(), read_size);
-	offset += read_size;
+	rust::metadata::bridge::free_read_segment_list(rust_segments);
 }
 
 MetaBlockPointer MetadataReader::GetMetaBlockPointer() {
 	if (capacity == 0) {
 		throw InternalException("GetMetaBlockPointer called but there is no active pointer");
 	}
-	return manager.GetDiskPointer(block.pointer, UnsafeNumericCast<uint32_t>(offset));
+	auto rust_ptr = rust::metadata::bridge::reader_get_meta_block_pointer(block.pointer.block_index, block.pointer.index, UnsafeNumericCast<uint32_t>(offset));
+	return rust::ToCppMetaBlockPointer(rust_ptr);
 }
 
 void MetadataReader::ReadNextBlock() {
@@ -69,20 +78,18 @@ void MetadataReader::ReadNextBlock(QueryContext context) {
 	index = next_disk_pointer.index;
 
 	idx_t next_block = Load<idx_t>(BasePtr());
-	if (next_block == idx_t(-1)) {
+	if (rust::metadata::bridge::chain_link_is_terminal(next_block)) {
 		has_next_block = false;
 	} else {
 		next_pointer = MetaBlockPointer(next_block, 0);
 	}
-	if (next_offset < sizeof(block_id_t)) {
-		next_offset = sizeof(block_id_t);
-	}
-	if (next_offset > GetMetadataManager().GetMetadataBlockSize()) {
+	auto [new_offset, new_capacity] = rust::metadata::bridge::compute_read_next_block_state(next_offset, GetMetadataManager().GetMetadataBlockSize());
+	if (new_offset > GetMetadataManager().GetMetadataBlockSize()) {
 		throw InternalException("next_offset cannot be bigger than block size");
 	}
-	offset = next_offset;
+	offset = new_offset;
 	next_offset = sizeof(block_id_t);
-	capacity = GetMetadataManager().GetMetadataBlockSize();
+	capacity = new_capacity;
 }
 
 data_ptr_t MetadataReader::BasePtr() {

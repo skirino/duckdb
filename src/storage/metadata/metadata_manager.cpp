@@ -1,4 +1,5 @@
 #include "duckdb/storage/metadata/metadata_manager.hpp"
+#include "metadata_rust_bridge.hpp"
 
 #include "duckdb/common/serializer/read_stream.hpp"
 #include "duckdb/common/serializer/write_stream.hpp"
@@ -45,10 +46,14 @@ string MetadataBlock::ToString() const {
 }
 
 MetadataManager::MetadataManager(BlockManager &block_manager, BufferManager &buffer_manager)
-    : block_manager(block_manager), buffer_manager(buffer_manager) {
+    : block_manager(block_manager), buffer_manager(buffer_manager), metadata_state(nullptr) {
+	metadata_state = rust::metadata::bridge::new_metadata_manager();
 }
 
 MetadataManager::~MetadataManager() {
+	if (metadata_state != nullptr) {
+		rust::metadata::bridge::delete_metadata_manager(static_cast<rust::MetadataManagerState *>(metadata_state));
+	}
 }
 
 MetadataHandle MetadataManager::AllocateHandle() {
@@ -109,14 +114,6 @@ MetadataHandle MetadataManager::Pin(const QueryContext &context, const MetadataP
 			throw InternalException("Trying to pin block %llu - but the block did not exist", pointer.block_index);
 		}
 		auto &block = entry->second;
-#ifdef DEBUG
-		for (auto &free_block : block.free_blocks) {
-			if (free_block == pointer.index) {
-				throw InternalException("Pinning block %d.%d but it is marked as a free block", block.block_id,
-				                        free_block);
-			}
-		}
-#endif
 		block_handle = block.block;
 	}
 
@@ -194,17 +191,16 @@ void MetadataManager::AddAndRegisterBlock(unique_lock<mutex> &block_lock, Metada
 }
 
 MetaBlockPointer MetadataManager::GetDiskPointer(const MetadataPointer &pointer, uint32_t offset) {
-	idx_t block_pointer = idx_t(pointer.block_index);
-	block_pointer |= idx_t(pointer.index) << 56ULL;
-	return MetaBlockPointer(block_pointer, offset);
+	auto rust_ptr = rust::metadata::bridge::get_disk_pointer(pointer.block_index, pointer.index, offset);
+	return rust::ToCppMetaBlockPointer(rust_ptr);
 }
 
 block_id_t MetaBlockPointer::GetBlockId() const {
-	return block_id_t(block_pointer & ~(idx_t(0xFF) << 56ULL));
+	return rust::ToRustMetaBlockPointer(*this).get_block_id();
 }
 
 uint32_t MetaBlockPointer::GetBlockIndex() const {
-	return block_pointer >> 56ULL;
+	return rust::ToRustMetaBlockPointer(*this).get_block_index();
 }
 
 MetadataPointer MetadataManager::FromDiskPointer(MetaBlockPointer pointer) {
@@ -213,12 +209,13 @@ MetadataPointer MetadataManager::FromDiskPointer(MetaBlockPointer pointer) {
 }
 
 MetadataPointer MetadataManager::FromDiskPointerInternal(unique_lock<mutex> &block_lock, MetaBlockPointer pointer) {
-	auto block_id = pointer.GetBlockId();
-	auto index = pointer.GetBlockIndex();
+	auto rust_ptr = rust::ToRustMetaBlockPointer(pointer);
+	auto index = rust_ptr.get_block_index();
 	if (index >= METADATA_BLOCK_COUNT) {
 		throw IOException("Metadata block index %llu exceeds metadata block count %llu", index, METADATA_BLOCK_COUNT);
 	}
 
+	auto block_id = rust_ptr.get_block_id();
 	auto entry = blocks.find(block_id);
 	if (entry == blocks.end()) { // LCOV_EXCL_START
 		throw InternalException("Failed to load metadata pointer (id %llu, idx %llu, ptr %llu)\n", block_id, index,
@@ -233,7 +230,8 @@ MetadataPointer MetadataManager::FromDiskPointerInternal(unique_lock<mutex> &blo
 MetadataPointer MetadataManager::RegisterDiskPointer(MetaBlockPointer pointer) {
 	unique_lock<mutex> guard(block_lock);
 
-	auto block_id = pointer.GetBlockId();
+	auto rust_ptr = rust::ToRustMetaBlockPointer(pointer);
+	auto block_id = rust_ptr.get_block_id();
 	MetadataBlock block;
 	block.block_id = block_id;
 	AddAndRegisterBlock(guard, std::move(block));
@@ -241,33 +239,24 @@ MetadataPointer MetadataManager::RegisterDiskPointer(MetaBlockPointer pointer) {
 }
 
 BlockPointer MetadataManager::ToBlockPointer(MetaBlockPointer meta_pointer, const idx_t metadata_block_size) {
-	auto index = meta_pointer.GetBlockIndex();
-	if (index >= MetadataManager::METADATA_BLOCK_COUNT) {
-		throw IOException("Metadata block index %llu exceeds metadata block count %llu", index,
-		                  MetadataManager::METADATA_BLOCK_COUNT);
+	auto rust_meta = rust::ToRustMetaBlockPointer(meta_pointer);
+	auto rust_result = rust::metadata::bridge::to_block_pointer(rust_meta, metadata_block_size);
+	if (!rust_result.has_value()) {
+		throw IOException("Metadata block index %llu exceeds metadata block count %llu",
+		                 rust_meta.get_block_index(),
+		                 MetadataManager::METADATA_BLOCK_COUNT);
 	}
-	BlockPointer result;
-	result.block_id = meta_pointer.GetBlockId();
-	result.offset = index * NumericCast<uint32_t>(metadata_block_size) + meta_pointer.offset;
-	D_ASSERT(result.offset < metadata_block_size * MetadataManager::METADATA_BLOCK_COUNT);
-	return result;
+	return rust::ToCppBlockPointer(rust_result.value());
 }
 
 MetaBlockPointer MetadataManager::FromBlockPointer(BlockPointer block_pointer, const idx_t metadata_block_size) {
-	if (!block_pointer.IsValid()) {
-		return MetaBlockPointer();
-	}
-	idx_t index = block_pointer.offset / metadata_block_size;
-	auto offset = block_pointer.offset % metadata_block_size;
-	if (index >= MetadataManager::METADATA_BLOCK_COUNT) {
+	auto rust_block = rust::ToRustBlockPointer(block_pointer);
+	auto rust_result = rust::metadata::bridge::from_block_pointer(rust_block, metadata_block_size);
+	if (!rust_result.has_value()) {
 		throw IOException("Metadata block offset %llu exceeds metadata block capacity %llu", block_pointer.offset,
-		                  metadata_block_size * MetadataManager::METADATA_BLOCK_COUNT);
+		                 metadata_block_size * MetadataManager::METADATA_BLOCK_COUNT);
 	}
-	D_ASSERT(offset < metadata_block_size);
-	MetaBlockPointer result;
-	result.block_pointer = idx_t(block_pointer.block_id) | index << 56ULL;
-	result.offset = UnsafeNumericCast<uint32_t>(offset);
-	return result;
+	return rust::ToCppMetaBlockPointer(rust_result.value());
 }
 
 idx_t MetadataManager::BlockCount() {
@@ -342,7 +331,7 @@ void MetadataBlock::Write(WriteStream &sink) {
 }
 
 idx_t MetadataManager::GetMetadataBlockSize() const {
-	return AlignValueFloor(block_manager.GetBlockSize() / METADATA_BLOCK_COUNT);
+	return rust::metadata::bridge::get_metadata_block_size(block_manager.GetBlockSize());
 }
 
 MetadataBlock MetadataBlock::Read(ReadStream &source) {
@@ -354,25 +343,14 @@ MetadataBlock MetadataBlock::Read(ReadStream &source) {
 }
 
 idx_t MetadataBlock::FreeBlocksToInteger() {
-	idx_t result = 0;
-	for (idx_t i = 0; i < free_blocks.size(); i++) {
-		D_ASSERT(free_blocks[i] < idx_t(64));
-		idx_t mask = idx_t(1) << idx_t(free_blocks[i]);
-		result |= mask;
-	}
-	return result;
+	return rust::metadata::bridge::free_blocks_to_integer(free_blocks.data(), free_blocks.size());
 }
 
 vector<uint8_t> MetadataBlock::BlocksFromInteger(idx_t free_list) {
-	vector<uint8_t> blocks;
-	for (idx_t i = 64; i > 0; i--) {
-		auto index = i - 1;
-		idx_t mask = idx_t(1) << index;
-		if (free_list & mask) {
-			blocks.push_back(UnsafeNumericCast<uint8_t>(index));
-		}
-	}
-	return blocks;
+	std::vector<std::uint8_t> result;
+	auto list = rust::metadata::bridge::blocks_from_integer(free_list);
+	rust::CopyBlockList(list, result);
+	return result;
 }
 
 void MetadataBlock::FreeBlocksFromInteger(idx_t free_list) {
@@ -380,7 +358,8 @@ void MetadataBlock::FreeBlocksFromInteger(idx_t free_list) {
 	if (free_list == 0) {
 		return;
 	}
-	free_blocks = BlocksFromInteger(free_list);
+	auto list = rust::metadata::bridge::free_blocks_from_integer(free_list);
+	rust::CopyBlockList(list, free_blocks);
 }
 
 void MetadataManager::MarkBlocksAsModified() {
@@ -394,7 +373,7 @@ void MetadataManager::MarkBlocksAsModified() {
 		auto &block = entry->second;
 		idx_t current_free_blocks = block.FreeBlocksToInteger();
 		// merge the current set of free blocks with the modified blocks
-		idx_t new_free_blocks = current_free_blocks | modified_list;
+		idx_t new_free_blocks = rust::metadata::bridge::merge_modified_free_blocks(current_free_blocks, modified_list);
 		if (new_free_blocks == NumericLimits<idx_t>::Maximum()) {
 			// if new free_blocks is all blocks - mark entire block as modified
 			blocks.erase(entry);
@@ -413,7 +392,7 @@ void MetadataManager::MarkBlocksAsModified() {
 	for (auto &kv : blocks) {
 		auto &block = kv.second;
 		idx_t free_list = block.FreeBlocksToInteger();
-		idx_t occupied_list = ~free_list;
+		idx_t occupied_list = rust::metadata::bridge::occupied_blocks(free_list);
 		modified_blocks[block.block_id] = occupied_list;
 	}
 }
@@ -424,21 +403,23 @@ void MetadataManager::ClearModifiedBlocks(const vector<MetaBlockPointer> &pointe
 	}
 	unique_lock<mutex> guard(block_lock);
 	for (auto &pointer : pointers) {
-		auto block_id = pointer.GetBlockId();
-		auto block_index = pointer.GetBlockIndex();
+		auto rust_ptr = rust::ToRustMetaBlockPointer(pointer);
+		auto block_id = rust_ptr.get_block_id();
+		auto block_index = rust_ptr.get_block_index();
 		auto entry = modified_blocks.find(block_id);
 		if (entry == modified_blocks.end()) {
 			throw InternalException("ClearModifiedBlocks - Block id %llu not found in modified_blocks", block_id);
 		}
 		auto &modified_list = entry->second;
 		// unset the bit
-		modified_list &= ~(1ULL << block_index);
+		modified_list = rust::metadata::bridge::clear_modified_bit(modified_list, block_index);
 	}
 }
 
 bool MetadataManager::BlockIsModified(const MetaBlockPointer &pointer) {
 	unique_lock<mutex> guard(block_lock);
-	auto block_id = pointer.GetBlockId();
+	auto rust_ptr = rust::ToRustMetaBlockPointer(pointer);
+	auto block_id = rust_ptr.get_block_id();
 	auto entry = blocks.find(block_id);
 	if (entry == blocks.end()) {
 		throw InternalException("BlockIsNotModified - Block id %llu not found in blocks", block_id);
@@ -449,18 +430,19 @@ bool MetadataManager::BlockIsModified(const MetaBlockPointer &pointer) {
 
 bool MetadataManager::BlockHasBeenCleared(const MetaBlockPointer &pointer) {
 	unique_lock<mutex> guard(block_lock);
-	auto block_id = pointer.GetBlockId();
-	auto block_index = pointer.GetBlockIndex();
+	auto rust_ptr = rust::ToRustMetaBlockPointer(pointer);
+	auto block_id = rust_ptr.get_block_id();
+	auto block_index = rust_ptr.get_block_index();
 	auto entry = modified_blocks.find(block_id);
 	if (entry == modified_blocks.end()) {
 		throw InternalException("BlockHasBeenCleared - Block id %llu not found in modified_blocks", block_id);
 	}
 	auto &modified_list = entry->second;
-	return (modified_list & (1ULL << block_index)) == 0ULL;
+	return rust::metadata::bridge::bit_is_cleared(modified_list, block_index);
 }
 
 vector<MetadataBlockInfo> MetadataManager::GetMetadataInfo() const {
-	vector<MetadataBlockInfo> result;
+	std::vector<MetadataBlockInfo> result;
 	unique_lock<mutex> guard(block_lock);
 	for (auto &block : blocks) {
 		MetadataBlockInfo block_info;
@@ -478,7 +460,7 @@ vector<MetadataBlockInfo> MetadataManager::GetMetadataInfo() const {
 }
 
 vector<shared_ptr<BlockHandle>> MetadataManager::GetBlocks() const {
-	vector<shared_ptr<BlockHandle>> result;
+	std::vector<shared_ptr<BlockHandle>> result;
 	unique_lock<mutex> guard(block_lock);
 	for (auto &entry : blocks) {
 		result.push_back(entry.second.block);

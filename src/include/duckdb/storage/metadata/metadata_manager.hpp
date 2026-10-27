@@ -101,6 +101,7 @@ protected:
 	mutable mutex block_lock;
 	unordered_map<block_id_t, MetadataBlock> blocks;
 	unordered_map<block_id_t, idx_t> modified_blocks;
+	void *metadata_state;
 
 protected:
 	block_id_t AllocateNewBlock(unique_lock<mutex> &block_lock);
