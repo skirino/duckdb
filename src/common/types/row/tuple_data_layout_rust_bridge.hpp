@@ -20,9 +20,9 @@
 namespace duckdb {
 
 namespace rust {
-using ahirudb::tuple_data_layout::ColumnDesc;
-using ahirudb::tuple_data_layout::LayoutResult;
-using ahirudb::tuple_data_layout::compute_layout;
+using ahirudb::tuple_data::layout::ColumnDesc;
+using ahirudb::tuple_data::layout::LayoutResult;
+using ahirudb::tuple_data::layout::compute_layout;
 } // namespace rust
 
 } // namespace duckdb
