@@ -7,10 +7,6 @@
 // the crubit-generated bindings are only included from the sources in `src/common/multi_file`, and
 // `multi_file_data.hpp` and `multi_file_list.hpp` are included by every reader extension.
 //
-// What is here is the seam: the C++ structs keep their members and their virtual functions, and the rules over those
-// members - which index is valid, what a filter entry means, how many files a list has, and when its expansion is over
-// - are the Rust module's. The conversions below are the whole of the glue.
-//
 //===----------------------------------------------------------------------===//
 
 #pragma once
@@ -28,8 +24,48 @@ namespace duckdb {
 //! multi_file_rust_bridge.cpp, where `rs::alloc::string::String` is complete.
 [[noreturn]] void ThrowMultiFileError(const ::rs::alloc::string::String &error);
 
-//! Every call into the Rust module funnels its result through here, so that the message the kernel wrote is what
-//! surfaces. A Rust error is a value rather than a throw, because a throw cannot cross the boundary.
+//===--------------------------------------------------------------------===//
+// Call scope bookkeeping (mirrors row_operations)
+//===--------------------------------------------------------------------===//
+
+namespace multi_file_bridge {
+
+//! Marks the [`CallIntoRust`] invocation that a multi-file trampoline error may be attributed to.
+class CallScope {
+public:
+	CallScope();
+	~CallScope();
+
+private:
+	friend void RethrowPendingError(const CallScope &call_scope);
+
+	//! Identifies this call
+	uint64_t index;
+	//! The scope that was active before this one
+	uint64_t previous;
+};
+
+//! Rethrows the exception that a trampoline caught during `call_scope`, if any.
+void RethrowPendingError(const CallScope &call_scope);
+//! Discards the exception a trampoline caught during a call that never came back through `CallIntoRust`.
+void ClearPendingError();
+
+//! Runs `fn` and rethrows the exception that a trampoline caught on this thread.
+template <class F>
+auto CallIntoRust(F &&fn) -> decltype(fn()) {
+	ClearPendingError();
+	CallScope call_scope;
+	if constexpr (std::is_void_v<decltype(fn())>) {
+		fn();
+		RethrowPendingError(call_scope);
+	} else {
+		auto result = fn();
+		RethrowPendingError(call_scope);
+		return result;
+	}
+}
+
+//! Unwraps a Rust `Result`, turning an `Err` message into an exception.
 template <class T>
 T ThrowOnMultiFileError(rs_std::Result<T, ::rs::alloc::string::String> &&result) {
 	if (!result.has_value()) {
@@ -38,9 +74,26 @@ T ThrowOnMultiFileError(rs_std::Result<T, ::rs::alloc::string::String> &&result)
 	return std::move(result).value();
 }
 
-//! The Rust kernels of the multi-file module, in the shape the C++ call sites use them. Each is named after the C++
-//! method it backs, and each is reached through the module it lives in rather than a re-export, so there is one
-//! spelling of it in the tree.
+//! The same, for the entry points that return nothing.
+inline void ThrowOnMultiFileError(rs_std::Result<rs_std::unit_t, ::rs::alloc::string::String> &&result) {
+	if (!result.has_value()) {
+		ThrowMultiFileError(result.err());
+	}
+}
+
+} // namespace multi_file_bridge
+
+using multi_file_bridge::CallScope;
+using multi_file_bridge::CallIntoRust;
+using multi_file_bridge::RethrowPendingError;
+using multi_file_bridge::ClearPendingError;
+using multi_file_bridge::ThrowOnMultiFileError;
+
+//===--------------------------------------------------------------------===//
+// Rust module bindings
+//===--------------------------------------------------------------------===//
+
+//! The Rust kernels of the multi-file module, in the shape the C++ call sites use them.
 namespace rust {
 using ahirudb::multi_file::data::constant_map_get;
 using ahirudb::multi_file::data::filter_entry_get_constant_index;
@@ -61,16 +114,22 @@ using ahirudb::multi_file::list::FileExpansionType;
 using ahirudb::multi_file::list::MultiFileCount;
 using ahirudb::multi_file::list::MultiFileListScanType;
 using ahirudb::multi_file::list::scan_fetches_unconditionally;
+
+using ahirudb::multi_file::reader::PreOpenConstantKind;
+using ahirudb::multi_file::reader::PreOpenConstantResult;
+using ahirudb::multi_file::reader::resolve_pre_open_constant;
+using ahirudb::multi_file::reader::resolve_pre_open_constant_with_file_index;
+
+using ahirudb::multi_file::column_mapper::ColumnMappingOutcome;
+using ahirudb::multi_file::column_mapper::ColumnPlanEntry;
+using ahirudb::multi_file::column_mapper::FilterConversion;
+using ahirudb::multi_file::column_mapper::is_trivially_mappable;
+using ahirudb::multi_file::column_mapper::is_trivially_mappable_with_check;
 } // namespace rust
 
-//! A `MultiFileFilterEntry` as the Rust layout - its three members and nothing else - and back.
-//!
-//! It is a friend of the entry rather than a free function, so that the three members stay private: an extension
-//! that includes the public header can call `Set`, `IsSet` and the index getters, and can touch the fields only through
-//! this struct - which is defined here, in a header no extension includes.
+//! A `MultiFileFilterEntry` as the Rust layout
 struct MultiFileFilterEntryAccess {
 	static rust::MultiFileFilterEntryLayout ToRust(const MultiFileFilterEntry &entry) {
-		// built in one step, rather than default-constructed across the boundary and then overwritten field by field
 		return rust::MultiFileFilterEntryLayout::new_(entry.is_set, entry.is_constant, entry.index);
 	}
 
@@ -81,9 +140,7 @@ struct MultiFileFilterEntryAccess {
 	}
 };
 
-//! Rust enum -> C++ enum. Not a `static_cast`: crubit models a fieldless enum as a tagged union whose payload is
-//! private, so each variant is named and anything else is refused - the same shape as `ToRustScanType` below, so an
-//! enum that gains or reorders a variant fails here rather than yielding the wrong value.
+//! Rust enum -> C++ enum conversions
 inline FileExpandResult ToCppExpandResult(rust::FileExpandResult result) {
 	if (result == rust::FileExpandResult::MakeNO_FILES()) {
 		return FileExpandResult::NO_FILES;
@@ -107,8 +164,6 @@ inline FileExpansionType ToCppExpansionType(rust::FileExpansionType type) {
 	throw InternalException("Unknown file expansion type");
 }
 
-//! Not a `static_cast`: crubit models a fieldless enum as a tagged union whose payload is private, so a Rust enum is
-//! built from the variant it stands for.
 inline rust::MultiFileListScanType ToRustScanType(MultiFileListScanType scan_type) {
 	switch (scan_type) {
 	case MultiFileListScanType::ALWAYS_FETCH:
@@ -120,8 +175,6 @@ inline rust::MultiFileListScanType ToRustScanType(MultiFileListScanType scan_typ
 	}
 }
 
-//! The Rust count, as the C++ pair it replaces. `MultiFileCount`'s `type` says whether `count` is exact, which the C++
-//! struct carries as a second member for the same reason.
 inline MultiFileCount FromRust(const rust::MultiFileCount &result) {
 	return MultiFileCount(result.get_count(), ToCppExpansionType(result.get_type()));
 }

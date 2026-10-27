@@ -11,43 +11,38 @@
 //!
 //! - [`data`]: `multi_file_data.hpp` — the index rules and the maps over them
 //! - [`list`]: `multi_file_list.hpp` — the rules a file list answers with
+//! - [`reader`]: `MultiFileReader` decision kernels (option parsing, bind planning,
+//!   pre-open constants like filename/hive extraction, skip/prune/partition decisions)
+//! - [`column_mapper`]: `MultiFileColumnMapper` mapping-plan kernels over flattened
+//!   column arenas
+//! - [`union_by_name`]: union-by-name merge decisions
+//! - [`ops`]: the `MultiFileOps` vtable of trampolines into C++ for facts only C++ has
 //!
 //! # The structs stay in C++
 //!
 //! Only the sources in `src/common/multi_file` may include `crubit/ahirudb.h`,
-//! and `multi_file_data.hpp` and `multi_file_list.hpp` are public headers that
-//! every reader extension includes. So the structs stay where they are, holding
-//! their `idx_t` members, and this module holds the rules over those members.
+//! and `multi_file_data.hpp` and `multi_file_list.hpp` are included by every reader extension.
+//! The structs stay where they are holding their members; this module holds the rules over them.
 //! `multi_file_rust_bridge.hpp` is the one place that knows both sides.
 //!
-//! # What stays in C++, and why
+//! # Ops table contract
 //!
-//! Everything else under `src/common/multi_file` stays where it is, because
-//! crossing it needs a type that is not ported yet:
-//!
-//! - `MultiFileColumnDefinition` holds a `LogicalType`, a `ParsedExpression`
-//!   and nested definitions of its own
-//! - `MultiFileConstantEntry` holds a `Value`
-//! - `HivePartitioningIndex` is serialized through `common/serializer`
-//! - the file list itself stores `OpenFileInfo`, resolves globs through
-//!   `FileSystem` and is driven through virtual dispatch
-//! - `MultiFileReader`, `MultiFileColumnMapper` and `MultiFileFunction` are
-//!   virtual classes over `ClientContext`, `TableFilterSet`, `Expression` and
-//!   the execution pipeline
-//!
-//! The seam is the one the design asks for: the arithmetic moves, the objects
-//! that own it stay.
+//! Kernels call back to C++ via [`ops::MultiFileOps`] for operations that need unported
+//! types (`LogicalType`, `Value`, filter evaluation, etc.). The table is set once by C++
+//! via `duckdb_multi_file_set_ops` and then treated as immutable. All trampolines must
+//! be wrapped by the call-scope machinery so C++ exceptions unwind safely back to the
+//! C++ entry point.
 //!
 //! # Panics
 //!
-//! Nothing here is reachable from C++ with a panic: an index that is not valid,
-//! or one that is out of range, is an `Err` rather than a panic, and the bridge
-//! turns it into the `InternalException` the original code threw. The one rule
-//! this module adds is where the C++ had none: an index into
-//! `MultiFileLocalColumnIds`, `MultiFileFilterMap` or `MultiFileConstantMap` is
-//! checked before it is used.
+//! Nothing here is reachable from C++ with a panic: errors are returned as `Result` and
+//! the bridge turns them into `InternalException`. Indices are checked before use.
 
 #![deny(unsafe_code)]
 
+pub mod column_mapper;
 pub mod data;
 pub mod list;
+pub mod ops;
+pub mod reader;
+pub mod union_by_name;

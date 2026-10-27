@@ -103,6 +103,40 @@ int main() {
 		const auto entry = data::MultiFileFilterEntryLayout::new_(true, true, 5);
 		Check(entry.is_set && entry.is_constant && entry.index == 5,
 		      "an entry is built from its kind and its index");
+
+		// mapping decision: filename -> hive value extraction
+		namespace reader = ahirudb::multi_file::reader;
+		namespace column_mapper = ahirudb::multi_file::column_mapper;
+		{
+			// filename idx hit returns FILE_NAME
+			const auto res = reader::resolve_pre_open_constant_with_file_index(5, 5, data::INVALID_INDEX, 10, 0, false);
+			Check(res.has_value() && res.value().kind == reader::PreOpenConstantKind::MakeFILE_NAME(),
+			      "filename idx hit returns FILE_NAME");
+			// COLUMN_IDENTIFIER_FILE_INDEX returns FILE_INDEX
+			const auto res2 = reader::resolve_pre_open_constant_with_file_index(3, data::INVALID_INDEX, 3, 10, 0, false);
+			Check(res2.has_value() && res2.value().kind == reader::PreOpenConstantKind::MakeFILE_INDEX(),
+			      "file index returns FILE_INDEX");
+			// hive entry returns HIVE_KEY
+			const auto res3 = reader::resolve_pre_open_constant_with_file_index(7, data::INVALID_INDEX, data::INVALID_INDEX, 10, 2, true);
+			Check(res3.has_value() && res3.value().kind == reader::PreOpenConstantKind::MakeHIVE_KEY() && res3.value().hive_key_index == 2,
+			      "hive entry returns HIVE_KEY");
+			// unrelated returns NONE
+			const auto res4 = reader::resolve_pre_open_constant_with_file_index(7, 5, 3, 10, 0, false);
+			Check(res4.has_value() && res4.value().kind == reader::PreOpenConstantKind::MakeNONE(),
+			      "unrelated column returns NONE");
+			// invalid id refused
+			const auto res5 = reader::resolve_pre_open_constant_with_file_index(data::INVALID_INDEX, 5, 3, 10, 0, false);
+			Check(!res5.has_value(), "invalid id is refused rather than unwrapped");
+		}
+
+		// T2 crossing: is_trivially_mappable with ops callback
+		{
+			void *dummy1 = reinterpret_cast<void *>(0x1);
+			void *dummy2 = reinterpret_cast<void *>(0x1);
+			Check(column_mapper::is_trivially_mappable(dummy1, dummy2), "type_eq driven trivially mappable with same pointer");
+			void *dummy3 = reinterpret_cast<void *>(0x2);
+			Check(!column_mapper::is_trivially_mappable(dummy1, dummy3), "different pointers not trivially mappable");
+		}
 	}
 
 	using ahirudb::logging::LogLevel;
